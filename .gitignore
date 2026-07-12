@@ -20,3 +20,15 @@ venv/
 
 # OS
 .DS_Store
+
+# Next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+
+# Supabase
+/supabase/.temp/
+/supabase/.branches/

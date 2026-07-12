@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Romy's Kitchen — design system
+   Basil-on-warm-paper. One accent (basil); food photography
+   carries the colour. Tokens are the single source of truth —
+   never hardcode a value, route it through a token.
+   ============================================================ */
+
+:root {
+  --paper: #f1f2ec;
+  --surface: #ffffff;
+  --surface-2: #fafaf6;
+  --ink: #17201a;
+  --ink-2: #49554b;
+  --ink-3: #7e877e;
+  --line: #e3e5dc;
+  --line-2: #edeee7;
+  --basil: #1e5a43;
+  --basil-2: #2c7c5c;
+  --basil-tint: #e6efe9;
+  --heart: #c6553f;
+  --danger: #b8402f;
+  --shadow-sm: 0 1px 2px rgba(23, 32, 26, 0.04), 0 4px 12px rgba(23, 32, 26, 0.05);
+  --shadow: 0 1px 2px rgba(23, 32, 26, 0.04), 0 8px 24px rgba(23, 32, 26, 0.06);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-lg: 26px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #101210;
+    --surface: #1a1d18;
+    --surface-2: #22261f;
+    --ink: #eae9e1;
+    --ink-2: #a8aea3;
+    --ink-3: #767d72;
+    --line: #2a2e27;
+    --line-2: #23271f;
+    --basil: #63bb90;
+    --basil-2: #7acba3;
+    --basil-tint: #1c2721;
+    --heart: #e0745c;
+    --danger: #e0745c;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.35);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme="light"] {
+  --paper: #f1f2ec;
+  --surface: #ffffff;
+  --surface-2: #fafaf6;
+  --ink: #17201a;
+  --ink-2: #49554b;
+  --ink-3: #7e877e;
+  --line: #e3e5dc;
+  --line-2: #edeee7;
+  --basil: #1e5a43;
+  --basil-2: #2c7c5c;
+  --basil-tint: #e6efe9;
+  --heart: #c6553f;
+  --danger: #b8402f;
+  --shadow-sm: 0 1px 2px rgba(23, 32, 26, 0.04), 0 4px 12px rgba(23, 32, 26, 0.05);
+  --shadow: 0 1px 2px rgba(23, 32, 26, 0.04), 0 8px 24px rgba(23, 32, 26, 0.06);
+}
+
+:root[data-theme="dark"] {
+  --paper: #101210;
+  --surface: #1a1d18;
+  --surface-2: #22261f;
+  --ink: #eae9e1;
+  --ink-2: #a8aea3;
+  --ink-3: #767d72;
+  --line: #2a2e27;
+  --line-2: #23271f;
+  --basil: #63bb90;
+  --basil-2: #7acba3;
+  --basil-tint: #1c2721;
+  --heart: #e0745c;
+  --danger: #e0745c;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-basil: var(--basil);
+  --color-basil-2: var(--basil-2);
+  --color-basil-tint: var(--basil-tint);
+  --color-heart: var(--heart);
+  --color-danger: var(--danger);
+  --radius-card: var(--radius);
+  --radius-sm: var(--radius-sm);
+  --radius-lg: var(--radius-lg);
+  --font-sans: var(--font-geist-sans);
+}
+
+html {
+  height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  min-height: 100%;
+  background:
+    radial-gradient(120% 80% at 50% -8%, color-mix(in srgb, var(--basil) 7%, var(--paper)) 0%, var(--paper) 55%);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+*:focus-visible {
+  outline: 2.5px solid var(--basil);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Skeleton shimmer — used for loading states across the app */
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(100deg, var(--line-2) 30%, var(--line) 50%, var(--line-2) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite;
+  border-radius: 8px;
+}
