@@ -35,3 +35,19 @@ moment, made literal.
 
 No quiet revivals of C's home posture in V1. Cook-mode returns only as an
 explicit, scoped V2 conversation.
+
+## Evolution during Refine (Freddi, 2026-07-12)
+
+On seeing the prototype, Freddi cut the **paste bar from the home screen** — it
+was redundant with the raised ➕ in the bottom nav, which already owns capture
+and is present on every screen. This moves the home from the paste-front fusion
+toward **shelf-first (Concept A's home)**, with capture living entirely in the
+always-visible ➕. It holds up: capture never leaves reach, and the home gets to
+be the collection — the payoff Notes can't give Romy. Home now leads with
+filter chips + the photo shelf.
+
+Also settled at Refine:
+- **Imported recipes get a real cover automatically** — the Reel's thumbnail.
+  Prototype now uses Romy's three actual @emthenutritionist photos, and the
+  import-review shows the snapshot. (Closes the "photography gap" flag.)
+- **Typography:** system sans confirmed fine for V1 — no display face hunt.
