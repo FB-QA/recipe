@@ -58,6 +58,59 @@ export type Database = {
         }
         Relationships: []
       }
+      recipe_imports: {
+        Row: {
+          created_at: string
+          error: string | null
+          estimated_cost_cents: number
+          extracted: Json | null
+          id: string
+          media_url: string | null
+          method: string | null
+          recipe_id: string | null
+          source_type: Database["public"]["Enums"]["source_type"]
+          source_url: string
+          status: Database["public"]["Enums"]["import_status"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          estimated_cost_cents?: number
+          extracted?: Json | null
+          id?: string
+          media_url?: string | null
+          method?: string | null
+          recipe_id?: string | null
+          source_type: Database["public"]["Enums"]["source_type"]
+          source_url: string
+          status: Database["public"]["Enums"]["import_status"]
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          estimated_cost_cents?: number
+          extracted?: Json | null
+          id?: string
+          media_url?: string | null
+          method?: string | null
+          recipe_id?: string | null
+          source_type?: Database["public"]["Enums"]["source_type"]
+          source_url?: string
+          status?: Database["public"]["Enums"]["import_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_imports_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recipe_ingredients: {
         Row: {
           display_text: string
@@ -213,11 +266,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      imports_since: { Args: { cutoff: string }; Returns: number }
       owns_recipe: { Args: { rid: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
+      import_status: "success" | "no_recipe" | "failed"
       source_type: "manual" | "instagram" | "website"
     }
     CompositeTypes: {
@@ -349,6 +404,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      import_status: ["success", "no_recipe", "failed"],
       source_type: ["manual", "instagram", "website"],
     },
   },

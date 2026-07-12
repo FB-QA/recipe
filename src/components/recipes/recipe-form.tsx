@@ -36,10 +36,14 @@ export function RecipeForm({
   action,
   initial = EMPTY,
   submitLabel,
+  source,
+  importCoverUrl,
 }: {
   action: (prev: RecipeFormState, fd: FormData) => Promise<RecipeFormState>;
   initial?: RecipeFormInitial;
   submitLabel: string;
+  source?: { type: "instagram" | "website"; url: string | null };
+  importCoverUrl?: string | null;
 }) {
   const [state, formAction] = useActionState<RecipeFormState, FormData>(action, undefined);
 
@@ -54,7 +58,7 @@ export function RecipeForm({
   const [steps, setSteps] = useState<string[]>(initial.steps.length ? initial.steps : [""]);
   const [tips, setTips] = useState<string[]>(initial.tips);
 
-  const [preview, setPreview] = useState<string | null>(initial.coverUrl);
+  const [preview, setPreview] = useState<string | null>(importCoverUrl ?? initial.coverUrl);
   const [coverAction, setCoverAction] = useState<"keep" | "replace" | "remove">("keep");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -64,8 +68,8 @@ export function RecipeForm({
     servings: servings.trim() || null,
     prep_time: prep.trim() || null,
     cook_time: cook.trim() || null,
-    source_url: initial.source_url || null,
-    source_type: "manual" as const,
+    source_url: source?.url ?? initial.source_url ?? null,
+    source_type: source?.type ?? ("manual" as const),
     tags: [] as string[],
     ingredients: ingredients.filter((x) => x.trim()).map((t) => ({ display_text: t.trim() })),
     steps: steps.filter((x) => x.trim()).map((t) => ({ instruction: t.trim() })),
@@ -76,6 +80,13 @@ export function RecipeForm({
     <form action={formAction} className="flex flex-col gap-5 pb-4">
       <input type="hidden" name="payload" value={JSON.stringify(payload)} />
       <input type="hidden" name="coverAction" value={coverAction} />
+      {/* When importing, the untouched cover is a remote thumbnail the server
+          fetches + optimises. A chosen file or a removal overrides it. */}
+      <input
+        type="hidden"
+        name="importCoverUrl"
+        value={coverAction === "keep" ? (importCoverUrl ?? "") : ""}
+      />
 
       {/* Cover */}
       <div>

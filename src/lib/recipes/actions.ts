@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseRecipePayload, type RecipeInput } from "./schema";
-import { optimizeCover } from "@/lib/images/optimize";
+import { optimizeCover, optimizeFromUrl } from "@/lib/images/optimize";
 
 const BUCKET = "recipe-images";
 type Client = SupabaseClient<Database>;
@@ -29,6 +29,16 @@ async function uploadCover(supabase: Client, userId: string, recipeId: string, f
     .upload(path, optimized, { contentType: "image/webp", upsert: true });
   if (error) throw new Error("upload failed");
   return path;
+}
+
+async function uploadCoverFromUrl(supabase: Client, userId: string, recipeId: string, url: string) {
+  const optimized = await optimizeFromUrl(url);
+  if (!optimized) return null;
+  const path = `${userId}/${recipeId}/cover.webp`;
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, optimized, { contentType: "image/webp", upsert: true });
+  return error ? null : path;
 }
 
 async function removeRecipeFolder(supabase: Client, userId: string, recipeId: string) {
@@ -89,13 +99,17 @@ export async function createRecipe(
   if (error || !recipe) return { error: "Couldn't save the recipe. Try again." };
 
   const cover = formData.get("cover");
-  if (cover instanceof File && cover.size > 0) {
-    try {
-      const path = await uploadCover(supabase, user.id, recipe.id, cover);
-      await supabase.from("recipes").update({ cover_image_path: path }).eq("id", recipe.id);
-    } catch {
-      // Non-fatal: the recipe is saved; the cover just didn't stick.
+  const importCoverUrl = String(formData.get("importCoverUrl") ?? "").trim();
+  try {
+    let path: string | null = null;
+    if (cover instanceof File && cover.size > 0) {
+      path = await uploadCover(supabase, user.id, recipe.id, cover);
+    } else if (importCoverUrl) {
+      path = await uploadCoverFromUrl(supabase, user.id, recipe.id, importCoverUrl);
     }
+    if (path) await supabase.from("recipes").update({ cover_image_path: path }).eq("id", recipe.id);
+  } catch {
+    // Non-fatal: the recipe is saved; the cover just didn't stick.
   }
 
   await replaceChildren(supabase, recipe.id, input);

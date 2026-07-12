@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/supabase/database.types";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/reset-password", "/auth", "/welcome"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/reset-password", "/auth", "/welcome", "/test-fixtures"];
 
 /**
  * Refreshes the Supabase auth session on every request and enforces
