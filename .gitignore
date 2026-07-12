@@ -1,0 +1,22 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+build/
+*.log
+npm-debug.log*
+
+# Python (spike scripts)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
