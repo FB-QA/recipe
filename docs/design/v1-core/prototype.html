@@ -1,0 +1,505 @@
+<title>Romy's Kitchen — V1 prototype</title>
+<style>
+  :root {
+    --paper:#F1F2EC; --surface:#FFFFFF; --surface-2:#FAFAF6;
+    --ink:#17201A; --ink-2:#49554B; --ink-3:#7E877E;
+    --line:#E3E5DC; --line-2:#EDEEE7;
+    --basil:#1E5A43; --basil-2:#2C7C5C; --basil-tint:#E6EFE9;
+    --heart:#C6553F; --shadow:0 1px 2px rgba(23,32,26,.04),0 8px 24px rgba(23,32,26,.06);
+    --radius:18px; --radius-sm:12px;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#101210; --surface:#1A1D18; --surface-2:#22261F;
+      --ink:#EAE9E1; --ink-2:#A8AEA3; --ink-3:#767D72;
+      --line:#2A2E27; --line-2:#23271F;
+      --basil:#63BB90; --basil-2:#7ACBA3; --basil-tint:#1C2721;
+      --heart:#E0745C; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#F1F2EC; --surface:#FFFFFF; --surface-2:#FAFAF6;
+    --ink:#17201A; --ink-2:#49554B; --ink-3:#7E877E;
+    --line:#E3E5DC; --line-2:#EDEEE7;
+    --basil:#1E5A43; --basil-2:#2C7C5C; --basil-tint:#E6EFE9;
+    --heart:#C6553F; --shadow:0 1px 2px rgba(23,32,26,.04),0 8px 24px rgba(23,32,26,.06);
+  }
+  :root[data-theme="dark"]{
+    --paper:#101210; --surface:#1A1D18; --surface-2:#22261F;
+    --ink:#EAE9E1; --ink-2:#A8AEA3; --ink-3:#767D72;
+    --line:#2A2E27; --line-2:#23271F;
+    --basil:#63BB90; --basil-2:#7ACBA3; --basil-tint:#1C2721;
+    --heart:#E0745C; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:var(--sans); background:
+      radial-gradient(120% 80% at 50% -10%, color-mix(in srgb,var(--basil) 8%,var(--paper)) 0%, var(--paper) 55%);
+    color:var(--ink); min-height:100vh; -webkit-font-smoothing:antialiased;
+    display:flex; flex-direction:column; align-items:center; gap:18px; padding:26px 14px 60px;
+  }
+  /* ---- review chrome (outside the phone) ---- */
+  .review-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;max-width:440px}
+  .review-bar .lbl{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);margin-right:4px}
+  .jump{font:inherit;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--surface);
+    border:1px solid var(--line);padding:6px 11px;border-radius:999px;cursor:pointer;transition:.15s}
+  .jump:hover{border-color:var(--basil);color:var(--basil)}
+  .jump[aria-current="true"]{background:var(--basil);color:#fff;border-color:var(--basil)}
+  :root[data-theme="dark"] .jump[aria-current="true"],
+  @media (prefers-color-scheme:dark){}
+  .theme-toggle{margin-left:2px}
+  .caption{max-width:400px;text-align:center;color:var(--ink-3);font-size:12.5px;line-height:1.5}
+
+  /* ---- phone ---- */
+  .phone{
+    width:400px;max-width:100%;height:820px;background:var(--paper);border-radius:44px;
+    box-shadow:var(--shadow),0 0 0 1px var(--line); position:relative;overflow:hidden;
+    display:flex;flex-direction:column;
+  }
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:130px;height:26px;
+    background:var(--ink);border-radius:0 0 16px 16px;z-index:60;opacity:.9}
+  @media (prefers-color-scheme:dark){.notch{background:#000}}
+  .status{height:44px;display:flex;align-items:flex-end;justify-content:space-between;
+    padding:0 26px 4px;font-size:12.5px;font-weight:600;color:var(--ink);flex:none}
+  .status .r{display:flex;gap:6px;align-items:center}
+
+  .viewport{flex:1;position:relative;overflow:hidden}
+  .screen{position:absolute;inset:0;overflow-y:auto;padding:6px 18px 96px;
+    opacity:0;visibility:hidden;transform:translateY(8px);
+    transition:opacity .28s ease,transform .28s ease,visibility .28s}
+  .screen.active{opacity:1;visibility:visible;transform:none}
+  .screen::-webkit-scrollbar{width:0}
+  @media (prefers-reduced-motion:reduce){.screen{transition:none}}
+
+  /* headers */
+  .top{display:flex;align-items:center;justify-content:space-between;padding:10px 2px 14px}
+  .word{font-size:22px;font-weight:800;letter-spacing:-.02em}
+  .word small{display:block;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--ink-3);margin-top:1px}
+  .icon-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--surface);
+    display:grid;place-items:center;cursor:pointer;color:var(--ink-2);font-size:16px}
+  .h2{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);
+    display:flex;justify-content:space-between;align-items:center;margin:20px 2px 12px}
+  .h2 a{color:var(--basil);text-transform:none;letter-spacing:0;font-size:13px;text-decoration:none;font-weight:600}
+
+  /* paste hero */
+  .paste{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;box-shadow:var(--shadow)}
+  .paste .field{display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:var(--radius-sm);padding:13px 14px;color:var(--ink-3);font-size:15px;cursor:text}
+  .paste .field .lk{color:var(--basil);font-size:16px}
+  .sources{display:flex;gap:7px;margin-top:11px}
+  .src{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 4px;border-radius:var(--radius-sm);
+    border:1px solid var(--line);background:var(--surface-2);cursor:pointer;transition:.15s}
+  .src:hover{border-color:var(--basil);background:var(--basil-tint)}
+  .src .e{font-size:19px}
+  .src .t{font-size:12px;font-weight:600;color:var(--ink-2)}
+
+  /* shelf grid */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+    cursor:pointer;box-shadow:var(--shadow);transition:transform .18s ease}
+  .card:active{transform:scale(.975)}
+  .cover{height:118px;position:relative;display:flex;align-items:flex-end;padding:9px}
+  .cover .fav{position:absolute;top:9px;right:9px;width:28px;height:28px;border-radius:50%;
+    background:rgba(255,255,255,.82);display:grid;place-items:center;font-size:13px;color:var(--heart)}
+  .cover .tag{font-size:10.5px;font-weight:700;letter-spacing:.03em;color:#fff;background:rgba(20,28,22,.55);
+    padding:3px 7px;border-radius:999px;backdrop-filter:blur(4px)}
+  .card .meta{padding:10px 12px 13px}
+  .card .meta h3{font-size:14.5px;font-weight:700;line-height:1.25;letter-spacing:-.01em;text-wrap:balance}
+  .card .meta .sub{margin-top:5px;font-size:12px;color:var(--ink-3);display:flex;gap:9px;font-variant-numeric:tabular-nums}
+  .cv1{background:linear-gradient(135deg,#7FA98C,#3C6B52)}
+  .cv2{background:linear-gradient(135deg,#E0A4A0,#B96A78)}
+  .cv3{background:linear-gradient(135deg,#D8B26A,#B07C3E)}
+  .cv4{background:linear-gradient(135deg,#8FB0B6,#4E7E82)}
+  .cover .emoji{position:absolute;top:50%;left:50%;transform:translate(-50%,-58%);font-size:40px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.2))}
+
+  /* empty state */
+  .empty{text-align:center;padding:46px 22px;background:var(--surface);border:1px dashed var(--line-2);
+    border-radius:var(--radius);margin-top:6px}
+  .empty .ill{width:70px;height:70px;border-radius:22px;margin:0 auto 16px;display:grid;place-items:center;
+    font-size:32px;background:var(--basil-tint)}
+  .empty h3{font-size:17px;font-weight:750;letter-spacing:-.01em}
+  .empty p{margin-top:8px;color:var(--ink-2);font-size:13.5px;line-height:1.55}
+
+  /* bottom nav */
+  .nav{position:absolute;bottom:0;left:0;right:0;height:76px;background:color-mix(in srgb,var(--surface) 88%,transparent);
+    backdrop-filter:blur(16px);border-top:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-around;padding-bottom:10px;z-index:40}
+  .nav button{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:var(--ink-3);font:inherit;font-size:10.5px;font-weight:600;padding:6px 10px}
+  .nav button .ic{font-size:19px;line-height:1}
+  .nav button.on{color:var(--basil)}
+  .nav .add{margin-top:-26px}
+  .nav .add .ic{width:52px;height:52px;border-radius:50%;background:var(--basil);color:#fff;display:grid;place-items:center;
+    font-size:26px;box-shadow:0 6px 16px color-mix(in srgb,var(--basil) 45%,transparent)}
+
+  /* buttons */
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:14px;
+    border:none;background:var(--basil);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:.15s}
+  .btn:hover{background:var(--basil-2)}
+  .btn.ghost{background:transparent;color:var(--basil);border:1px solid var(--line)}
+  .btn:active{transform:scale(.985)}
+
+  /* detail */
+  .hero-cover{height:250px;margin:0 -18px;position:relative;display:flex;align-items:flex-end;padding:18px}
+  .hero-cover .back{position:absolute;top:14px;left:16px;width:38px;height:38px;border-radius:50%;
+    background:rgba(255,255,255,.85);border:none;display:grid;place-items:center;font-size:18px;cursor:pointer}
+  .hero-cover .acts{position:absolute;top:14px;right:16px;display:flex;gap:8px}
+  .hero-cover .acts button{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.85);border:none;
+    display:grid;place-items:center;font-size:16px;cursor:pointer;color:var(--ink)}
+  .hero-cover h1{position:relative;color:#fff;font-size:26px;font-weight:800;line-height:1.12;letter-spacing:-.02em;
+    text-shadow:0 2px 12px rgba(0,0,0,.35);text-wrap:balance}
+  .metrics{display:flex;gap:8px;margin:16px 0}
+  .metric{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center}
+  .metric .n{font-size:16px;font-weight:750;font-variant-numeric:tabular-nums}
+  .metric .l{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-top:3px}
+  .ingredients{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:6px}
+  .ing{display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--line-2);font-size:14px}
+  .ing:last-child{border-bottom:none}
+  .ing .q{font-weight:650;font-variant-numeric:tabular-nums;color:var(--ink);min-width:64px}
+  .ing .n{color:var(--ink-2)}
+  .steps{counter-reset:s;margin-top:6px;display:flex;flex-direction:column;gap:12px}
+  .step{display:flex;gap:13px}
+  .step .num{counter-increment:s;flex:none;width:28px;height:28px;border-radius:50%;background:var(--basil-tint);color:var(--basil);
+    font-weight:750;font-size:13px;display:grid;place-items:center}
+  .step .num::before{content:counter(s)}
+  .step p{font-size:14px;line-height:1.5;color:var(--ink-2);padding-top:3px}
+  .tip{background:var(--basil-tint);border-radius:14px;padding:14px 16px;margin-top:14px;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+  .tip b{color:var(--basil)}
+
+  /* review (import) */
+  .review-head{display:flex;align-items:center;gap:10px;padding:10px 0 4px}
+  .review-head .src-badge{display:inline-flex;gap:6px;align-items:center;background:var(--basil-tint);color:var(--basil);
+    font-size:12px;font-weight:650;padding:6px 11px;border-radius:999px}
+  .field-row{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:9px}
+  .field-row label{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:5px}
+  .field-row .val{font-size:15px;font-weight:600}
+  .field-row.editable .val{color:var(--ink)}
+  .miss{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+  .chip-add{font:inherit;font-size:13px;font-weight:600;color:var(--basil);background:var(--basil-tint);border:1px dashed color-mix(in srgb,var(--basil) 40%,transparent);
+    padding:8px 12px;border-radius:999px;cursor:pointer}
+  .banner{display:flex;gap:10px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.45;color:var(--ink-2);margin:6px 0 14px}
+  .banner .d{color:var(--basil);font-size:15px;line-height:1}
+
+  /* skeleton */
+  .sk{background:linear-gradient(100deg,var(--line-2) 30%,var(--line) 50%,var(--line-2) 70%);
+    background-size:200% 100%;animation:sh 1.3s infinite;border-radius:8px}
+  @keyframes sh{to{background-position:-200% 0}}
+  @media (prefers-reduced-motion:reduce){.sk{animation:none}}
+  .importing{padding-top:8px}
+  .imp-status{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--basil);margin:8px 0 18px}
+  .spin{width:18px;height:18px;border:2.5px solid var(--basil-tint);border-top-color:var(--basil);border-radius:50%;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* grocery */
+  .list-tabs{display:flex;gap:8px;margin:4px 0 14px}
+  .list-tab{font-size:13px;font-weight:600;padding:8px 14px;border-radius:999px;border:1px solid var(--line);
+    background:var(--surface);color:var(--ink-2);cursor:pointer}
+  .list-tab.on{background:var(--basil);color:#fff;border-color:var(--basil)}
+  .groc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .gitem{display:flex;align-items:center;gap:13px;padding:14px 15px;border-bottom:1px solid var(--line-2);cursor:pointer}
+  .gitem:last-child{border-bottom:none}
+  .box{width:23px;height:23px;border-radius:7px;border:2px solid var(--line);flex:none;display:grid;place-items:center;
+    color:#fff;font-size:13px;transition:.18s}
+  .gitem.done .box{background:var(--basil);border-color:var(--basil)}
+  .gitem .gt{font-size:14.5px;transition:.2s}
+  .gitem .gt small{color:var(--ink-3);font-size:12px}
+  .gitem.done .gt{color:var(--ink-3);text-decoration:line-through}
+  .completed-h{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin:18px 2px 8px;
+    display:flex;justify-content:space-between}
+  .completed-h button{background:none;border:none;color:var(--basil);font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+
+  /* add sheet */
+  .scrim{position:absolute;inset:0;background:rgba(10,14,11,.42);opacity:0;visibility:hidden;transition:.25s;z-index:70}
+  .scrim.open{opacity:1;visibility:visible}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:26px 26px 0 0;
+    padding:10px 20px 30px;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);z-index:71}
+  .sheet.open{transform:none}
+  .sheet .grip{width:38px;height:4px;border-radius:2px;background:var(--line);margin:8px auto 16px}
+  .sheet h3{font-size:19px;font-weight:800;letter-spacing:-.01em;margin-bottom:4px}
+  .sheet p{font-size:13px;color:var(--ink-3);margin-bottom:16px}
+  .opt{display:flex;align-items:center;gap:14px;padding:15px;border:1px solid var(--line);border-radius:15px;margin-bottom:10px;cursor:pointer;transition:.15s}
+  .opt:hover{border-color:var(--basil);background:var(--basil-tint)}
+  .opt .oe{width:44px;height:44px;border-radius:12px;background:var(--basil-tint);display:grid;place-items:center;font-size:21px;flex:none}
+  .opt .ot b{font-size:15px;font-weight:700;display:block}
+  .opt .ot span{font-size:12.5px;color:var(--ink-3)}
+
+  /* toast */
+  .toast{position:absolute;bottom:92px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);
+    color:var(--paper);font-size:13.5px;font-weight:600;padding:12px 18px;border-radius:12px;display:flex;gap:9px;align-items:center;
+    opacity:0;visibility:hidden;transition:.28s;z-index:80;white-space:nowrap}
+  .toast.show{opacity:1;visibility:visible;transform:translateX(-50%)}
+  .toast .c{color:var(--basil)}
+  @media (prefers-color-scheme:dark){.toast{background:#000}}
+
+  .profile-row{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);padding:16px;margin-bottom:10px}
+  .avatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--basil),var(--basil-2));
+    display:grid;place-items:center;color:#fff;font-weight:800;font-size:20px}
+  .prow{display:flex;justify-content:space-between;align-items:center;padding:15px 16px;background:var(--surface);
+    border:1px solid var(--line);border-radius:14px;margin-bottom:8px;font-size:14.5px;font-weight:600}
+  .prow span{color:var(--ink-3);font-weight:500;font-size:13px}
+  :focus-visible{outline:2.5px solid var(--basil);outline-offset:2px}
+</style>
+
+<div class="review-bar">
+  <span class="lbl">Screen</span>
+  <button class="jump" data-go="home" aria-current="true">Home</button>
+  <button class="jump" data-go="home-empty">Empty</button>
+  <button class="jump" data-go="importing">Importing</button>
+  <button class="jump" data-go="review">Import review</button>
+  <button class="jump" data-go="detail">Recipe</button>
+  <button class="jump" data-go="list">Grocery</button>
+  <button class="jump" data-go="profile">Profile</button>
+  <button class="jump theme-toggle" id="tt">◑ Theme</button>
+</div>
+
+<div class="phone">
+  <div class="notch"></div>
+  <div class="status"><span>9:41</span><span class="r">􀙇 􀛨 100%</span></div>
+
+  <div class="viewport">
+
+    <!-- HOME -->
+    <section class="screen active" id="home">
+      <div class="top">
+        <div class="word">Romy's Kitchen<small>4 recipes · 1 list</small></div>
+        <button class="icon-btn" aria-label="Search">􀊫</button>
+      </div>
+      <div class="paste">
+        <div class="field" role="button" tabindex="0" data-sheet="open"><span class="lk">􀉣</span> Paste a recipe link…</div>
+        <div class="sources">
+          <div class="src" data-go="importing"><span class="e">􀉪</span><span class="t">Instagram</span></div>
+          <div class="src" data-sheet="open"><span class="e">􀆪</span><span class="t">Web</span></div>
+          <div class="src" data-sheet="open"><span class="e">􀈎</span><span class="t">Type it</span></div>
+        </div>
+      </div>
+      <div class="h2">Your shelf <a data-go="home">See all</a></div>
+      <div class="grid">
+        <div class="card" data-go="detail">
+          <div class="cover cv1"><span class="emoji">🥙</span><span class="fav">♥</span><span class="tag">@emthenutritionist</span></div>
+          <div class="meta"><h3>Ultimate Greek Chicken Burgers</h3><div class="sub"><span>Serves 2</span><span>21 ingredients</span></div></div>
+        </div>
+        <div class="card" data-go="detail">
+          <div class="cover cv2"><span class="emoji">🍓</span><span class="tag">@emthenutritionist</span></div>
+          <div class="meta"><h3>Strawberry Cheesecake Chia Puddings</h3><div class="sub"><span>Serves 2</span><span>9 ingredients</span></div></div>
+        </div>
+        <div class="card" data-go="detail">
+          <div class="cover cv3"><span class="emoji">🥗</span><span class="fav">♥</span><span class="tag">@emthenutritionist</span></div>
+          <div class="meta"><h3>Creamy Greek Protein Power Bowls</h3><div class="sub"><span>Serves 2</span><span>16 ingredients</span></div></div>
+        </div>
+        <div class="card" data-go="detail">
+          <div class="cover cv4"><span class="emoji">🍜</span><span class="tag">Web · bbcgoodfood</span></div>
+          <div class="meta"><h3>Miso Butter Udon Noodles</h3><div class="sub"><span>Serves 4</span><span>11 ingredients</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOME EMPTY -->
+    <section class="screen" id="home-empty">
+      <div class="top">
+        <div class="word">Romy's Kitchen<small>Let's fill the shelf</small></div>
+        <button class="icon-btn" aria-label="Search">􀊫</button>
+      </div>
+      <div class="paste">
+        <div class="field" role="button" tabindex="0" data-go="importing"><span class="lk">􀉣</span> Paste a recipe link…</div>
+        <div class="sources">
+          <div class="src" data-go="importing"><span class="e">􀉪</span><span class="t">Instagram</span></div>
+          <div class="src" data-go="importing"><span class="e">􀆪</span><span class="t">Web</span></div>
+          <div class="src" data-sheet="open"><span class="e">􀈎</span><span class="t">Type it</span></div>
+        </div>
+      </div>
+      <div class="empty">
+        <div class="ill">🧺</div>
+        <h3>Your shelf is empty</h3>
+        <p>Paste a link from Instagram or any recipe site and I'll pull the recipe out — no more screenshots into ChatGPT.</p>
+      </div>
+    </section>
+
+    <!-- IMPORTING (skeleton) -->
+    <section class="screen importing" id="importing">
+      <div class="top"><div class="word">Importing…</div><button class="icon-btn" data-go="home" aria-label="Cancel">􀆄</button></div>
+      <div class="imp-status"><span class="spin" id="impspin"></span><span id="impmsg">Reading the caption from Instagram…</span></div>
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden">
+        <div class="sk" style="height:150px;border-radius:0"></div>
+        <div style="padding:15px;display:flex;flex-direction:column;gap:10px">
+          <div class="sk" style="height:20px;width:78%"></div>
+          <div class="sk" style="height:13px;width:45%"></div>
+          <div class="sk" style="height:13px;width:92%;margin-top:6px"></div>
+          <div class="sk" style="height:13px;width:88%"></div>
+          <div class="sk" style="height:13px;width:60%"></div>
+        </div>
+      </div>
+      <p style="text-align:center;color:var(--ink-3);font-size:12.5px;margin-top:16px;line-height:1.5">
+        Deterministic first, AI only if needed — this one's ~0.5¢.</p>
+    </section>
+
+    <!-- IMPORT REVIEW -->
+    <section class="screen" id="review">
+      <div class="top"><div class="word">Check it over</div><button class="icon-btn" data-go="home" aria-label="Close">􀆄</button></div>
+      <div class="review-head"><span class="src-badge">􀉪 Imported from @emthenutritionist</span></div>
+      <div class="banner"><span class="d">􀁝</span><span>I filled in everything the caption gave me. Nothing invented — anything missing is yours to add or leave.</span></div>
+      <div class="field-row editable"><label>Title</label><div class="val">Ultimate Greek Chicken Burgers</div></div>
+      <div style="display:flex;gap:9px">
+        <div class="field-row editable" style="flex:1"><label>Serves</label><div class="val">2</div></div>
+        <div class="field-row" style="flex:1"><label>Prep time</label>
+          <div class="miss"><button class="chip-add">+ Add prep</button></div></div>
+        <div class="field-row" style="flex:1"><label>Cook</label>
+          <div class="miss"><button class="chip-add">+ Add cook</button></div></div>
+      </div>
+      <div class="h2" style="margin-top:16px">Ingredients · 21</div>
+      <div class="ingredients">
+        <div class="ing"><span class="q">2 × 125g</span><span class="n">chicken breasts</span></div>
+        <div class="ing"><span class="q">2</span><span class="n">St Pierre brioche burger buns</span></div>
+        <div class="ing"><span class="q">1 tsp</span><span class="n">olive oil</span></div>
+        <div class="ing"><span class="q">½</span><span class="n">lemon, juice & zest</span></div>
+        <div class="ing"><span class="q">—</span><span class="n">+ 17 more</span></div>
+      </div>
+      <div class="h2" style="margin-top:16px">Steps · 6</div>
+      <div class="steps">
+        <div class="step"><span class="num"></span><p>Butterfly the chicken breasts and marinate in lemon, olive oil, oregano and garlic for 10 minutes.</p></div>
+        <div class="step"><span class="num"></span><p>Griddle 5–6 minutes each side until charred and cooked through.</p></div>
+      </div>
+      <div style="height:16px"></div>
+      <button class="btn" data-go="home" data-toast="Saved to your shelf">Save to shelf</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" data-go="importing">Re-run extraction</button>
+    </section>
+
+    <!-- RECIPE DETAIL -->
+    <section class="screen" id="detail" style="padding-top:0">
+      <div class="hero-cover cv1">
+        <button class="back" data-go="home" aria-label="Back">􀆉</button>
+        <div class="acts"><button id="heartBtn" aria-label="Favourite" style="color:var(--heart)">♥</button><button data-go="review" aria-label="Edit">􀈎</button></div>
+        <h1>Ultimate Greek<br>Chicken Burgers</h1>
+      </div>
+      <div class="metrics">
+        <div class="metric"><div class="n">2</div><div class="l">Serves</div></div>
+        <div class="metric"><div class="n">21</div><div class="l">Ingredients</div></div>
+        <div class="metric"><div class="n">6</div><div class="l">Steps</div></div>
+      </div>
+      <button class="btn" data-go="list" data-toast="21 ingredients added to This Week">􀍩 Add all to grocery list</button>
+      <div class="h2">Ingredients</div>
+      <div class="ingredients">
+        <div class="ing"><span class="q">2 × 125g</span><span class="n">chicken breasts</span></div>
+        <div class="ing"><span class="q">2</span><span class="n">St Pierre brioche burger buns</span></div>
+        <div class="ing"><span class="q">1 tsp</span><span class="n">olive oil</span></div>
+        <div class="ing"><span class="q">½</span><span class="n">lemon, juice & zest</span></div>
+        <div class="ing"><span class="q">1 tsp</span><span class="n">dried oregano</span></div>
+        <div class="ing"><span class="q">100g</span><span class="n">reduced-fat feta</span></div>
+        <div class="ing"><span class="q">2 tbsp</span><span class="n">0% Greek yoghurt</span></div>
+      </div>
+      <div class="h2">Method</div>
+      <div class="steps">
+        <div class="step"><span class="num"></span><p>Butterfly the chicken and marinate in lemon, olive oil, oregano and garlic, 10 minutes.</p></div>
+        <div class="step"><span class="num"></span><p>Griddle 5–6 minutes each side until charred and cooked through.</p></div>
+        <div class="step"><span class="num"></span><p>Whip the feta with Greek yoghurt and a little lemon until smooth and spreadable.</p></div>
+        <div class="step"><span class="num"></span><p>Toast the buns, spread the whipped feta, and build with chicken, tomato and red onion.</p></div>
+      </div>
+      <div class="tip"><b>Romy's note ·</b> Add a spoon of harissa to the feta if you want a bit of heat.</div>
+    </section>
+
+    <!-- GROCERY -->
+    <section class="screen" id="list">
+      <div class="top"><div class="word">Grocery</div><button class="icon-btn" aria-label="New list">􀅼</button></div>
+      <div class="list-tabs">
+        <button class="list-tab on">This Week</button>
+        <button class="list-tab">Weekend BBQ</button>
+      </div>
+      <div class="groc" id="grocList">
+        <div class="gitem"><span class="box">✓</span><span class="gt">Chicken breasts <small>· 2 × 125g</small></span></div>
+        <div class="gitem"><span class="box">✓</span><span class="gt">Brioche burger buns <small>· ×2</small></span></div>
+        <div class="gitem"><span class="box">✓</span><span class="gt">Reduced-fat feta <small>· 100g</small></span></div>
+        <div class="gitem"><span class="box">✓</span><span class="gt">Cucumber <small>· ½</small></span></div>
+        <div class="gitem"><span class="box">✓</span><span class="gt">Cherry tomatoes <small>· 1 punnet</small></span></div>
+      </div>
+      <div class="completed-h">Completed · 2 <button data-clear>Clear completed</button></div>
+      <div class="groc">
+        <div class="gitem done"><span class="box">✓</span><span class="gt">Olive oil</span></div>
+        <div class="gitem done"><span class="box">✓</span><span class="gt">Red onion <small>· ×1</small></span></div>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section class="screen" id="profile">
+      <div class="top"><div class="word">Profile</div></div>
+      <div class="profile-row"><div class="avatar">R</div>
+        <div><div style="font-weight:750;font-size:16px">Romy</div><div style="color:var(--ink-3);font-size:13px">romy@example.com</div></div></div>
+      <div class="prow">Imports this month <span>7 · free tier</span></div>
+      <div class="prow">Recipes <span>4</span></div>
+      <div class="prow">Appearance <span>System</span></div>
+      <div class="prow">Sign out <span>􀆊</span></div>
+      <p style="text-align:center;color:var(--ink-3);font-size:11.5px;margin-top:18px;line-height:1.5">Kept minimal for V1 — per the brief.</p>
+    </section>
+
+  </div><!-- /viewport -->
+
+  <!-- bottom nav -->
+  <nav class="nav">
+    <button class="on" data-go="home"><span class="ic">􀎞</span>Home</button>
+    <button data-go="home"><span class="ic">􀉚</span>Recipes</button>
+    <button class="add" data-sheet="open" aria-label="Add recipe"><span class="ic">􀅼</span></button>
+    <button data-go="list"><span class="ic">􀍩</span>List</button>
+    <button data-go="profile"><span class="ic">􀉪</span>Profile</button>
+  </nav>
+
+  <!-- add sheet -->
+  <div class="scrim" data-sheet="close"></div>
+  <div class="sheet" id="sheet">
+    <div class="grip"></div>
+    <h3>Add a recipe</h3>
+    <p>Three ways in — pick one.</p>
+    <div class="opt" data-go="importing" data-sheet="close"><div class="oe">􀉪</div><div class="ot"><b>Import from Instagram</b><span>Paste a Reel or post link</span></div></div>
+    <div class="opt" data-go="importing" data-sheet="close"><div class="oe">􀆪</div><div class="ot"><b>Import from website</b><span>Paste any recipe URL</span></div></div>
+    <div class="opt" data-go="review" data-sheet="close"><div class="oe">􀈎</div><div class="ot"><b>Create manually</b><span>Type it in yourself</span></div></div>
+  </div>
+
+  <div class="toast" id="toast"><span class="c">✓</span><span id="toastMsg">Saved</span></div>
+</div>
+
+<p class="caption">Prototype — tap the shelf, the paste bar, or the ➕. Jump to any screen or state with the buttons up top. Deep-basil identity on warm paper; photography (Romy's real @emthenutritionist shots) wires in next.</p>
+
+<script>
+  const show = id => {
+    document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
+    document.querySelectorAll('.jump').forEach(b=>b.setAttribute('aria-current', b.dataset.go===id ? 'true':'false'));
+    const vp = document.querySelector('.viewport'); if(vp){const a=document.getElementById(id); if(a)a.scrollTop=0;}
+  };
+  const openSheet = o => { document.getElementById('sheet').classList.toggle('open',o); document.querySelector('.scrim').classList.toggle('open',o); };
+  let toastT;
+  const toast = msg => { const t=document.getElementById('toast'); document.getElementById('toastMsg').textContent=msg;
+    t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200); };
+
+  document.addEventListener('click', e => {
+    const go = e.target.closest('[data-go]'); const sh = e.target.closest('[data-sheet]');
+    const tst = e.target.closest('[data-toast]'); const clr = e.target.closest('[data-clear]');
+    const git = e.target.closest('.gitem'); const heart = e.target.closest('#heartBtn');
+    if (sh){ openSheet(sh.dataset.sheet==='open'); }
+    if (tst){ toast(tst.dataset.toast); }
+    if (go){
+      if (go.dataset.go==='importing'){ openSheet(false); runImport(); }
+      else { openSheet(false); show(go.dataset.go); }
+    }
+    if (clr){ clr.closest('.completed-h').nextElementSibling.remove(); clr.closest('.completed-h').remove(); toast('Completed items cleared'); }
+    if (git && !go){ git.classList.toggle('done'); if(git.classList.contains('done')) toast('Nice — one less to buy'); }
+    if (heart){ heart.textContent = heart.textContent.trim()==='♥' ? '♡':'♥'; }
+  });
+  document.addEventListener('keydown', e=>{ if(e.key==='Enter'){const f=e.target.closest('[data-go],[data-sheet]'); if(f)f.click();} });
+
+  const steps = ['Reading the caption from Instagram…','Found a recipe — extracting with AI…','Formatting ingredients & steps…'];
+  function runImport(){
+    show('importing'); const msg=document.getElementById('impmsg'); const spin=document.getElementById('impspin');
+    let i=0; msg.textContent=steps[0];
+    const reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
+    const tick=setInterval(()=>{ i++; if(i<steps.length){ msg.textContent=steps[i]; } }, reduce?300:900);
+    setTimeout(()=>{ clearInterval(tick); spin.style.display='none'; msg.textContent='Done'; show('review'); }, reduce?400:2900);
+  }
+
+  document.getElementById('tt').addEventListener('click', ()=>{
+    const r=document.documentElement; const cur=r.getAttribute('data-theme')
+      || (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+    r.setAttribute('data-theme', cur==='dark'?'light':'dark');
+  });
+</script>
