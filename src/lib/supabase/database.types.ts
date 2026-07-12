@@ -58,15 +58,167 @@ export type Database = {
         }
         Relationships: []
       }
+      recipe_ingredients: {
+        Row: {
+          display_text: string
+          id: string
+          name: string | null
+          quantity: string | null
+          recipe_id: string
+          sort_order: number
+          unit: string | null
+        }
+        Insert: {
+          display_text: string
+          id?: string
+          name?: string | null
+          quantity?: string | null
+          recipe_id: string
+          sort_order?: number
+          unit?: string | null
+        }
+        Update: {
+          display_text?: string
+          id?: string
+          name?: string | null
+          quantity?: string | null
+          recipe_id?: string
+          sort_order?: number
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_ingredients_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipe_steps: {
+        Row: {
+          id: string
+          image_path: string | null
+          instruction: string
+          recipe_id: string
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          image_path?: string | null
+          instruction: string
+          recipe_id: string
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          image_path?: string | null
+          instruction?: string
+          recipe_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_steps_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipe_tips: {
+        Row: {
+          id: string
+          recipe_id: string
+          sort_order: number
+          text: string
+        }
+        Insert: {
+          id?: string
+          recipe_id: string
+          sort_order?: number
+          text: string
+        }
+        Update: {
+          id?: string
+          recipe_id?: string
+          sort_order?: number
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_tips_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes: {
+        Row: {
+          cook_time: string | null
+          cover_image_path: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_favourite: boolean
+          prep_time: string | null
+          servings: string | null
+          source_type: Database["public"]["Enums"]["source_type"]
+          source_url: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cook_time?: string | null
+          cover_image_path?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_favourite?: boolean
+          prep_time?: string | null
+          servings?: string | null
+          source_type?: Database["public"]["Enums"]["source_type"]
+          source_url?: string | null
+          tags?: string[]
+          title: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          cook_time?: string | null
+          cover_image_path?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_favourite?: boolean
+          prep_time?: string | null
+          servings?: string | null
+          source_type?: Database["public"]["Enums"]["source_type"]
+          source_url?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      owns_recipe: { Args: { rid: string }; Returns: boolean }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
-      [_ in never]: never
+      source_type: "manual" | "instagram" | "website"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -196,7 +348,9 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      source_type: ["manual", "instagram", "website"],
+    },
   },
 } as const
 

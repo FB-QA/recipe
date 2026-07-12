@@ -2,34 +2,42 @@ import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { SearchIcon } from "@/components/icons";
+import { RecipeShelf } from "@/components/recipes/recipe-card";
+import { SearchBar } from "@/components/recipes/search-bar";
+import { listRecipes } from "@/lib/recipes/queries";
 
-// M1 replaces this with the searchable, filterable recipe library.
-export default function RecipesPage() {
+export default async function RecipesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const recipes = await listRecipes({ search: q });
+
   return (
     <>
-      <AppHeader
-        title="Recipes"
-        action={
-          <button
-            aria-label="Search"
-            className="grid h-[38px] w-[38px] place-items-center rounded-full border border-line bg-surface text-ink-2"
-          >
-            <SearchIcon size={18} />
-          </button>
-        }
-      />
-      <EmptyState
-        emoji="📖"
-        title="No recipes yet"
-        action={
-          <Link href="/add">
-            <Button>Add a recipe</Button>
-          </Link>
-        }
-      >
-        Everything you save lands here — searchable, filterable, yours.
-      </EmptyState>
+      <AppHeader title="Recipes" />
+      <SearchBar initial={q ?? ""} />
+
+      {recipes.length > 0 ? (
+        <RecipeShelf recipes={recipes} />
+      ) : q ? (
+        <p className="rounded-card border border-dashed border-line-2 bg-surface px-5 py-10 text-center text-sm text-ink-2">
+          Nothing matches <span className="font-semibold text-ink">“{q}”</span>. Try a different word.
+        </p>
+      ) : (
+        <EmptyState
+          emoji="📖"
+          title="No recipes yet"
+          action={
+            <Link href="/add">
+              <Button>Add a recipe</Button>
+            </Link>
+          }
+        >
+          Everything you save lands here — searchable, filterable, yours.
+        </EmptyState>
+      )}
     </>
   );
 }
