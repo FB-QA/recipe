@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/(auth)/actions";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { countRecipes } from "@/lib/recipes/queries";
 import { firstName } from "@/lib/name";
 
 export default async function ProfilePage() {
@@ -18,6 +20,11 @@ export default async function ProfilePage() {
   const name = profile?.display_name ?? firstName(user?.email);
   const initial = (name?.[0] ?? "?").toUpperCase();
 
+  const recipeCount = await countRecipes();
+  const { count: importCount } = await supabase
+    .from("recipe_imports")
+    .select("id", { count: "exact", head: true });
+
   return (
     <>
       <AppHeader title="Profile" />
@@ -32,11 +39,14 @@ export default async function ProfilePage() {
         </div>
       </div>
 
-      <dl className="mt-2.5 flex flex-col gap-2">
-        <Row label="Recipes" value="0" />
-        <Row label="Imports this month" value="0 · free tier" />
-        <Row label="Appearance" value="System" />
-      </dl>
+      <div className="mt-2.5 flex flex-col gap-2">
+        <Row label="Recipes" value={String(recipeCount)} />
+        <Row label="Imports" value={`${importCount ?? 0} · free tier`} />
+        <div className="flex items-center justify-between rounded-[14px] border border-line bg-surface px-4 py-3 text-[14.5px] font-semibold text-ink">
+          <span>Appearance</span>
+          <ThemeToggle />
+        </div>
+      </div>
 
       <form action={signOut} className="mt-3">
         <Button type="submit" variant="ghost" fullWidth>

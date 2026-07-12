@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   description: "Every recipe you love, in one place you can cook from.",
   applicationName: "Romy's Kitchen",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Romy's Kitchen" },
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
@@ -26,12 +27,19 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+// Applied before paint so a saved theme never flashes the wrong colours.
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+    <html lang="en" className={`${geistSans.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="min-h-full">
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

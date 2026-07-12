@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition, useRef } from "react";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { clsx } from "@/lib/clsx";
 import { CheckIcon, CloseIcon, PlusIcon } from "@/components/icons";
@@ -95,7 +96,16 @@ function Item({
           item.is_completed ? "border-basil bg-basil" : "border-line",
         )}
       >
-        {item.is_completed && <CheckIcon size={13} />}
+        {item.is_completed && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 520, damping: 24 }}
+            className="grid place-items-center"
+          >
+            <CheckIcon size={13} />
+          </motion.span>
+        )}
       </button>
       <span
         className={clsx(
