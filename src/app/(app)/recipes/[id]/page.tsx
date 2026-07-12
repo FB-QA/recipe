@@ -4,6 +4,7 @@ import { getRecipe } from "@/lib/recipes/queries";
 import { CoverImage } from "@/components/recipes/cover-image";
 import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
+import { AddToListButton } from "@/components/grocery/add-to-list-button";
 import { ChevronLeftIcon, PencilIcon } from "@/components/icons";
 
 export default async function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -56,6 +57,12 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
               <div className="mt-0.5 text-[10.5px] uppercase tracking-[0.05em] text-ink-3">{m.l}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {recipe.ingredients.length > 0 && (
+        <div className="mt-4">
+          <AddToListButton recipeId={recipe.id} />
         </div>
       )}
 

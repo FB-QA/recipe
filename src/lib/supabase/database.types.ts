@@ -34,6 +34,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      grocery_items: {
+        Row: {
+          created_at: string
+          display_text: string
+          id: string
+          is_completed: boolean
+          list_id: string
+          quantity: string | null
+          sort_order: number
+          source_recipe_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_text: string
+          id?: string
+          is_completed?: boolean
+          list_id: string
+          quantity?: string | null
+          sort_order?: number
+          source_recipe_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_text?: string
+          id?: string
+          is_completed?: boolean
+          list_id?: string
+          quantity?: string | null
+          sort_order?: number
+          source_recipe_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grocery_items_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "grocery_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grocery_items_source_recipe_id_fkey"
+            columns: ["source_recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grocery_lists: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -267,6 +339,7 @@ export type Database = {
     }
     Functions: {
       imports_since: { Args: { cutoff: string }; Returns: number }
+      owns_list: { Args: { lid: string }; Returns: boolean }
       owns_recipe: { Args: { rid: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
