@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Sheet } from "@/components/ui/sheet";
 import { ImportFlow } from "@/components/import/import-flow";
 import { PasteFlow } from "@/components/import/paste-flow";
@@ -22,12 +23,19 @@ const importOptions: { view: View; Icon: typeof InstagramIcon; title: string; su
   { view: "paste", Icon: ClipboardIcon, title: "Paste text", sub: "From ChatGPT, a blog, anywhere" },
 ];
 
-// The nav and this drawer persist across navigation. AddButton is keyed by
-// pathname in BottomNav, so it remounts (and the drawer resets/closes) when a
-// flow saves and routes to the new recipe.
 export function AddButton() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("menu");
+  const pathname = usePathname();
+
+  // The nav and this drawer persist across navigation. When a flow saves and
+  // routes to the new recipe, close the drawer — the Sheet stays mounted so its
+  // slide-down exit animation plays, then reset to the menu for next time.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- close ephemeral drawer on route change
+    setOpen(false);
+    setView("menu");
+  }, [pathname]);
 
   const openMenu = () => {
     setView("menu");
@@ -52,6 +60,7 @@ export function AddButton() {
         onClose={() => setOpen(false)}
         onBack={view === "menu" ? undefined : () => setView("menu")}
         title={TITLES[view]}
+        tall={view !== "menu"}
       >
         {view === "menu" ? (
           <div className="flex flex-col gap-2.5">

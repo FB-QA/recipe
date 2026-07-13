@@ -6,6 +6,7 @@ import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { ShareButton } from "@/components/recipes/share-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
 import { IngredientsSection } from "@/components/recipes/ingredients-section";
+import { SavedToast } from "@/components/recipes/saved-toast";
 import { listedIngredientIds } from "@/lib/grocery/queries";
 import { highlightStep, ingredientTerms } from "@/lib/recipes/highlight";
 import {
@@ -16,8 +17,15 @@ import {
   GlobeIcon,
 } from "@/components/icons";
 
-export default async function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RecipeDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ created?: string }>;
+}) {
   const { id } = await params;
+  const { created } = await searchParams;
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
   const addedIngredientIds = await listedIngredientIds(recipe.id);
@@ -32,6 +40,7 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="-mt-2">
+      {created && <SavedToast recipeId={recipe.id} message={`Saved “${recipe.title}”`} />}
       <CoverImage url={recipe.coverUrl} title={recipe.title} className="-mx-[18px] h-[250px] p-[18px]">
         <Link
           href="/recipes"

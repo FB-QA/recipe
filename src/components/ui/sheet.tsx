@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { DUR, springSoft } from "@/lib/motion";
 import { ChevronLeftIcon } from "@/components/icons";
+import { clsx } from "@/lib/clsx";
 
 const emptySubscribe = () => () => {};
 
@@ -13,12 +14,15 @@ export function Sheet({
   onClose,
   onBack,
   title,
+  tall,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   onBack?: () => void;
   title?: string;
+  /** Let the sheet grow to near-full height (for long flows like import review). */
+  tall?: boolean;
   children: React.ReactNode;
 }) {
   const reduce = useReducedMotion();
@@ -65,7 +69,10 @@ export function Sheet({
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[85dvh] max-w-[480px] overflow-y-auto rounded-t-[26px] bg-surface px-5 pb-[calc(env(safe-area-inset-bottom)+24px)] pt-2.5"
+          className={clsx(
+            "fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[480px] overflow-y-auto rounded-t-[26px] bg-surface px-5 pb-[calc(env(safe-area-inset-bottom)+24px)] pt-2.5",
+            tall ? "max-h-[94dvh]" : "max-h-[85dvh]",
+          )}
           initial={reduce ? false : { y: "100%" }}
           animate={{ y: 0 }}
           // Open: soft spring settle. Close: a quick ease-in slide straight back

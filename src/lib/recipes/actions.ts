@@ -121,7 +121,7 @@ export async function createRecipe(
   if (!saved) return { error: "Couldn't save all of the recipe — open it and try again." };
 
   revalidatePath("/");
-  redirect(`/recipes/${recipe.id}`);
+  redirect(`/recipes/${recipe.id}?created=1`);
 }
 
 export async function updateRecipe(
