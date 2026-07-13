@@ -38,6 +38,9 @@ jobs:
       contents: write # it may be asked to push a fix
       pull-requests: write
       issues: write
+      # Required — see claude-code-review.yml. OIDC is how the action gets its
+      # GitHub App token; omit it and the action fails before doing any work.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:

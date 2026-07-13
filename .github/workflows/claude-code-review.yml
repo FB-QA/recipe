@@ -32,6 +32,10 @@ jobs:
       contents: read # it comments; it does not commit
       pull-requests: write
       issues: write
+      # Required. The action mints its GitHub App installation token by exchanging
+      # an OIDC token; without this the runner never sets ACTIONS_ID_TOKEN_REQUEST_URL
+      # and the action dies before it reads a single line of the diff.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
