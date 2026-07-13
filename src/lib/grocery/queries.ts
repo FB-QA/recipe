@@ -12,6 +12,7 @@ export type GroceryItem = {
   is_completed: boolean;
   sort_order: number;
   category: string | null;
+  sourceRecipeId: string | null;
   source: { title: string; coverUrl: string | null } | null;
 };
 
@@ -86,6 +87,7 @@ export async function getBoard(requestedListId?: string): Promise<GroceryBoardDa
       is_completed: i.is_completed,
       sort_order: i.sort_order,
       category: i.category,
+      sourceRecipeId: i.source_recipe_id,
       source: i.source_recipe_id ? (sourceMap[i.source_recipe_id] ?? null) : null,
     })),
   };

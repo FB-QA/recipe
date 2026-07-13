@@ -6,6 +6,7 @@ import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
 import { IngredientsSection } from "@/components/recipes/ingredients-section";
 import { getLists } from "@/lib/grocery/queries";
+import { highlightStep, ingredientTerms } from "@/lib/recipes/highlight";
 import { ChevronLeftIcon, PencilIcon } from "@/components/icons";
 
 export default async function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -13,6 +14,7 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
   const lists = await getLists();
+  const stepTerms = ingredientTerms(recipe.ingredients);
 
   const metrics = [
     { n: String(recipe.ingredients.length), l: "Ingredients" },
@@ -83,7 +85,17 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
                 <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-basil-tint text-[13px] font-bold text-basil">
                   {i + 1}
                 </span>
-                <p className="pt-1 text-[14px] leading-relaxed text-ink-2">{step.instruction}</p>
+                <p className="pt-1 text-[14px] leading-relaxed text-ink-2">
+                  {highlightStep(step.instruction, stepTerms).map((seg, j) =>
+                    seg.bold ? (
+                      <strong key={j} className="font-semibold text-ink">
+                        {seg.text}
+                      </strong>
+                    ) : (
+                      <span key={j}>{seg.text}</span>
+                    ),
+                  )}
+                </p>
               </li>
             ))}
           </ol>

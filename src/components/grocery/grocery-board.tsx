@@ -4,7 +4,7 @@ import { useOptimistic, useState, useTransition, useRef } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { clsx } from "@/lib/clsx";
-import { CheckIcon, CloseIcon, PlusIcon } from "@/components/icons";
+import { CartIcon, CheckIcon, CloseIcon, PlusIcon } from "@/components/icons";
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
 import { CategoryIcon, FoodImage } from "@/components/food-icons";
 import { addItem, toggleItem, deleteItem, clearCompleted, createList } from "@/lib/grocery/actions";
@@ -21,8 +21,75 @@ function groupByCategory(items: GroceryItem[]) {
   return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => ({ category: c, items: groups.get(c)! }));
 }
 
+type Pinned = { id: string; title: string; coverUrl: string | null };
+
+function pinnedRecipes(items: GroceryItem[]): Pinned[] {
+  const map = new Map<string, Pinned>();
+  for (const i of items) {
+    if (i.sourceRecipeId && i.source && !map.has(i.sourceRecipeId)) {
+      map.set(i.sourceRecipeId, {
+        id: i.sourceRecipeId,
+        title: i.source.title,
+        coverUrl: i.source.coverUrl,
+      });
+    }
+  }
+  return [...map.values()];
+}
+
+function PinnedRecipes({
+  recipes,
+  selected,
+  onSelect,
+}: {
+  recipes: Pinned[];
+  selected: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  if (recipes.length === 0) return null;
+  return (
+    <div className="mb-3.5 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
+      <button onClick={() => onSelect(null)} className="flex w-[58px] flex-none flex-col items-center gap-1">
+        <span
+          className={clsx(
+            "grid h-[52px] w-[52px] place-items-center rounded-full border-2 text-[12px] font-bold",
+            selected === null ? "border-basil bg-basil text-white" : "border-line bg-surface text-ink-2",
+          )}
+        >
+          All
+        </span>
+        <span className="text-[10px] text-ink-3">Everything</span>
+      </button>
+      {recipes.map((r) => (
+        <button
+          key={r.id}
+          aria-pressed={selected === r.id}
+          onClick={() => onSelect(selected === r.id ? null : r.id)}
+          className="flex w-[58px] flex-none flex-col items-center gap-1"
+        >
+          <span
+            className={clsx(
+              "grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full border-2 bg-basil-tint text-basil",
+              selected === r.id ? "border-basil" : "border-transparent",
+            )}
+          >
+            {r.coverUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={r.coverUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <CartIcon size={20} />
+            )}
+          </span>
+          <span className="w-full truncate text-center text-[10px] text-ink-3">{r.title}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
   const [, startTransition] = useTransition();
+  const [recipeFilter, setRecipeFilter] = useState<string | null>(null);
   const [optimisticItems, applyOptimistic] = useOptimistic(
     items,
     (state, patch: { id: string; is_completed: boolean }) =>
@@ -35,8 +102,14 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
       await toggleItem(id, is_completed);
     });
 
-  const active = optimisticItems.filter((i) => !i.is_completed);
-  const done = optimisticItems.filter((i) => i.is_completed);
+  const pinned = pinnedRecipes(optimisticItems);
+  const shown =
+    recipeFilter && pinned.some((r) => r.id === recipeFilter)
+      ? optimisticItems.filter((i) => i.sourceRecipeId === recipeFilter)
+      : optimisticItems;
+
+  const active = shown.filter((i) => !i.is_completed);
+  const done = shown.filter((i) => i.is_completed);
   const grouped = groupByCategory(active);
 
   return (
@@ -45,6 +118,7 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
 
       {activeId && (
         <>
+          <PinnedRecipes recipes={pinned} selected={recipeFilter} onSelect={setRecipeFilter} />
           <AddItemRow listId={activeId} />
 
           {active.length === 0 && done.length === 0 ? (
@@ -135,15 +209,6 @@ function Item({ item, onToggle }: { item: GroceryItem; onToggle: (id: string, c:
           {item.quantity && <span className="font-semibold">{item.quantity} </span>}
           {item.display_text}
         </span>
-        {item.source && (
-          <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-3">
-            {item.source.coverUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.source.coverUrl} alt="" className="h-[16px] w-[16px] rounded-[4px] object-cover" />
-            )}
-            <span className="truncate">{item.source.title}</span>
-          </span>
-        )}
       </div>
 
       <button

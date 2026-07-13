@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CoverImage } from "./cover-image";
-import { HeartIcon } from "@/components/icons";
+import { HeartIcon, UserIcon, ListIcon } from "@/components/icons";
+import { parseServings } from "@/lib/recipes/scale";
 import type { RecipeListItem } from "@/lib/recipes/queries";
 
 const sourceLabel: Record<RecipeListItem["source_type"], string> = {
@@ -10,6 +11,7 @@ const sourceLabel: Record<RecipeListItem["source_type"], string> = {
 };
 
 export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
+  const serves = parseServings(recipe.servings);
   return (
     <Link
       href={`/recipes/${recipe.id}`}
@@ -31,11 +33,15 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
         <h3 className="text-[14.5px] font-bold leading-tight tracking-[-0.01em] text-ink [text-wrap:balance]">
           {recipe.title}
         </h3>
-        <div className="mt-1.5 flex gap-2.5 text-xs text-ink-3">
-          {recipe.servings && <span>Serves {recipe.servings}</span>}
+        <div className="mt-2 flex items-center gap-3 text-xs font-medium text-ink-3">
+          {serves !== null && (
+            <span className="inline-flex items-center gap-1" title={`Serves ${serves}`}>
+              <UserIcon size={13} /> {serves}
+            </span>
+          )}
           {recipe.ingredientCount > 0 && (
-            <span>
-              {recipe.ingredientCount} ingredient{recipe.ingredientCount === 1 ? "" : "s"}
+            <span className="inline-flex items-center gap-1" title={`${recipe.ingredientCount} ingredients`}>
+              <ListIcon size={13} /> {recipe.ingredientCount}
             </span>
           )}
         </div>

@@ -89,24 +89,34 @@ function Extracting() {
   }, []);
 
   return (
-    <div>
-      <div className="mb-4 mt-2 flex items-center gap-2.5 text-[14px] font-semibold text-basil">
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2.5 text-[14px] font-semibold text-basil">
         <span
           aria-hidden
           className="h-[18px] w-[18px] animate-spin rounded-full border-[2.5px] border-basil-tint border-t-basil"
         />
         <span role="status">{EXTRACTING_STEPS[i]}</span>
       </div>
-      <div className="overflow-hidden rounded-card border border-line bg-surface">
-        <div className="skeleton h-[150px] rounded-none" />
-        <div className="flex flex-col gap-2.5 p-4">
-          <div className="skeleton h-5 w-4/5" />
-          <div className="skeleton h-3 w-2/5" />
-          <div className="skeleton mt-1.5 h-3 w-11/12" />
-          <div className="skeleton h-3 w-10/12" />
-          <div className="skeleton h-3 w-3/5" />
-        </div>
+
+      {/* A full-page shell of the review that's coming. */}
+      <div className="skeleton h-[190px] rounded-card" />
+      <div className="skeleton h-6 w-40 rounded-full" />
+      <div className="flex flex-col gap-2">
+        <div className="skeleton h-6 w-4/5" />
+        <div className="skeleton h-6 w-3/5" />
       </div>
+      <div className="flex gap-2">
+        <div className="skeleton h-14 flex-1 rounded-[14px]" />
+        <div className="skeleton h-14 flex-1 rounded-[14px]" />
+        <div className="skeleton h-14 flex-1 rounded-[14px]" />
+      </div>
+      <div className="flex flex-col gap-2.5">
+        <div className="skeleton h-3 w-24" />
+        {Array.from({ length: 6 }).map((_, n) => (
+          <div key={n} className="skeleton h-4" style={{ width: `${92 - (n % 3) * 14}%` }} />
+        ))}
+      </div>
+      <div className="skeleton h-12 w-full rounded-[14px]" />
     </div>
   );
 }

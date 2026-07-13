@@ -44,6 +44,15 @@ export const MinusIcon = (p: IconProps) => (
   </svg>
 );
 
+export const ListIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <circle cx="4.5" cy="6" r="1" fill="currentColor" stroke="none" />
+    <circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none" />
+    <circle cx="4.5" cy="18" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 export const CartIcon = (p: IconProps) => (
   <svg {...base(p)} aria-hidden>
     <path d="M3 4h2l2.4 12.2a1 1 0 0 0 1 .8h8.7a1 1 0 0 0 1-.8L21 8H6" />
