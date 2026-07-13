@@ -21,9 +21,11 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
             <HeartIcon size={14} filled />
           </span>
         )}
-        <span className="relative rounded-full bg-[rgba(20,28,22,0.55)] px-2 py-[3px] text-[10.5px] font-bold tracking-[0.03em] text-white backdrop-blur-sm">
-          {sourceLabel[recipe.source_type]}
-        </span>
+        {(recipe.source_handle || recipe.source_type !== "manual") && (
+          <span className="relative max-w-[85%] truncate rounded-full bg-[rgba(20,28,22,0.55)] px-2 py-[3px] text-[10.5px] font-bold tracking-[0.03em] text-white backdrop-blur-sm">
+            {recipe.source_handle ? `@${recipe.source_handle}` : sourceLabel[recipe.source_type]}
+          </span>
+        )}
       </CoverImage>
       <div className="px-3 pb-3.5 pt-2.5">
         <h3 className="text-[14.5px] font-bold leading-tight tracking-[-0.01em] text-ink [text-wrap:balance]">

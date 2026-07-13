@@ -114,7 +114,7 @@ async function importInstagram(url: string): Promise<ImportOutcome> {
   const costCents = media.costCents + (ai?.costCents ?? 0);
 
   if (ai) {
-    const recipe = aiToExtracted(ai.recipe, media.imageUrl);
+    const recipe = aiToExtracted(ai.recipe, media.imageUrl, media.handle);
     if (hasCookableContent(recipe)) {
       return {
         status: "success",

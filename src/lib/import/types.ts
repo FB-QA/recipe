@@ -17,6 +17,7 @@ export type ExtractedRecipe = {
   steps: string[];
   tips: string[];
   imageUrl: string | null;
+  sourceHandle: string | null;
 };
 
 export type SourceType = "instagram" | "website";

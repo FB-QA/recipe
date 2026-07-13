@@ -45,6 +45,10 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
         </h1>
       </CoverImage>
 
+      {recipe.source_handle && (
+        <p className="mt-3 text-[13px] font-semibold text-basil">via @{recipe.source_handle}</p>
+      )}
+
       {recipe.description && (
         <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{recipe.description}</p>
       )}

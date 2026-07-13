@@ -32,6 +32,7 @@ export const recipeInputSchema = z.object({
     .nullable()
     .or(z.literal("").transform(() => null)),
   source_type: z.enum(["manual", "instagram", "website"]).default("manual"),
+  source_handle: optionalText(100),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
   ingredients: z.array(ingredientSchema).max(200).default([]),
   steps: z.array(z.object({ instruction: z.string().trim().min(1).max(4000) })).max(100).default([]),

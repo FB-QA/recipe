@@ -100,6 +100,7 @@ export function extractRecipeFromHtml(html: string): ExtractedRecipe | null {
       steps,
       tips: [],
       imageUrl: firstString(node.image),
+      sourceHandle: null,
     };
   }
   return null;

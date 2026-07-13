@@ -72,7 +72,11 @@ export async function extractWithAi(
   }
 }
 
-export function aiToExtracted(ai: AiRecipe, imageUrl: string | null): ExtractedRecipe {
+export function aiToExtracted(
+  ai: AiRecipe,
+  imageUrl: string | null,
+  sourceHandle: string | null = null,
+): ExtractedRecipe {
   return {
     title: ai.title?.trim() || "Untitled recipe",
     description: ai.description,
@@ -83,5 +87,6 @@ export function aiToExtracted(ai: AiRecipe, imageUrl: string | null): ExtractedR
     steps: ai.steps.filter(Boolean),
     tips: ai.tips.filter(Boolean),
     imageUrl,
+    sourceHandle,
   };
 }

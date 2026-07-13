@@ -42,7 +42,7 @@ export function RecipeForm({
   action: (prev: RecipeFormState, fd: FormData) => Promise<RecipeFormState>;
   initial?: RecipeFormInitial;
   submitLabel: string;
-  source?: { type: "instagram" | "website"; url: string | null };
+  source?: { type: "instagram" | "website"; url: string | null; handle?: string | null };
   importCoverUrl?: string | null;
 }) {
   const [state, formAction] = useActionState<RecipeFormState, FormData>(action, undefined);
@@ -77,6 +77,7 @@ export function RecipeForm({
     cook_time: cook.trim() || null,
     source_url: source?.url ?? initial.source_url ?? null,
     source_type: source?.type ?? ("manual" as const),
+    source_handle: source?.handle ?? null,
     tags: [] as string[],
     ingredients: ingredients.filter((x) => x.trim()).map((t) => ({ display_text: t.trim() })),
     steps: steps.filter((x) => x.trim()).map((t) => ({ instruction: t.trim() })),

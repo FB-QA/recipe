@@ -144,7 +144,8 @@ function Review({
       <div className="mb-1 flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-basil-tint px-3 py-1.5 text-[12px] font-semibold text-basil">
           {sourceType === "instagram" ? <InstagramIcon size={14} /> : <GlobeIcon size={14} />}
-          Imported {method === "cache" ? "(from your history)" : ""}
+          {recipe.sourceHandle ? `@${recipe.sourceHandle}` : "Imported"}
+          {method === "cache" ? " · from your history" : ""}
         </span>
       </div>
       <p className="mb-4 flex gap-2 rounded-[12px] border border-line bg-surface-2 px-3.5 py-2.5 text-[12.5px] leading-snug text-ink-2">
@@ -154,7 +155,7 @@ function Review({
       <RecipeForm
         action={createRecipe}
         initial={extractedToInitial(recipe, sourceUrl)}
-        source={{ type: sourceType, url: sourceUrl }}
+        source={{ type: sourceType, url: sourceUrl, handle: recipe.sourceHandle }}
         importCoverUrl={recipe.imageUrl}
         submitLabel="Save to shelf"
       />

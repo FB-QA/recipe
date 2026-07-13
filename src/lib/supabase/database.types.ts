@@ -292,6 +292,7 @@ export type Database = {
           is_favourite: boolean
           prep_time: string | null
           servings: string | null
+          source_handle: string | null
           source_type: Database["public"]["Enums"]["source_type"]
           source_url: string | null
           tags: string[]
@@ -308,6 +309,7 @@ export type Database = {
           is_favourite?: boolean
           prep_time?: string | null
           servings?: string | null
+          source_handle?: string | null
           source_type?: Database["public"]["Enums"]["source_type"]
           source_url?: string | null
           tags?: string[]
@@ -324,6 +326,7 @@ export type Database = {
           is_favourite?: boolean
           prep_time?: string | null
           servings?: string | null
+          source_handle?: string | null
           source_type?: Database["public"]["Enums"]["source_type"]
           source_url?: string | null
           tags?: string[]

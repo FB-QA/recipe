@@ -5,6 +5,7 @@ export type InstagramMedia = {
   caption: string;
   videoUrl: string | null;
   imageUrl: string | null;
+  handle: string | null;
   costCents: number;
 };
 
@@ -82,6 +83,7 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
       caption: (item.caption as string) ?? "",
       videoUrl: (item.videoUrl as string) ?? null,
       imageUrl: (item.displayUrl as string) ?? null,
+      handle: (item.ownerUsername as string) ?? null,
       costCents: usageUsd * 100,
     };
   } catch {

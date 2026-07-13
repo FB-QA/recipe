@@ -92,6 +92,7 @@ export async function createRecipe(
       cook_time: input.cook_time,
       source_url: input.source_url,
       source_type: input.source_type,
+      source_handle: input.source_handle,
       tags: input.tags,
     })
     .select("id")

@@ -23,6 +23,7 @@ export type RecipeListItem = {
   title: string;
   servings: string | null;
   source_type: Database["public"]["Enums"]["source_type"];
+  source_handle: string | null;
   is_favourite: boolean;
   tags: string[];
   coverUrl: string | null;
@@ -35,7 +36,9 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
   const supabase = await createClient();
   let query = supabase
     .from("recipes")
-    .select("id, title, servings, source_type, is_favourite, tags, cover_image_path, recipe_ingredients(count)")
+    .select(
+      "id, title, servings, source_type, source_handle, is_favourite, tags, cover_image_path, recipe_ingredients(count)",
+    )
     .order("created_at", { ascending: false });
 
   if (opts.favourite) query = query.eq("is_favourite", true);
@@ -59,6 +62,7 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
     tags: r.tags,
     coverUrl: r.cover_image_path ? (covers[r.cover_image_path] ?? null) : null,
     ingredientCount: r.recipe_ingredients?.[0]?.count ?? 0,
+    source_handle: r.source_handle,
   }));
 }
 
@@ -69,7 +73,7 @@ export async function getRecipe(id: string) {
   const { data, error } = await supabase
     .from("recipes")
     .select(
-      `id, title, description, servings, prep_time, cook_time, source_url, source_type,
+      `id, title, description, servings, prep_time, cook_time, source_url, source_type, source_handle,
        tags, is_favourite, cover_image_path, created_at,
        recipe_ingredients (id, display_text, quantity, unit, name, sort_order),
        recipe_steps (id, instruction, image_path, sort_order),
