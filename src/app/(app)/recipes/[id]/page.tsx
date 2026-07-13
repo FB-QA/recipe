@@ -4,9 +4,8 @@ import { getRecipe } from "@/lib/recipes/queries";
 import { CoverImage } from "@/components/recipes/cover-image";
 import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
-import { AddToListSheet } from "@/components/grocery/add-to-list-sheet";
+import { IngredientsSection } from "@/components/recipes/ingredients-section";
 import { getLists } from "@/lib/grocery/queries";
-import { FoodImage } from "@/components/food-icons";
 import { ChevronLeftIcon, PencilIcon } from "@/components/icons";
 
 export default async function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +15,6 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
   const lists = await getLists();
 
   const metrics = [
-    recipe.servings ? { n: recipe.servings, l: "Serves" } : null,
     { n: String(recipe.ingredients.length), l: "Ingredients" },
     { n: String(recipe.steps.length), l: "Steps" },
     recipe.prep_time ? { n: recipe.prep_time, l: "Prep" } : null,
@@ -68,30 +66,12 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
       )}
 
       {recipe.ingredients.length > 0 && (
-        <div className="mt-4">
-          <AddToListSheet recipeId={recipe.id} ingredients={recipe.ingredients} lists={lists} />
-        </div>
-      )}
-
-      {recipe.ingredients.length > 0 && (
-        <section>
-          <SectionHeading>Ingredients</SectionHeading>
-          <ul className="overflow-hidden rounded-card border border-line bg-surface">
-            {recipe.ingredients.map((ing) => {
-              const qty = [ing.quantity, ing.unit].filter(Boolean).join(" ");
-              return (
-                <li
-                  key={ing.id}
-                  className="flex items-center gap-3 border-b border-line-2 px-4 py-3 text-[14px] last:border-b-0"
-                >
-                  <FoodImage text={ing.name ?? ing.display_text} size={22} className="flex-none text-ink-3" />
-                  {qty && <span className="min-w-[56px] font-semibold text-ink">{qty}</span>}
-                  <span className="text-ink-2">{ing.name ?? ing.display_text}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <IngredientsSection
+          recipeId={recipe.id}
+          ingredients={recipe.ingredients}
+          servingsText={recipe.servings}
+          lists={lists}
+        />
       )}
 
       {recipe.steps.length > 0 && (

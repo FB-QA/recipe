@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CartIcon, CheckIcon } from "@/components/icons";
 import { FoodImage } from "@/components/food-icons";
 import { addRecipeIngredientsToList } from "@/lib/grocery/actions";
+import { scaleIngredientText } from "@/lib/recipes/scale";
 import { clsx } from "@/lib/clsx";
 
 type Ingredient = {
@@ -22,10 +23,12 @@ export function AddToListSheet({
   recipeId,
   ingredients,
   lists,
+  scale = 1,
 }: {
   recipeId: string;
   ingredients: Ingredient[];
   lists: List[];
+  scale?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -47,7 +50,12 @@ export function AddToListSheet({
 
   const confirm = () =>
     startTransition(async () => {
-      const result = await addRecipeIngredientsToList(recipeId, [...selected], listId || undefined);
+      const result = await addRecipeIngredientsToList(
+        recipeId,
+        [...selected],
+        listId || undefined,
+        scale,
+      );
       setAddedCount(result.count);
       setOpen(false);
     });
@@ -106,7 +114,6 @@ export function AddToListSheet({
         <ul className="max-h-[42dvh] overflow-y-auto overflow-hidden rounded-card border border-line">
           {ingredients.map((ing) => {
             const on = selected.has(ing.id);
-            const qty = [ing.quantity, ing.unit].filter(Boolean).join(" ");
             return (
               <li key={ing.id}>
                 <button
@@ -128,8 +135,7 @@ export function AddToListSheet({
                     className="flex-none text-ink-3"
                   />
                   <span className="flex-1 text-[14px] text-ink">
-                    {qty && <span className="font-semibold">{qty} </span>}
-                    {ing.name ?? ing.display_text}
+                    {scaleIngredientText(ing.display_text, scale)}
                   </span>
                 </button>
               </li>

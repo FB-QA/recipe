@@ -38,6 +38,12 @@ export const PlusIcon = (p: IconProps) => (
   </svg>
 );
 
+export const MinusIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="M5 12h14" />
+  </svg>
+);
+
 export const CartIcon = (p: IconProps) => (
   <svg {...base(p)} aria-hidden>
     <path d="M3 4h2l2.4 12.2a1 1 0 0 0 1 .8h8.7a1 1 0 0 0 1-.8L21 8H6" />

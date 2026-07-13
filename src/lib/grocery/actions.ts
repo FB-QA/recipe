@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { categorize } from "./categorize";
+import { scaleIngredientText } from "@/lib/recipes/scale";
 
 async function nextSortOrder(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -136,6 +137,7 @@ export async function addRecipeIngredientsToList(
   recipeId: string,
   ingredientIds: string[],
   listId?: string,
+  scale: number = 1,
 ): Promise<{ listId: string; count: number }> {
   const supabase = await createClient();
   const {
@@ -172,14 +174,17 @@ export async function addRecipeIngredientsToList(
   if (!ingredients || ingredients.length === 0) return { listId: target, count: 0 };
 
   const base = await nextSortOrder(supabase, target);
-  const rows = ingredients.map((ing, i) => ({
-    list_id: target!,
-    display_text: ing.name ?? ing.display_text,
-    quantity: [ing.quantity, ing.unit].filter(Boolean).join(" ") || null,
-    source_recipe_id: recipeId,
-    sort_order: base + i,
-    category: categorize(ing.name ?? ing.display_text),
-  }));
+  const rows = ingredients.map((ing, i) => {
+    const qty = [ing.quantity, ing.unit].filter(Boolean).join(" ") || null;
+    return {
+      list_id: target!,
+      display_text: scaleIngredientText(ing.name ?? ing.display_text, scale),
+      quantity: qty ? scaleIngredientText(qty, scale) : null,
+      source_recipe_id: recipeId,
+      sort_order: base + i,
+      category: categorize(ing.name ?? ing.display_text),
+    };
+  });
   await supabase.from("grocery_items").insert(rows);
 
   revalidatePath("/list");

@@ -47,6 +47,27 @@ test.describe("M1 — recipes core", () => {
     await expect(page.getByRole("heading", { name: "No recipes yet" })).toBeVisible();
   });
 
+  test("scaling portions updates the ingredient amounts", async ({ page }) => {
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Roast");
+    await page.getByLabel("Serves").fill("2");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("2 chicken breasts");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+
+    await expect(page.getByRole("heading", { name: "Roast" })).toBeVisible();
+    await expect(page.getByText("2 chicken breasts")).toBeVisible();
+
+    // 2 → 3 portions (×1.5): "2 chicken breasts" becomes 3.
+    await page.getByRole("button", { name: "More portions" }).click();
+    await expect(page.getByText("3 portions")).toBeVisible();
+    await expect(page.getByText("3 chicken breasts")).toBeVisible();
+    await expect(page.getByText("2 chicken breasts")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Fewer portions" }).click();
+    await expect(page.getByText("2 chicken breasts")).toBeVisible();
+  });
+
   test("search finds a recipe by title and reports no matches otherwise", async ({ page }) => {
     await signUp(page);
     await page.goto("/recipes/new");
