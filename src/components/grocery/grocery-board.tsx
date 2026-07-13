@@ -158,7 +158,7 @@ function Chip({
         onTouchEnd={endPress}
         onTouchMove={endPress}
         aria-pressed={selected}
-        className="flex flex-col items-center gap-1 select-none [-webkit-touch-callout:none]"
+        className="flex w-full min-w-0 flex-col items-center gap-1 select-none [-webkit-touch-callout:none]"
       >
         <span className="relative">
           <span
