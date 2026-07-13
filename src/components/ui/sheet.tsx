@@ -4,17 +4,20 @@ import { useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { DUR, springSoft } from "@/lib/motion";
+import { ChevronLeftIcon } from "@/components/icons";
 
 const emptySubscribe = () => () => {};
 
 export function Sheet({
   open,
   onClose,
+  onBack,
   title,
   children,
 }: {
   open: boolean;
   onClose: () => void;
+  onBack?: () => void;
   title?: string;
   children: React.ReactNode;
 }) {
@@ -71,8 +74,22 @@ export function Sheet({
           transition={reduce ? { duration: DUR.fast } : springSoft}
         >
           <div aria-hidden className="mx-auto mb-3 mt-1 h-1 w-9 rounded-full bg-line" />
-          {title && (
-            <h2 className="mb-3 text-[19px] font-extrabold tracking-[-0.01em] text-ink">{title}</h2>
+          {(title || onBack) && (
+            <div className="mb-3 flex items-center gap-1.5">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  aria-label="Back"
+                  className="-ml-1.5 grid h-9 w-9 flex-none place-items-center rounded-full text-ink-2 transition-colors hover:bg-surface-2"
+                >
+                  <ChevronLeftIcon size={20} />
+                </button>
+              )}
+              {title && (
+                <h2 className="text-[19px] font-extrabold tracking-[-0.01em] text-ink">{title}</h2>
+              )}
+            </div>
           )}
           {children}
         </motion.div>

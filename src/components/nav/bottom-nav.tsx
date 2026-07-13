@@ -30,7 +30,7 @@ export function BottomNav() {
         <NavLink key={item.href} {...item} active={item.match(pathname)} />
       ))}
 
-      <AddButton />
+      <AddButton key={pathname} />
 
       {items.slice(2).map((item) => (
         <NavLink key={item.href} {...item} active={item.match(pathname)} />
