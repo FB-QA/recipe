@@ -154,7 +154,7 @@ function FilterBar({
     items.filter((i) => listId === null || i.list_id === listId).length;
 
   return (
-    <div className="mb-3.5 flex items-end gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
+    <div className="mb-3.5 flex items-end gap-3 overflow-x-auto px-1 pb-1 pt-2 [scrollbar-width:none]">
       <Chip
         label="All"
         selected={selected === ALL_LISTS}
