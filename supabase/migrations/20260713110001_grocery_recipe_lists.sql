@@ -51,11 +51,14 @@ begin
             select 1 from public.grocery_items gi
             where gi.list_id = gl.id and gi.source_recipe_id = g.recipe_id
           )
+          -- All items must be this recipe's: no other recipe's tagged items and
+          -- no manual (null-sourced) items, or binding would strand them under
+          -- the recipe tab. Otherwise a new list is created and only tagged rows
+          -- are moved.
           and not exists (
             select 1 from public.grocery_items gi
             where gi.list_id = gl.id
-              and gi.source_recipe_id is not null
-              and gi.source_recipe_id <> g.recipe_id
+              and (gi.source_recipe_id is null or gi.source_recipe_id <> g.recipe_id)
           )
         order by (
           select count(*) from public.grocery_items gi

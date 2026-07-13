@@ -85,6 +85,19 @@ export async function createRecipe(
   } = await supabase.auth.getUser();
   if (!user) return { error: "You've been signed out — log in and try again." };
 
+  // Recheck the source URL at save time (not just at import) so a second tab
+  // that already imported the same link lands on the existing recipe instead
+  // of inserting a duplicate.
+  if (input.source_url) {
+    const { data: dupe } = await supabase
+      .from("recipes")
+      .select("id")
+      .eq("source_url", input.source_url)
+      .limit(1)
+      .maybeSingle();
+    if (dupe) return { ok: true, id: dupe.id };
+  }
+
   const { data: recipe, error } = await supabase
     .from("recipes")
     .insert({

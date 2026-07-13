@@ -32,7 +32,7 @@ export default async function ListPage({
           here.
         </EmptyState>
       ) : (
-        <GroceryBoard {...board} />
+        <GroceryBoard key={board.activeId} {...board} />
       )}
     </>
   );

@@ -176,13 +176,23 @@ export async function addRecipeIngredientsToList(
     return { listId: target, count: 0, skipped: 0, created, listName };
 
   // Skip ingredients already on this list, so re-adding never duplicates.
+  // Match on provenance (source_ingredient_id) and, as a fallback, on the
+  // rendered text — editing a recipe reinserts its ingredients with new ids,
+  // which nulls the provenance FK on existing grocery rows.
   const { data: existingItems } = await supabase
     .from("grocery_items")
-    .select("source_ingredient_id")
+    .select("source_ingredient_id, display_text")
     .eq("list_id", target)
-    .not("source_ingredient_id", "is", null);
-  const alreadyThere = new Set((existingItems ?? []).map((r) => r.source_ingredient_id));
-  const fresh = ingredients.filter((ing) => !alreadyThere.has(ing.id));
+    .eq("source_recipe_id", recipeId);
+  const alreadyIds = new Set(
+    (existingItems ?? []).map((r) => r.source_ingredient_id).filter(Boolean),
+  );
+  const alreadyText = new Set((existingItems ?? []).map((r) => r.display_text));
+  const displayFor = (ing: (typeof ingredients)[number]) =>
+    scaleIngredientText(ing.name ?? ing.display_text, scale);
+  const fresh = ingredients.filter(
+    (ing) => !alreadyIds.has(ing.id) && !alreadyText.has(displayFor(ing)),
+  );
   const skipped = ingredients.length - fresh.length;
   if (fresh.length === 0) return { listId: target, count: 0, skipped, created, listName };
 
@@ -199,7 +209,12 @@ export async function addRecipeIngredientsToList(
       category: categorize(ing.name ?? ing.display_text),
     };
   });
-  const { error } = await supabase.from("grocery_items").insert(rows);
+  // Upsert with ignoreDuplicates: if a concurrent add already inserted the same
+  // (list, ingredient), the unique index makes this a no-op rather than an error
+  // or a duplicate row.
+  const { error } = await supabase
+    .from("grocery_items")
+    .upsert(rows, { onConflict: "list_id,source_ingredient_id", ignoreDuplicates: true });
   if (error) return { listId: target, count: 0, skipped, created, listName };
 
   revalidatePath("/list");

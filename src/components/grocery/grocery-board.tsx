@@ -133,13 +133,27 @@ function Chip({
 }: ChipProps) {
   const reduce = useReducedMotion();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
 
   const startPress = () => {
     if (!onEnterEdit) return;
-    timer.current = setTimeout(onEnterEdit, 450);
+    longPressed.current = false;
+    timer.current = setTimeout(() => {
+      longPressed.current = true;
+      onEnterEdit();
+    }, 450);
   };
   const endPress = () => {
     if (timer.current) clearTimeout(timer.current);
+  };
+  // On touch, the release still fires a click — swallow it so a long-press that
+  // just entered edit mode doesn't immediately exit it.
+  const handleClick = () => {
+    if (longPressed.current) {
+      longPressed.current = false;
+      return;
+    }
+    onClick();
   };
 
   const wiggling = editing && !!onDelete && !reduce;
@@ -153,7 +167,7 @@ function Chip({
     >
       <button
         type="button"
-        onClick={onClick}
+        onClick={handleClick}
         onContextMenu={onEnterEdit ? (e) => { e.preventDefault(); onEnterEdit(); } : undefined}
         onTouchStart={onEnterEdit ? startPress : undefined}
         onTouchEnd={endPress}
