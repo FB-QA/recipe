@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { signStoragePaths } from "@/lib/supabase/storage";
+import { scaleIngredientText } from "@/lib/recipes/scale";
 import { ALL_LISTS } from "./constants";
 
 /** A list chip in the grocery filter bar. Recipe lists carry a cover (or a
@@ -31,14 +32,25 @@ export async function listedIngredientIds(recipeId: string): Promise<string[]> {
     .eq("source_recipe_id", recipeId)
     .maybeSingle();
   if (!list) return [];
-  const { data } = await supabase
+
+  // Match on provenance and, as a fallback, on rendered text — the same rule as
+  // the add path — so items from before the provenance column existed (null
+  // source_ingredient_id) still show as already on the list.
+  const { data: items } = await supabase
     .from("grocery_items")
-    .select("source_ingredient_id")
+    .select("source_ingredient_id, display_text")
     .eq("list_id", list.id)
-    .not("source_ingredient_id", "is", null);
-  return (data ?? [])
-    .map((r) => r.source_ingredient_id)
-    .filter((x): x is string => Boolean(x));
+    .eq("source_recipe_id", recipeId);
+  const byProvenance = new Set((items ?? []).map((r) => r.source_ingredient_id).filter(Boolean));
+  const byText = new Set((items ?? []).map((r) => r.display_text));
+
+  const { data: ings } = await supabase
+    .from("recipe_ingredients")
+    .select("id, name, display_text")
+    .eq("recipe_id", recipeId);
+  return (ings ?? [])
+    .filter((i) => byProvenance.has(i.id) || byText.has(scaleIngredientText(i.name ?? i.display_text, 1)))
+    .map((i) => i.id);
 }
 
 export type GroceryBoardData = {
