@@ -23,6 +23,7 @@ export function Button({
   loading,
   className,
   children,
+  disabled,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
@@ -33,9 +34,9 @@ export function Button({
   return (
     <button
       className={clsx(base, sizes[size], variants[variant], fullWidth && "w-full", className)}
-      aria-busy={loading || undefined}
-      disabled={loading || props.disabled}
       {...props}
+      aria-busy={loading || undefined}
+      disabled={loading || disabled}
     >
       {loading && (
         <span

@@ -49,22 +49,26 @@ async function removeRecipeFolder(supabase: Client, userId: string, recipeId: st
   }
 }
 
-async function replaceChildren(supabase: Client, recipeId: string, input: RecipeInput) {
-  await Promise.all([
+/** Replace a recipe's children. Returns false if any delete/insert errored, so
+ *  the caller can surface the failure rather than redirect as if it succeeded. */
+async function replaceChildren(supabase: Client, recipeId: string, input: RecipeInput): Promise<boolean> {
+  const deletes = await Promise.all([
     supabase.from("recipe_ingredients").delete().eq("recipe_id", recipeId),
     supabase.from("recipe_steps").delete().eq("recipe_id", recipeId),
     supabase.from("recipe_tips").delete().eq("recipe_id", recipeId),
   ]);
+  if (deletes.some((r) => r.error)) return false;
 
   const ingredients = input.ingredients.map((ing, i) => ({ recipe_id: recipeId, ...ing, sort_order: i }));
   const steps = input.steps.map((s, i) => ({ recipe_id: recipeId, instruction: s.instruction, sort_order: i }));
   const tips = input.tips.map((t, i) => ({ recipe_id: recipeId, text: t, sort_order: i }));
 
-  await Promise.all([
-    ingredients.length ? supabase.from("recipe_ingredients").insert(ingredients) : Promise.resolve(),
-    steps.length ? supabase.from("recipe_steps").insert(steps) : Promise.resolve(),
-    tips.length ? supabase.from("recipe_tips").insert(tips) : Promise.resolve(),
+  const inserts = await Promise.all([
+    ingredients.length ? supabase.from("recipe_ingredients").insert(ingredients) : null,
+    steps.length ? supabase.from("recipe_steps").insert(steps) : null,
+    tips.length ? supabase.from("recipe_tips").insert(tips) : null,
   ]);
+  return !inserts.some((r) => r?.error);
 }
 
 export async function createRecipe(
@@ -113,10 +117,10 @@ export async function createRecipe(
     // Non-fatal: the recipe is saved; the cover just didn't stick.
   }
 
-  await replaceChildren(supabase, recipe.id, input);
+  const saved = await replaceChildren(supabase, recipe.id, input);
+  if (!saved) return { error: "Couldn't save all of the recipe — open it and try again." };
 
   revalidatePath("/");
-  revalidatePath("/recipes");
   redirect(`/recipes/${recipe.id}`);
 }
 
@@ -163,10 +167,10 @@ export async function updateRecipe(
     }
   }
 
-  await replaceChildren(supabase, id, input);
+  const saved = await replaceChildren(supabase, id, input);
+  if (!saved) return { error: "Couldn't save your changes in full — try again." };
 
   revalidatePath("/");
-  revalidatePath("/recipes");
   revalidatePath(`/recipes/${id}`);
   redirect(`/recipes/${id}`);
 }

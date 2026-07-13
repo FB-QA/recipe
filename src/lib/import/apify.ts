@@ -21,6 +21,9 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
   const token = process.env.APIFY_API_TOKEN;
   if (!token) return null;
 
+  let runId: string | null = null;
+  let succeeded = false;
+
   try {
     const startRes = await fetch(`${BASE}/acts/${ACTOR}/runs?token=${token}`, {
       method: "POST",
@@ -36,7 +39,7 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
     if (!startRes.ok) return null;
 
     const run = await startRes.json();
-    const runId: string = run.data.id;
+    runId = run.data.id as string;
     const datasetId: string = run.data.defaultDatasetId;
 
     // Poll for completion, capped so a hung run can't hang the request.
@@ -54,21 +57,8 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
       usageUsd = body.data.usageTotalUsd ?? usageUsd;
       if (["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"].includes(status)) break;
     }
-    if (status !== "SUCCEEDED") {
-      // We've stopped waiting — abort the run so Apify doesn't keep billing
-      // compute for a result we'll never read.
-      if (status === "RUNNING" || status === "READY") {
-        try {
-          await fetch(`${BASE}/actor-runs/${runId}/abort?token=${token}`, {
-            method: "POST",
-            signal: AbortSignal.timeout(10_000),
-          });
-        } catch {
-          // best effort
-        }
-      }
-      return null;
-    }
+    if (status !== "SUCCEEDED") return null;
+    succeeded = true;
 
     const itemsRes = await fetch(`${BASE}/datasets/${datasetId}/items?clean=true&token=${token}`, {
       signal: AbortSignal.timeout(15_000),
@@ -88,5 +78,18 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
     };
   } catch {
     return null;
+  } finally {
+    // Any started run that didn't reach SUCCEEDED — timed out, errored, or we
+    // gave up polling — is aborted so Apify stops billing compute we won't read.
+    if (runId && !succeeded) {
+      try {
+        await fetch(`${BASE}/actor-runs/${runId}/abort?token=${token}`, {
+          method: "POST",
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch {
+        // best effort
+      }
+    }
   }
 }

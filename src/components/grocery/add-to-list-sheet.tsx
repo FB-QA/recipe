@@ -49,8 +49,10 @@ export function AddToListSheet({
         listId || undefined,
         scale,
       );
-      setAddedCount(result.count);
-      setOpen(false);
+      if (result.count > 0) {
+        setAddedCount(result.count);
+        setOpen(false);
+      }
     });
 
   if (addedCount !== null) {

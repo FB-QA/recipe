@@ -73,60 +73,13 @@ export async function deleteItem(id: string) {
   revalidatePath("/list");
 }
 
-export async function clearCompleted(listId: string) {
+export async function clearCompleted(ids: string[]) {
+  if (ids.length === 0) return;
   const supabase = await createClient();
-  await supabase.from("grocery_items").delete().eq("list_id", listId).eq("is_completed", true);
+  // Delete by id (RLS-scoped) so a recipe-filtered "clear" only clears what's
+  // visible, never other recipes' completed items.
+  await supabase.from("grocery_items").delete().in("id", ids);
   revalidatePath("/list");
-}
-
-/**
- * Add every ingredient from a recipe to a list. Creates a "This Week" list on
- * first use. Returns the list id so the caller can jump there.
- */
-export async function addRecipeToList(recipeId: string): Promise<{ listId: string; count: number }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { listId: "", count: 0 };
-
-  // Resolve (or create) the target list.
-  const { data: lists } = await supabase
-    .from("grocery_lists")
-    .select("id")
-    .order("created_at", { ascending: true })
-    .limit(1);
-  let listId = lists?.[0]?.id;
-  if (!listId) {
-    const { data } = await supabase
-      .from("grocery_lists")
-      .insert({ name: "This Week" })
-      .select("id")
-      .single();
-    listId = data?.id;
-  }
-  if (!listId) return { listId: "", count: 0 };
-
-  const { data: ingredients } = await supabase
-    .from("recipe_ingredients")
-    .select("display_text, quantity, unit, name, sort_order")
-    .eq("recipe_id", recipeId)
-    .order("sort_order", { ascending: true });
-  if (!ingredients || ingredients.length === 0) return { listId, count: 0 };
-
-  const base = await nextSortOrder(supabase, listId);
-  const rows = ingredients.map((ing, i) => ({
-    list_id: listId!,
-    display_text: ing.name ?? ing.display_text,
-    quantity: quantityLabel(ing),
-    source_recipe_id: recipeId,
-    sort_order: base + i,
-    category: categorize(ing.name ?? ing.display_text),
-  }));
-  await supabase.from("grocery_items").insert(rows);
-
-  revalidatePath("/list");
-  return { listId, count: rows.length };
 }
 
 /**
@@ -186,7 +139,8 @@ export async function addRecipeIngredientsToList(
       category: categorize(ing.name ?? ing.display_text),
     };
   });
-  await supabase.from("grocery_items").insert(rows);
+  const { error } = await supabase.from("grocery_items").insert(rows);
+  if (error) return { listId: target, count: 0 };
 
   revalidatePath("/list");
   return { listId: target, count: rows.length };

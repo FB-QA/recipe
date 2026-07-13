@@ -4,6 +4,7 @@ import { fetchInstagram } from "./apify";
 import { isSafeImportUrl } from "./url-guard";
 import { hasCookableContent, type ImportOutcome } from "./types";
 import { BROWSER_USER_AGENT } from "@/lib/http";
+import { safeFetch, readCapped } from "@/lib/safe-fetch";
 
 export function isInstagramUrl(url: string): boolean {
   try {
@@ -31,16 +32,12 @@ function htmlToText(html: string): string {
 }
 
 async function fetchHtml(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: { "user-agent": BROWSER_USER_AGENT, accept: "text/html,application/xhtml+xml" },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  }
+  const res = await safeFetch(url, {
+    headers: { "user-agent": BROWSER_USER_AGENT, accept: "text/html,application/xhtml+xml" },
+  });
+  if (!res || !res.ok) return null;
+  const buf = await readCapped(res);
+  return buf ? buf.toString("utf8") : null;
 }
 
 /** Public entry: turn any supported URL into an ImportOutcome. */

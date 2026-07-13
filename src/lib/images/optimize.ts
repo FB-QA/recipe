@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { BROWSER_USER_AGENT } from "@/lib/http";
+import { safeFetch, readCapped } from "@/lib/safe-fetch";
 
 export const COVER_MAX_DIMENSION = 1400;
 export const COVER_WEBP_QUALITY = 78;
@@ -26,13 +27,11 @@ export async function optimizeCover(input: ArrayBuffer | Buffer): Promise<Buffer
 /** Fetch a remote image (e.g. an imported Reel thumbnail) and optimise it.
  *  A browser-like user-agent is required — Instagram's CDN refuses bare fetches. */
 export async function optimizeFromUrl(url: string): Promise<Buffer | null> {
+  const res = await safeFetch(url, { headers: { "user-agent": BROWSER_USER_AGENT } });
+  if (!res || !res.ok) return null;
+  const buf = await readCapped(res);
+  if (!buf) return null;
   try {
-    const res = await fetch(url, {
-      headers: { "user-agent": BROWSER_USER_AGENT },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return null;
-    const buf = await res.arrayBuffer();
     return await optimizeCover(buf);
   } catch {
     return null;

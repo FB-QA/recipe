@@ -149,7 +149,7 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
                   Completed · {done.length}
                 </span>
                 <button
-                  onClick={() => startTransition(() => clearCompleted(activeId))}
+                  onClick={() => startTransition(() => clearCompleted(done.map((i) => i.id)))}
                   className="text-[12px] font-semibold text-basil"
                 >
                   Clear completed
