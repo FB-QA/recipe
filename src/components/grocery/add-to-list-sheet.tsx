@@ -53,20 +53,19 @@ export function AddToListSheet({
       }
     });
 
-  if (added) {
-    return (
-      <Button variant="ghost" fullWidth onClick={() => router.push(`/list?list=${added.listId}`)}>
-        <CheckIcon size={18} /> Added {added.count} item{added.count === 1 ? "" : "s"} — view list
-      </Button>
-    );
-  }
-
   return (
     <>
-      <Button fullWidth onClick={() => setOpen(true)}>
-        <CartIcon size={18} /> Add to grocery list
-      </Button>
+      {added ? (
+        <Button variant="ghost" fullWidth onClick={() => router.push(`/list?list=${added.listId}`)}>
+          <CheckIcon size={18} /> Added {added.count} item{added.count === 1 ? "" : "s"} — view list
+        </Button>
+      ) : (
+        <Button fullWidth onClick={() => setOpen(true)}>
+          <CartIcon size={18} /> Add to grocery list
+        </Button>
+      )}
 
+      {/* Sheet stays mounted (not an early return) so it can animate closed. */}
       <Sheet open={open} onClose={() => setOpen(false)} title="Add to grocery list">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
