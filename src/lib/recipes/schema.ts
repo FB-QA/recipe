@@ -19,9 +19,10 @@ export const ingredientSchema = z.object({
 export const recipeInputSchema = z.object({
   title: z.string().trim().min(1, "Give the recipe a title.").max(200),
   description: optionalText(4000),
-  servings: optionalText(60),
-  prep_time: optionalText(60),
-  cook_time: optionalText(60),
+  // Free text from imports can be verbose ("plus 1 hr or overnight soaking").
+  servings: optionalText(200),
+  prep_time: optionalText(200),
+  cook_time: optionalText(200),
   source_url: z
     .string()
     .trim()

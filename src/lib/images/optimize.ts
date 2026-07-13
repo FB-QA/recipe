@@ -22,10 +22,17 @@ export async function optimizeCover(input: ArrayBuffer | Buffer): Promise<Buffer
     .toBuffer();
 }
 
-/** Fetch a remote image (e.g. an imported Reel thumbnail) and optimise it. */
+const FETCH_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17 Safari/605.1.15";
+
+/** Fetch a remote image (e.g. an imported Reel thumbnail) and optimise it.
+ *  A browser-like user-agent is required — Instagram's CDN refuses bare fetches. */
 export async function optimizeFromUrl(url: string): Promise<Buffer | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const res = await fetch(url, {
+      headers: { "user-agent": FETCH_UA },
+      signal: AbortSignal.timeout(15_000),
+    });
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
     return await optimizeCover(buf);

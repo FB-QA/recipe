@@ -31,6 +31,15 @@ describe("parseRecipePayload", () => {
     expect(parseRecipePayload({ title: "X", source_url: "not a url" }).success).toBe(false);
   });
 
+  it("accepts verbose free-text times/servings from imports (regression: 60-char cap)", () => {
+    const r = parseRecipePayload({
+      title: "Chia Puddings",
+      cook_time: "5-10 minutes for the strawberries, plus 1 hour or overnight soaking",
+      servings: "2 large portions",
+    });
+    expect(r.success).toBe(true);
+  });
+
   it("defaults collections to empty arrays", () => {
     const r = parseRecipePayload({ title: "X" });
     expect(r.success).toBe(true);

@@ -58,7 +58,14 @@ export function RecipeForm({
   const [steps, setSteps] = useState<string[]>(initial.steps.length ? initial.steps : [""]);
   const [tips, setTips] = useState<string[]>(initial.tips);
 
-  const [preview, setPreview] = useState<string | null>(importCoverUrl ?? initial.coverUrl);
+  // A remote import cover (e.g. an Instagram thumbnail) is hotlink-blocked in the
+  // browser, so preview it through our proxy. The hidden field still carries the
+  // raw URL — the server fetches and stores it directly on save.
+  const importPreviewSrc =
+    importCoverUrl && /^https?:\/\//.test(importCoverUrl)
+      ? `/api/image-proxy?url=${encodeURIComponent(importCoverUrl)}`
+      : (importCoverUrl ?? null);
+  const [preview, setPreview] = useState<string | null>(importPreviewSrc ?? initial.coverUrl);
   const [coverAction, setCoverAction] = useState<"keep" | "replace" | "remove">("keep");
   const fileRef = useRef<HTMLInputElement>(null);
 
