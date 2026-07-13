@@ -32,6 +32,22 @@ export async function createList(_prev: unknown, formData: FormData): Promise<vo
   if (data) redirect(`/list?list=${data.id}`);
 }
 
+/** Client-callable list create that returns the id (no redirect) so the caller
+ * can select it and show a toast. */
+export async function createNamedList(name: string): Promise<{ id: string } | null> {
+  const parsed = z.string().trim().min(1).max(80).safeParse(name);
+  if (!parsed.success) return null;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("grocery_lists")
+    .insert({ name: parsed.data })
+    .select("id")
+    .single();
+  revalidatePath("/list");
+  return data ? { id: data.id } : null;
+}
+
 export async function renameList(id: string, name: string) {
   const parsed = z.string().trim().min(1).max(80).safeParse(name);
   if (!parsed.success) return;
@@ -89,19 +105,36 @@ export async function clearCompleted(ids: string[]) {
  * client-supplied text is never trusted. The recipe's list is found by its
  * source_recipe_id, or created on first add and named after the recipe.
  */
+export type AddToListResult = {
+  listId: string;
+  count: number;
+  created: boolean;
+  listName: string;
+};
+
 export async function addRecipeIngredientsToList(
   recipeId: string,
   ingredientIds: string[],
   scale: number = 1,
-): Promise<{ listId: string; count: number }> {
+): Promise<AddToListResult> {
+  const empty: AddToListResult = { listId: "", count: 0, created: false, listName: "" };
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || ingredientIds.length === 0) return { listId: "", count: 0 };
+  if (!user || ingredientIds.length === 0) return empty;
+
+  const { data: recipe } = await supabase
+    .from("recipes")
+    .select("title")
+    .eq("id", recipeId)
+    .maybeSingle();
+  if (!recipe) return empty;
+  const listName = recipe.title;
 
   // The recipe's own list — found by binding, or created and named after it.
   let target: string | undefined;
+  let created = false;
   const { data: existing } = await supabase
     .from("grocery_lists")
     .select("id")
@@ -110,15 +143,9 @@ export async function addRecipeIngredientsToList(
   target = existing?.id;
 
   if (!target) {
-    const { data: recipe } = await supabase
-      .from("recipes")
-      .select("title")
-      .eq("id", recipeId)
-      .maybeSingle();
-    if (!recipe) return { listId: "", count: 0 };
-    const { data: created, error: createErr } = await supabase
+    const { data: inserted, error: createErr } = await supabase
       .from("grocery_lists")
-      .insert({ name: recipe.title.slice(0, 80), source_recipe_id: recipeId })
+      .insert({ name: listName.slice(0, 80), source_recipe_id: recipeId })
       .select("id")
       .single();
     if (createErr) {
@@ -132,10 +159,11 @@ export async function addRecipeIngredientsToList(
         .maybeSingle();
       target = raced?.id;
     } else {
-      target = created?.id;
+      target = inserted?.id;
+      created = true;
     }
   }
-  if (!target) return { listId: "", count: 0 };
+  if (!target) return { ...empty, listName };
 
   const { data: ingredients } = await supabase
     .from("recipe_ingredients")
@@ -143,7 +171,8 @@ export async function addRecipeIngredientsToList(
     .eq("recipe_id", recipeId)
     .in("id", ingredientIds)
     .order("sort_order", { ascending: true });
-  if (!ingredients || ingredients.length === 0) return { listId: target, count: 0 };
+  if (!ingredients || ingredients.length === 0)
+    return { listId: target, count: 0, created, listName };
 
   const base = await nextSortOrder(supabase, target);
   const rows = ingredients.map((ing, i) => {
@@ -158,8 +187,8 @@ export async function addRecipeIngredientsToList(
     };
   });
   const { error } = await supabase.from("grocery_items").insert(rows);
-  if (error) return { listId: target, count: 0 };
+  if (error) return { listId: target, count: 0, created, listName };
 
   revalidatePath("/list");
-  return { listId: target, count: rows.length };
+  return { listId: target, count: rows.length, created, listName };
 }

@@ -20,6 +20,8 @@ test.describe("M3 — grocery lists", () => {
     await page.getByRole("button", { name: "Add to grocery list" }).click();
     await expect(page.getByText("2 of 2 selected")).toBeVisible();
     await page.getByRole("button", { name: /Add 2 items/i }).click();
+    // A toast confirms the background create/add.
+    await expect(page.getByRole("status").filter({ hasText: /Salad/ })).toBeVisible();
     await page.getByRole("button", { name: /view list/i }).click();
     await expect(page).toHaveURL(/\/list/);
 

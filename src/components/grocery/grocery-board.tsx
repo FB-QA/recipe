@@ -8,7 +8,8 @@ import { CartIcon, CheckIcon, CloseIcon, PlusIcon, ListIcon } from "@/components
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
 import { CategoryIcon, FoodImage } from "@/components/food-icons";
 import { gradientFor } from "@/components/recipes/cover-image";
-import { addItem, toggleItem, deleteItem, clearCompleted, createList, deleteList } from "@/lib/grocery/actions";
+import { addItem, toggleItem, deleteItem, clearCompleted, createNamedList, deleteList } from "@/lib/grocery/actions";
+import { useToast } from "@/components/ui/toast";
 import { ALL_LISTS } from "@/lib/grocery/constants";
 import type { GroceryBoardData, GroceryItem, GroceryList } from "@/lib/grocery/queries";
 
@@ -214,10 +215,23 @@ function FilterBar({
 }) {
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
 
   const itemCount = (listId: string | null) =>
     items.filter((i) => listId === null || i.list_id === listId).length;
+
+  const createList = () => {
+    const name = inputRef.current?.value.trim();
+    setAdding(false);
+    if (!name) return;
+    startTransition(async () => {
+      const res = await createNamedList(name);
+      toast(`List “${name}” created`);
+      if (res) onSelect(res.id);
+    });
+  };
 
   // While editing, tapping a chip body exits edit mode rather than selecting.
   const bodyClick = (id: string) => () => (editing ? setEditing(false) : onSelect(id));
@@ -276,7 +290,13 @@ function FilterBar({
           <span className="text-[10px] font-semibold text-ink">Done</span>
         </button>
       ) : adding ? (
-        <form action={createList.bind(null, undefined)} className="flex-none self-center">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            createList();
+          }}
+          className="flex-none self-center"
+        >
           <input
             ref={inputRef}
             name="name"

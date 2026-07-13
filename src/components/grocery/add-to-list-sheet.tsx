@@ -8,6 +8,7 @@ import { CartIcon, CheckIcon } from "@/components/icons";
 import { FoodImage } from "@/components/food-icons";
 import { addRecipeIngredientsToList } from "@/lib/grocery/actions";
 import { scaleIngredientText } from "@/lib/recipes/scale";
+import { useToast } from "@/components/ui/toast";
 import { clsx } from "@/lib/clsx";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
 
@@ -25,6 +26,7 @@ export function AddToListSheet({
   const [selected, setSelected] = useState<Set<string>>(() => new Set(ingredients.map((i) => i.id)));
   const [added, setAdded] = useState<{ count: number; listId: string } | null>(null);
   const router = useRouter();
+  const toast = useToast();
 
   const allSelected = selected.size === ingredients.length;
 
@@ -40,6 +42,12 @@ export function AddToListSheet({
     startTransition(async () => {
       const result = await addRecipeIngredientsToList(recipeId, [...selected], scale);
       if (result.count > 0) {
+        const items = `${result.count} item${result.count === 1 ? "" : "s"}`;
+        toast(
+          result.created
+            ? `Started “${result.listName}” · ${items}`
+            : `Added ${items} to “${result.listName}”`,
+        );
         setAdded({ count: result.count, listId: result.listId });
         setOpen(false);
       }
