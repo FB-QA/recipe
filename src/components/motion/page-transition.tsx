@@ -1,21 +1,25 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import { usePathname } from "next/navigation";
+import { tween } from "@/lib/motion";
 
-/** A quiet fade-and-lift on route change. Disabled under reduced-motion. */
+/**
+ * A quiet fade-and-lift on every route change. `MotionConfig reducedMotion="user"`
+ * makes ALL Framer motion in the app respect the OS reduced-motion setting.
+ */
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const reduce = useReducedMotion();
-
   return (
-    <motion.div
-      key={pathname}
-      initial={reduce ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: "easeOut" }}
-    >
-      {children}
-    </motion.div>
+    <MotionConfig reducedMotion="user">
+      <motion.div
+        key={pathname}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={tween}
+      >
+        {children}
+      </motion.div>
+    </MotionConfig>
   );
 }

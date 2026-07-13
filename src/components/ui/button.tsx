@@ -3,7 +3,7 @@ import { clsx } from "@/lib/clsx";
 type Variant = "primary" | "ghost" | "danger";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[14px] font-bold transition-colors disabled:opacity-60 disabled:pointer-events-none active:scale-[0.985] select-none";
+  "inline-flex items-center justify-center gap-2 rounded-[14px] font-bold transition-[transform,background-color] duration-150 disabled:opacity-60 disabled:pointer-events-none active:scale-[0.97] select-none";
 
 const sizes = {
   md: "px-4 py-[15px] text-[15px]",

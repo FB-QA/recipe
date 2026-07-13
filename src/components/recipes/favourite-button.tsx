@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { motion } from "framer-motion";
 import { HeartIcon } from "@/components/icons";
 import { toggleFavourite } from "@/lib/recipes/actions";
+import { springPop } from "@/lib/motion";
 import { clsx } from "@/lib/clsx";
 
 export function FavouriteButton({
@@ -34,7 +36,15 @@ export function FavouriteButton({
           : "h-9 w-9 text-heart",
       )}
     >
-      <HeartIcon size={18} filled={fav} />
+      <motion.span
+        key={String(fav)}
+        initial={{ scale: 0.6 }}
+        animate={{ scale: 1 }}
+        transition={springPop}
+        className="grid place-items-center"
+      >
+        <HeartIcon size={18} filled={fav} />
+      </motion.span>
     </button>
   );
 }

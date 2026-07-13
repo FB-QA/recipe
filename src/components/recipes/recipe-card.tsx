@@ -15,7 +15,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
   return (
     <Link
       href={`/recipes/${recipe.id}`}
-      className="block overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow)] transition-transform active:scale-[0.975]"
+      className="block overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow)] transition-transform duration-150 active:scale-[0.97]"
     >
       <CoverImage url={recipe.coverUrl} title={recipe.title} className="h-[118px] p-2.5">
         {recipe.is_favourite && (
@@ -53,8 +53,10 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
 export function RecipeShelf({ recipes }: { recipes: RecipeListItem[] }) {
   return (
     <div className="grid grid-cols-2 gap-3.5">
-      {recipes.map((r) => (
-        <RecipeCard key={r.id} recipe={r} />
+      {recipes.map((r, i) => (
+        <div key={r.id} className="reveal-item" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}>
+          <RecipeCard recipe={r} />
+        </div>
       ))}
     </div>
   );

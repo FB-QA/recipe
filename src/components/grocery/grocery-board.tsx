@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition, useRef } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { springPop } from "@/lib/motion";
 import { clsx } from "@/lib/clsx";
 import { CartIcon, CheckIcon, CloseIcon, PlusIcon } from "@/components/icons";
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
@@ -171,7 +172,7 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
 function Item({ item, onToggle }: { item: GroceryItem; onToggle: (id: string, c: boolean) => void }) {
   const [, startTransition] = useTransition();
   return (
-    <li className="flex items-center gap-3 border-b border-line-2 px-4 py-3 last:border-b-0">
+    <li className="reveal-item flex items-center gap-3 border-b border-line-2 px-4 py-3 last:border-b-0">
       <button
         aria-label={item.is_completed ? "Mark as not bought" : "Mark as bought"}
         aria-pressed={item.is_completed}
@@ -185,7 +186,7 @@ function Item({ item, onToggle }: { item: GroceryItem; onToggle: (id: string, c:
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 520, damping: 24 }}
+            transition={springPop}
             className="grid place-items-center"
           >
             <CheckIcon size={13} />

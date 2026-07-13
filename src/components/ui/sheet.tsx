@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { DUR, springSoft } from "@/lib/motion";
 
 export function Sheet({
   open,
@@ -32,7 +33,7 @@ export function Sheet({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: DUR.fast }}
             onClick={onClose}
           />
           <motion.div
@@ -43,7 +44,7 @@ export function Sheet({
             initial={reduce ? false : { y: "100%" }}
             animate={{ y: 0 }}
             exit={reduce ? { opacity: 0 } : { y: "100%" }}
-            transition={{ type: "spring", damping: 32, stiffness: 320 }}
+            transition={springSoft}
           >
             <div aria-hidden className="mx-auto mb-3 mt-1 h-1 w-9 rounded-full bg-line" />
             {title && (

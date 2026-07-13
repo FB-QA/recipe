@@ -34,7 +34,7 @@ export function BottomNav() {
         aria-label="Add a recipe"
         className="-mt-7 flex flex-col items-center"
       >
-        <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-basil text-white shadow-[0_6px_16px_color-mix(in_srgb,var(--basil)_45%,transparent)] transition-transform active:scale-95">
+        <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-basil text-white shadow-[0_6px_16px_color-mix(in_srgb,var(--basil)_45%,transparent)] transition-transform duration-150 active:scale-90">
           <PlusIcon size={26} />
         </span>
       </Link>
