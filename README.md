@@ -60,6 +60,29 @@ E2E covers the real journeys: auth, recipe CRUD + image upload, website import
 (via a local JSON-LD fixture — no external calls), and grocery lists. The
 Instagram path is smoke-tested live separately (it costs a fraction of a cent).
 
+## CI — Claude reviews every PR
+
+Two workflows in `.github/workflows/`:
+
+- **`claude-code-review.yml`** — reviews every non-draft PR when it opens and on
+  each push to it. Comments only; it has `contents: read`.
+- **`claude.yml`** — answers `@claude` in a PR comment, review comment or issue.
+  This one has `contents: write`, because *"@claude fix that"* means pushing a
+  commit.
+
+Both run on the **Claude subscription**, not an API key — the action input is
+`claude_code_oauth_token`, so there is no per-token API billing.
+
+Setup is already done and needs no repeating, but for the record it was two
+things, neither of which an agent can do:
+
+1. The **Claude GitHub App** installed on this repo.
+2. The repo secret **`CLAUDE_CODE_OAUTH_TOKEN`**, minted with `claude setup-token`.
+
+> **The token expires in July 2027.** It is a one-year OAuth token and it does
+> **not** auto-rotate. When it lapses, every PR goes red until someone re-runs
+> `claude setup-token` and resets the secret.
+
 ## Architecture
 
 ```
