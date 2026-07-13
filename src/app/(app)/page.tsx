@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/app-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,7 @@ import { RecipeShelf } from "@/components/recipes/recipe-card";
 import { FilterChips } from "@/components/recipes/filter-chips";
 import { SearchBar } from "@/components/recipes/search-bar";
 import { listRecipes, countRecipes } from "@/lib/recipes/queries";
+import { getProfile } from "@/lib/profile/queries";
 import { firstName } from "@/lib/name";
 
 export default async function ShelfPage({
@@ -18,21 +18,15 @@ export default async function ShelfPage({
   const { filter, q } = await searchParams;
   const favourite = filter === "favourites";
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name")
-    .eq("id", user!.id)
-    .single();
-  const name = firstName(profile?.display_name);
-
-  const [total, recipes] = await Promise.all([
+  // All three in parallel. This used to be a four-hop serial chain — verify the
+  // token (network), fetch the profile (waits for the id), then the data. The
+  // identity now comes free from the proxy's stamp, so nothing has to go first.
+  const [profile, total, recipes] = await Promise.all([
+    getProfile(),
     countRecipes(),
     listRecipes({ favourite, search: q }),
   ]);
+  const name = firstName(profile.displayName);
 
   if (total === 0) {
     return (

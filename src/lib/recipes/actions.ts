@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseRecipePayload, type RecipeInput } from "./schema";
 import { optimizeCover, optimizeFromUrl } from "@/lib/images/optimize";
@@ -80,10 +81,8 @@ export async function createRecipe(
   const input = parsed.data;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "You've been signed out — log in and try again." };
+  const user = await currentUser();
+  if (!user) return { error: SIGNED_OUT_ERROR };
 
   // Recheck the source URL at save time (not just at import) so a second tab
   // that already imported the same link lands on the existing recipe instead
@@ -149,10 +148,8 @@ export async function updateRecipe(
   const input = parsed.data;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "You've been signed out — log in and try again." };
+  const user = await currentUser();
+  if (!user) return { error: SIGNED_OUT_ERROR };
 
   const { error } = await supabase
     .from("recipes")
@@ -193,9 +190,7 @@ export async function updateRecipe(
 
 export async function deleteRecipe(id: string): Promise<void> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (user) {
     await removeRecipeFolder(supabase, user.id, id);
   }
