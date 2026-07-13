@@ -43,8 +43,8 @@ test.describe("M1 — recipes core", () => {
     // Delete it (two-tap)
     await page.getByRole("button", { name: "Delete recipe" }).click();
     await page.getByRole("button", { name: "Tap again to delete" }).click();
-    await expect(page).toHaveURL("/recipes");
-    await expect(page.getByRole("heading", { name: "No recipes yet" })).toBeVisible();
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("heading", { name: "Your shelf is empty" })).toBeVisible();
   });
 
   test("scaling portions updates the ingredient amounts", async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe("M1 — recipes core", () => {
     await page.getByRole("button", { name: "Save recipe" }).click();
     await expect(page.getByRole("heading", { name: "Strawberry Chia Pudding" })).toBeVisible();
 
-    await page.goto("/recipes");
+    await page.goto("/");
     await page.getByRole("searchbox", { name: /search recipes/i }).fill("chia");
     await expect(page.getByRole("link", { name: /Strawberry Chia Pudding/i })).toBeVisible();
 

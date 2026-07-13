@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { clsx } from "@/lib/clsx";
 
-const chips = [
-  { key: "all", label: "All", href: "/" },
-  { key: "favourites", label: "Favourites", href: "/?filter=favourites" },
-];
+export function FilterChips({ active, query }: { active: string; query?: string }) {
+  const q = query ? `q=${encodeURIComponent(query)}` : "";
+  const chips = [
+    { key: "all", label: "All", href: q ? `/?${q}` : "/" },
+    { key: "favourites", label: "Favourites", href: `/?filter=favourites${q ? `&${q}` : ""}` },
+  ];
 
-export function FilterChips({ active }: { active: string }) {
   return (
     <div className="flex gap-1.5 overflow-x-auto pb-1.5 pt-0.5 [scrollbar-width:none]">
       {chips.map((chip) => (

@@ -17,7 +17,7 @@ export function SearchBar({ initial }: { initial: string }) {
     }
     const t = setTimeout(() => {
       const q = value.trim();
-      router.replace(q ? `/recipes?q=${encodeURIComponent(q)}` : "/recipes");
+      router.replace(q ? `/?q=${encodeURIComponent(q)}` : "/");
     }, 300);
     return () => clearTimeout(t);
   }, [value, router]);

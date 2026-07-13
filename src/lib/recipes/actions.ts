@@ -181,8 +181,7 @@ export async function deleteRecipe(id: string): Promise<void> {
   }
   await supabase.from("recipes").delete().eq("id", id);
   revalidatePath("/");
-  revalidatePath("/recipes");
-  redirect("/recipes");
+  redirect("/");
 }
 
 export async function toggleFavourite(id: string, next: boolean): Promise<void> {

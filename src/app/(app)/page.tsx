@@ -3,18 +3,19 @@ import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/app-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { SearchIcon, BookIcon } from "@/components/icons";
+import { BookIcon } from "@/components/icons";
 import { RecipeShelf } from "@/components/recipes/recipe-card";
 import { FilterChips } from "@/components/recipes/filter-chips";
+import { SearchBar } from "@/components/recipes/search-bar";
 import { listRecipes, countRecipes } from "@/lib/recipes/queries";
 import { firstName } from "@/lib/name";
 
-export default async function HomePage({
+export default async function ShelfPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; q?: string }>;
 }) {
-  const { filter } = await searchParams;
+  const { filter, q } = await searchParams;
   const favourite = filter === "favourites";
 
   const supabase = await createClient();
@@ -28,7 +29,10 @@ export default async function HomePage({
     .single();
   const name = firstName(profile?.display_name);
 
-  const [total, recipes] = await Promise.all([countRecipes(), listRecipes({ favourite })]);
+  const [total, recipes] = await Promise.all([
+    countRecipes(),
+    listRecipes({ favourite, search: q }),
+  ]);
 
   if (total === 0) {
     return (
@@ -55,22 +59,16 @@ export default async function HomePage({
       <AppHeader
         title={`${name}'s Kitchen`}
         subtitle={`${total} recipe${total === 1 ? "" : "s"}`}
-        action={
-          <Link
-            href="/recipes"
-            aria-label="Search recipes"
-            className="grid h-[38px] w-[38px] place-items-center rounded-full border border-line bg-surface text-ink-2"
-          >
-            <SearchIcon size={18} />
-          </Link>
-        }
       />
-      <FilterChips active={favourite ? "favourites" : "all"} />
-      <div className="mb-3 mt-1 text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">
-        Your shelf
-      </div>
+      <SearchBar initial={q ?? ""} />
+      <FilterChips active={favourite ? "favourites" : "all"} query={q} />
+
       {recipes.length > 0 ? (
         <RecipeShelf recipes={recipes} />
+      ) : q ? (
+        <p className="rounded-card border border-dashed border-line-2 bg-surface px-5 py-10 text-center text-sm text-ink-2">
+          Nothing matches <span className="font-semibold text-ink">“{q}”</span>. Try a different word.
+        </p>
       ) : (
         <p className="rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-sm text-ink-2">
           No favourites yet — tap the heart on a recipe to keep it here.

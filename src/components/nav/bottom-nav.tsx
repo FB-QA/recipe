@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "@/lib/clsx";
-import { HomeIcon, BookIcon, PlusIcon, CartIcon, UserIcon } from "@/components/icons";
+import { BookIcon, PlusIcon, CartIcon, UserIcon } from "@/components/icons";
 
 const items = [
-  { href: "/", label: "Home", Icon: HomeIcon, match: (p: string) => p === "/" },
-  { href: "/recipes", label: "Recipes", Icon: BookIcon, match: (p: string) => p.startsWith("/recipes") },
+  {
+    href: "/",
+    label: "Recipes",
+    Icon: BookIcon,
+    match: (p: string) => p === "/" || p.startsWith("/recipes"),
+  },
   { href: "/list", label: "List", Icon: CartIcon, match: (p: string) => p.startsWith("/list") },
   { href: "/profile", label: "Profile", Icon: UserIcon, match: (p: string) => p.startsWith("/profile") },
 ];
