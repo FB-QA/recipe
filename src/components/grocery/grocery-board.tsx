@@ -7,6 +7,7 @@ import { clsx } from "@/lib/clsx";
 import { CartIcon, CheckIcon, CloseIcon, PlusIcon, ListIcon } from "@/components/icons";
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
 import { CategoryIcon, FoodImage } from "@/components/food-icons";
+import { gradientFor } from "@/components/recipes/cover-image";
 import { addItem, toggleItem, deleteItem, clearCompleted, createList } from "@/lib/grocery/actions";
 import { ALL_LISTS } from "@/lib/grocery/constants";
 import type { GroceryBoardData, GroceryItem, GroceryList } from "@/lib/grocery/queries";
@@ -178,6 +179,9 @@ function FilterBar({
           {list.coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={list.coverUrl} alt="" className="h-full w-full object-cover" />
+          ) : list.isRecipe ? (
+            // Coverless recipe — mirror the shelf card's title-derived gradient.
+            <span className="h-full w-full" style={{ backgroundImage: gradientFor(list.name) }} />
           ) : (
             <span className="grid h-full w-full place-items-center bg-basil-tint text-basil">
               <CartIcon size={20} />

@@ -2,8 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { signStoragePaths } from "@/lib/supabase/storage";
 import { ALL_LISTS } from "./constants";
 
-/** A list chip in the grocery filter bar. Recipe lists carry a cover. */
-export type GroceryList = { id: string; name: string; coverUrl: string | null };
+/** A list chip in the grocery filter bar. Recipe lists carry a cover (or a
+ * title-derived gradient when the recipe has no photo); manual lists don't. */
+export type GroceryList = { id: string; name: string; coverUrl: string | null; isRecipe: boolean };
 
 export type GroceryItem = {
   id: string;
@@ -61,6 +62,7 @@ export async function getBoard(requestedListId?: string): Promise<GroceryBoardDa
     id: l.id,
     name: l.name,
     coverUrl: l.source_recipe_id ? (coverByRecipe[l.source_recipe_id] ?? null) : null,
+    isRecipe: Boolean(l.source_recipe_id),
   }));
 
   const { data: rows } = await supabase

@@ -11,7 +11,7 @@ const GRADIENTS = [
   "linear-gradient(135deg,#C99C88,#8A5A4B)",
 ];
 
-function gradientFor(seed: string) {
+export function gradientFor(seed: string) {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) & 0xffffffff;
   return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
