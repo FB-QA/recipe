@@ -110,6 +110,7 @@ export function AddButton() {
           <ImportFlow
             source={view === "instagram" ? "instagram" : "web"}
             onSaved={(id) => leave(`/recipes/${id}?created=1`)}
+            onNavigate={leave}
           />
         )}
       </Sheet>

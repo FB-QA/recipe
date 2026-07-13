@@ -17,12 +17,42 @@ const EXTRACTING_STEPS = [
   "Tidying it up…",
 ];
 
+/** An internal link that, inside a drawer, closes-then-navigates via the host
+ * (onNavigate); on a standalone page it's a plain Link. */
+function LeaveLink({
+  href,
+  onNavigate,
+  className,
+  children,
+}: {
+  href: string;
+  onNavigate?: (href: string) => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (onNavigate) {
+    return (
+      <button type="button" onClick={() => onNavigate(href)} className={className}>
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
+
 export function ImportFlow({
   source,
   onSaved,
+  onNavigate,
 }: {
   source: "instagram" | "web";
   onSaved?: (id: string) => void;
+  /** In a drawer, internal links close-then-navigate through the host. */
+  onNavigate?: (href: string) => void;
 }) {
   const [state, action, pending] = useActionState<ImportState, FormData>(runImport, {
     phase: "idle",
@@ -30,7 +60,14 @@ export function ImportFlow({
 
   if (pending) return <Extracting />;
   if (state.phase === "exists") {
-    return <AlreadyImported recipeId={state.recipeId} title={state.title} coverUrl={state.coverUrl} />;
+    return (
+      <AlreadyImported
+        recipeId={state.recipeId}
+        title={state.title}
+        coverUrl={state.coverUrl}
+        onNavigate={onNavigate}
+      />
+    );
   }
   if (state.phase === "done" && state.status === "success") {
     return (
@@ -44,7 +81,14 @@ export function ImportFlow({
     );
   }
   if (state.phase === "done" && state.status === "no_recipe") {
-    return <TeaserFallback message={state.message} mediaUrl={state.mediaUrl} sourceUrl={state.sourceUrl} />;
+    return (
+      <TeaserFallback
+        message={state.message}
+        mediaUrl={state.mediaUrl}
+        sourceUrl={state.sourceUrl}
+        onNavigate={onNavigate}
+      />
+    );
   }
   return (
     <PasteForm
@@ -198,10 +242,12 @@ function TeaserFallback({
   message,
   mediaUrl,
   sourceUrl,
+  onNavigate,
 }: {
   message: string;
   mediaUrl: string | null;
   sourceUrl: string;
+  onNavigate?: (href: string) => void;
 }) {
   return (
     <div className="mt-2 rounded-card border border-line bg-surface p-6 text-center">
@@ -216,9 +262,15 @@ function TeaserFallback({
             Open the video
           </Button>
         </a>
-        <Link href="/recipes/new">
-          <Button fullWidth>Add it manually</Button>
-        </Link>
+        {onNavigate ? (
+          <Button fullWidth onClick={() => onNavigate("/recipes/new")}>
+            Add it manually
+          </Button>
+        ) : (
+          <Link href="/recipes/new">
+            <Button fullWidth>Add it manually</Button>
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -228,19 +280,22 @@ function AlreadyImported({
   recipeId,
   title,
   coverUrl,
+  onNavigate,
 }: {
   recipeId: string;
   title: string;
   coverUrl: string | null;
+  onNavigate?: (href: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-3.5 pb-1">
       <p className="flex items-center gap-2 rounded-[12px] bg-basil-tint px-4 py-3 text-[13.5px] font-medium text-basil">
         <CheckIcon size={16} /> You&apos;ve already imported this recipe.
       </p>
-      <Link
+      <LeaveLink
         href={`/recipes/${recipeId}`}
-        className="flex items-center gap-3.5 rounded-card border border-line bg-surface p-3 transition-colors hover:border-basil hover:bg-basil-tint"
+        onNavigate={onNavigate}
+        className="flex items-center gap-3.5 rounded-card border border-line bg-surface p-3 text-left transition-colors hover:border-basil hover:bg-basil-tint"
       >
         <CoverImage
           url={coverUrl}
@@ -251,7 +306,7 @@ function AlreadyImported({
           <span className="block truncate text-[15px] font-bold text-ink">{title}</span>
           <span className="block text-[12.5px] font-semibold text-basil">Open it</span>
         </span>
-      </Link>
+      </LeaveLink>
     </div>
   );
 }
