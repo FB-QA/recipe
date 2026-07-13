@@ -23,7 +23,7 @@ function toInitial(recipe: ExtractedRecipe): RecipeFormInitial {
   };
 }
 
-export function PasteFlow() {
+export function PasteFlow({ onSaved }: { onSaved?: (id: string) => void }) {
   const [state, action, pending] = useActionState<PasteState, FormData>(extractPasted, {
     phase: "idle",
   });
@@ -54,7 +54,13 @@ export function PasteFlow() {
         <p className="mb-4 flex gap-2 rounded-[12px] border border-line bg-surface-2 px-3.5 py-2.5 text-[12.5px] leading-snug text-ink-2">
           Pulled from your text. Nothing invented — check it over and save.
         </p>
-        <RecipeForm action={createRecipe} initial={toInitial(state.recipe)} submitLabel="Save to shelf" />
+        <RecipeForm
+          action={createRecipe}
+          initial={toInitial(state.recipe)}
+          submitLabel="Save to shelf"
+          isNew
+          onSaved={onSaved}
+        />
       </div>
     );
   }

@@ -17,7 +17,13 @@ const EXTRACTING_STEPS = [
   "Tidying it up…",
 ];
 
-export function ImportFlow({ source }: { source: "instagram" | "web" }) {
+export function ImportFlow({
+  source,
+  onSaved,
+}: {
+  source: "instagram" | "web";
+  onSaved?: (id: string) => void;
+}) {
   const [state, action, pending] = useActionState<ImportState, FormData>(runImport, {
     phase: "idle",
   });
@@ -27,7 +33,15 @@ export function ImportFlow({ source }: { source: "instagram" | "web" }) {
     return <AlreadyImported recipeId={state.recipeId} title={state.title} coverUrl={state.coverUrl} />;
   }
   if (state.phase === "done" && state.status === "success") {
-    return <Review recipe={state.recipe} sourceType={state.sourceType} sourceUrl={state.sourceUrl} method={state.method} />;
+    return (
+      <Review
+        recipe={state.recipe}
+        sourceType={state.sourceType}
+        sourceUrl={state.sourceUrl}
+        method={state.method}
+        onSaved={onSaved}
+      />
+    );
   }
   if (state.phase === "done" && state.status === "no_recipe") {
     return <TeaserFallback message={state.message} mediaUrl={state.mediaUrl} sourceUrl={state.sourceUrl} />;
@@ -146,11 +160,13 @@ function Review({
   sourceType,
   sourceUrl,
   method,
+  onSaved,
 }: {
   recipe: ExtractedRecipe;
   sourceType: "instagram" | "website";
   sourceUrl: string;
   method: string;
+  onSaved?: (id: string) => void;
 }) {
   return (
     <div>
@@ -171,6 +187,8 @@ function Review({
         source={{ type: sourceType, url: sourceUrl, handle: recipe.sourceHandle }}
         importCoverUrl={recipe.imageUrl}
         submitLabel="Save to shelf"
+        isNew
+        onSaved={onSaved}
       />
     </div>
   );

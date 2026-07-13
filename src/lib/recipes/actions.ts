@@ -11,7 +11,7 @@ import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
 
 type Client = SupabaseClient<Database>;
 
-export type RecipeFormState = { error?: string } | undefined;
+export type RecipeFormState = { error?: string } | { ok: true; id: string } | undefined;
 
 function readPayload(formData: FormData) {
   try {
@@ -121,7 +121,9 @@ export async function createRecipe(
   if (!saved) return { error: "Couldn't save all of the recipe — open it and try again." };
 
   revalidatePath("/");
-  redirect(`/recipes/${recipe.id}?created=1`);
+  // Return the id (not redirect) so the client can toast, animate the drawer
+  // closed, then navigate — navigation must never be what closes a drawer.
+  return { ok: true, id: recipe.id };
 }
 
 export async function updateRecipe(
@@ -173,7 +175,7 @@ export async function updateRecipe(
   revalidatePath("/");
   revalidatePath(`/recipes/${id}`);
   revalidatePath("/list"); // the grocery chip name mirrors the recipe title
-  redirect(`/recipes/${id}`);
+  return { ok: true, id };
 }
 
 export async function deleteRecipe(id: string): Promise<void> {

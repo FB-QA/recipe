@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sheet } from "@/components/ui/sheet";
 import { ImportFlow } from "@/components/import/import-flow";
 import { PasteFlow } from "@/components/import/paste-flow";
@@ -26,12 +25,12 @@ const importOptions: { view: View; Icon: typeof InstagramIcon; title: string; su
 export function AddButton() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("menu");
+  const [pendingNav, setPendingNav] = useState<string | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
-  // The nav and this drawer persist across navigation. When a flow saves and
-  // routes to the new recipe, close the drawer — the Sheet stays mounted so its
-  // slide-down exit animation plays (with the flow's own content, not swapped
-  // to the menu mid-slide). openMenu resets the view on next open.
+  // Safety net: if the drawer is open and the route changes by any other means
+  // (e.g. a bottom-nav tap), close it.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- close ephemeral drawer on route change
     setOpen(false);
@@ -40,6 +39,13 @@ export function AddButton() {
   const openMenu = () => {
     setView("menu");
     setOpen(true);
+  };
+
+  // Global rule: a drawer action closes the sheet (animating), then navigates
+  // once the slide-down completes — navigation never closes the drawer.
+  const leave = (href: string) => {
+    setPendingNav(href);
+    setOpen(false);
   };
 
   return (
@@ -61,6 +67,12 @@ export function AddButton() {
         onBack={view === "menu" ? undefined : () => setView("menu")}
         title={TITLES[view]}
         tall={view !== "menu"}
+        onExitComplete={() => {
+          if (pendingNav) {
+            router.push(pendingNav);
+            setPendingNav(null);
+          }
+        }}
       >
         {view === "menu" ? (
           <div className="flex flex-col gap-2.5">
@@ -79,10 +91,9 @@ export function AddButton() {
                 </span>
               </button>
             ))}
-            <Link
-              href="/recipes/new"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3.5 rounded-[15px] border border-line bg-surface p-[15px] transition-colors hover:border-basil hover:bg-basil-tint"
+            <button
+              onClick={() => leave("/recipes/new")}
+              className="flex items-center gap-3.5 rounded-[15px] border border-line bg-surface p-[15px] text-left transition-colors hover:border-basil hover:bg-basil-tint"
             >
               <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-basil-tint text-basil">
                 <PencilIcon size={21} />
@@ -91,12 +102,15 @@ export function AddButton() {
                 <span className="block text-[15px] font-bold text-ink">Create manually</span>
                 <span className="block text-[12.5px] text-ink-3">Type it in yourself</span>
               </span>
-            </Link>
+            </button>
           </div>
         ) : view === "paste" ? (
-          <PasteFlow />
+          <PasteFlow onSaved={(id) => leave(`/recipes/${id}?created=1`)} />
         ) : (
-          <ImportFlow source={view === "instagram" ? "instagram" : "web"} />
+          <ImportFlow
+            source={view === "instagram" ? "instagram" : "web"}
+            onSaved={(id) => leave(`/recipes/${id}?created=1`)}
+          />
         )}
       </Sheet>
     </>

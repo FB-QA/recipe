@@ -113,8 +113,8 @@ test.describe("M1 — recipes core", () => {
     await page.getByRole("button", { name: "Back" }).click();
     await expect(page.getByRole("button", { name: /Import from website/i })).toBeVisible();
 
-    // Create manually still routes to the full-page form.
-    await page.getByRole("link", { name: /Create manually/i }).click();
+    // Create manually still routes to the full-page form (drawer closes first).
+    await page.getByRole("button", { name: /Create manually/i }).click();
     await expect(page).toHaveURL("/recipes/new");
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TextField } from "@/components/ui/text-field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { CloseIcon, PlusIcon } from "@/components/icons";
@@ -38,14 +39,34 @@ export function RecipeForm({
   submitLabel,
   source,
   importCoverUrl,
+  isNew,
+  onSaved,
 }: {
   action: (prev: RecipeFormState, fd: FormData) => Promise<RecipeFormState>;
   initial?: RecipeFormInitial;
   submitLabel: string;
   source?: { type: "instagram" | "website"; url: string | null; handle?: string | null };
   importCoverUrl?: string | null;
+  /** Newly-created recipe (adds ?created=1 so the detail page toasts "Saved"). */
+  isNew?: boolean;
+  /** Host handles navigation on save (e.g. a drawer closes then routes). When
+   * omitted, the form navigates to the saved recipe itself. */
+  onSaved?: (id: string) => void;
 }) {
   const [state, formAction] = useActionState<RecipeFormState, FormData>(action, undefined);
+  const router = useRouter();
+  const handled = useRef(false);
+
+  // On a successful save the action returns the id (never redirects), so the
+  // client owns navigation — this is the single place it happens.
+  useEffect(() => {
+    if (!state || !("ok" in state) || handled.current) return;
+    handled.current = true;
+    if (onSaved) onSaved(state.id);
+    else router.push(`/recipes/${state.id}${isNew ? "?created=1" : ""}`);
+  }, [state, onSaved, isNew, router]);
+
+  const formError = state && "error" in state ? state.error : undefined;
 
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description);
@@ -150,7 +171,7 @@ export function RecipeForm({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Greek chicken burgers"
-        error={state?.error && !title.trim() ? state.error : undefined}
+        error={formError && !title.trim() ? formError : undefined}
         required
       />
 
@@ -198,9 +219,9 @@ export function RecipeForm({
         allowEmpty
       />
 
-      {state?.error && (
+      {formError && (
         <p role="alert" className="text-sm font-medium text-danger">
-          {state.error}
+          {formError}
         </p>
       )}
 

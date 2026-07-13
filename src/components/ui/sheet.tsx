@@ -15,6 +15,7 @@ export function Sheet({
   onBack,
   title,
   tall,
+  onExitComplete,
   children,
 }: {
   open: boolean;
@@ -23,6 +24,9 @@ export function Sheet({
   title?: string;
   /** Let the sheet grow to near-full height (for long flows like import review). */
   tall?: boolean;
+  /** Fires once the close animation finishes — hosts navigate here so the
+   * drawer fully slides shut before the route changes. */
+  onExitComplete?: () => void;
   children: React.ReactNode;
 }) {
   const reduce = useReducedMotion();
@@ -51,7 +55,7 @@ export function Sheet({
   // animations on its direct keyed children, so wrapping them in <> would make
   // the drawer vanish instantly on close instead of sliding out.
   return createPortal(
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={onExitComplete}>
       {open && (
         <motion.div
           key="backdrop"
