@@ -82,6 +82,14 @@ export const SearchIcon = (p: IconProps) => (
   </svg>
 );
 
+export const ShareIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="M12 3v12" />
+    <path d="M8 7l4-4 4 4" />
+    <path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />
+  </svg>
+);
+
 export const HeartIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
   <svg {...base(p)} fill={filled ? "currentColor" : "none"} aria-hidden>
     <path d="M12 20s-7-4.35-9.3-8.5C1.2 8.7 2.5 5.5 5.6 5.1c1.9-.24 3.5.9 4.4 2.2.9-1.3 2.5-2.44 4.4-2.2 3.1.4 4.4 3.6 2.9 6.4C19 15.65 12 20 12 20Z" />

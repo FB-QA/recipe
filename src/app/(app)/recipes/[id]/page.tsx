@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getRecipe } from "@/lib/recipes/queries";
 import { CoverImage } from "@/components/recipes/cover-image";
 import { FavouriteButton } from "@/components/recipes/favourite-button";
+import { ShareButton } from "@/components/recipes/share-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
 import { IngredientsSection } from "@/components/recipes/ingredients-section";
 import { getLists } from "@/lib/grocery/queries";
@@ -41,6 +42,7 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
         </Link>
         <div className="absolute right-4 top-4 flex gap-2">
           <FavouriteButton id={recipe.id} initial={recipe.is_favourite} />
+          <ShareButton recipe={recipe} />
           <Link
             href={`/recipes/${recipe.id}/edit`}
             aria-label="Edit recipe"

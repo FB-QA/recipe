@@ -47,6 +47,21 @@ test.describe("M1 — recipes core", () => {
     await expect(page.getByRole("heading", { name: "Your shelf is empty" })).toBeVisible();
   });
 
+  test("share copies the recipe as text", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Greek Salad");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("100g feta");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Greek Salad" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Share recipe" }).click();
+    const clip = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clip).toContain("Greek Salad");
+    expect(clip).toContain("100g feta");
+  });
+
   test("scaling portions updates the ingredient amounts", async ({ page }) => {
     await signUp(page);
     await page.goto("/recipes/new");
