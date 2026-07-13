@@ -105,3 +105,17 @@ export const CloseIcon = (p: IconProps) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 );
+
+export const AlertIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="M12 3.5 22 20.5H2Z" />
+    <path d="M12 10v4" />
+    <circle cx="12" cy="17.4" r="0.7" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const PlayIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="M8 5 19 12 8 19Z" />
+  </svg>
+);

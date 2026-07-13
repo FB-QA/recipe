@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { RecipeShelf } from "@/components/recipes/recipe-card";
 import { SearchBar } from "@/components/recipes/search-bar";
+import { BookIcon } from "@/components/icons";
 import { listRecipes } from "@/lib/recipes/queries";
 
 export default async function RecipesPage({
@@ -27,7 +28,7 @@ export default async function RecipesPage({
         </p>
       ) : (
         <EmptyState
-          emoji="📖"
+          icon={<BookIcon size={30} />}
           title="No recipes yet"
           action={
             <Link href="/add">

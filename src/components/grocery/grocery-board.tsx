@@ -5,14 +5,21 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { clsx } from "@/lib/clsx";
 import { CheckIcon, CloseIcon, PlusIcon } from "@/components/icons";
-import {
-  addItem,
-  toggleItem,
-  deleteItem,
-  clearCompleted,
-  createList,
-} from "@/lib/grocery/actions";
-import type { GroceryBoardData } from "@/lib/grocery/queries";
+import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
+import { CategoryIcon, FoodImage } from "@/components/food-icons";
+import { addItem, toggleItem, deleteItem, clearCompleted, createList } from "@/lib/grocery/actions";
+import type { GroceryBoardData, GroceryItem } from "@/lib/grocery/queries";
+
+function groupByCategory(items: GroceryItem[]) {
+  const groups = new Map<Category, GroceryItem[]>();
+  for (const item of items) {
+    const cat: Category = CATEGORY_ORDER.includes(item.category as Category)
+      ? (item.category as Category)
+      : "Other";
+    (groups.get(cat) ?? groups.set(cat, []).get(cat)!).push(item);
+  }
+  return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => ({ category: c, items: groups.get(c)! }));
+}
 
 export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
   const [, startTransition] = useTransition();
@@ -30,6 +37,7 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
 
   const active = optimisticItems.filter((i) => !i.is_completed);
   const done = optimisticItems.filter((i) => i.is_completed);
+  const grouped = groupByCategory(active);
 
   return (
     <div>
@@ -44,16 +52,25 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
               Nothing on this list yet. Add an item above, or tap “Add to grocery list” on any recipe.
             </p>
           ) : (
-            <ul className="mt-3 overflow-hidden rounded-card border border-line bg-surface">
-              {active.map((item) => (
-                <Item key={item.id} item={item} onToggle={toggle} />
+            <div className="mt-4 flex flex-col gap-4">
+              {grouped.map((group) => (
+                <section key={group.category}>
+                  <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[12px] font-bold uppercase tracking-[0.05em] text-ink-3">
+                    <CategoryIcon category={group.category} size={15} /> {group.category}
+                  </h3>
+                  <ul className="overflow-hidden rounded-card border border-line bg-surface">
+                    {group.items.map((item) => (
+                      <Item key={item.id} item={item} onToggle={toggle} />
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
 
           {done.length > 0 && (
             <>
-              <div className="mb-2 mt-5 flex items-center justify-between px-0.5">
+              <div className="mb-2 mt-6 flex items-center justify-between px-0.5">
                 <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
                   Completed · {done.length}
                 </span>
@@ -77,16 +94,10 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
   );
 }
 
-function Item({
-  item,
-  onToggle,
-}: {
-  item: GroceryBoardData["items"][number];
-  onToggle: (id: string, completed: boolean) => void;
-}) {
+function Item({ item, onToggle }: { item: GroceryItem; onToggle: (id: string, c: boolean) => void }) {
   const [, startTransition] = useTransition();
   return (
-    <li className="flex items-center gap-3 border-b border-line-2 px-4 py-3.5 last:border-b-0">
+    <li className="flex items-center gap-3 border-b border-line-2 px-4 py-3 last:border-b-0">
       <button
         aria-label={item.is_completed ? "Mark as not bought" : "Mark as bought"}
         aria-pressed={item.is_completed}
@@ -107,15 +118,34 @@ function Item({
           </motion.span>
         )}
       </button>
-      <span
-        className={clsx(
-          "flex-1 text-[14.5px] transition-colors",
-          item.is_completed ? "text-ink-3 line-through" : "text-ink",
+
+      <FoodImage
+        text={item.display_text}
+        size={22}
+        className={clsx("flex-none", item.is_completed && "opacity-50")}
+      />
+
+      <div className="min-w-0 flex-1">
+        <span
+          className={clsx(
+            "block text-[14.5px] transition-colors",
+            item.is_completed ? "text-ink-3 line-through" : "text-ink",
+          )}
+        >
+          {item.quantity && <span className="font-semibold">{item.quantity} </span>}
+          {item.display_text}
+        </span>
+        {item.source && (
+          <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-3">
+            {item.source.coverUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.source.coverUrl} alt="" className="h-[16px] w-[16px] rounded-[4px] object-cover" />
+            )}
+            <span className="truncate">{item.source.title}</span>
+          </span>
         )}
-      >
-        {item.display_text}
-        {item.quantity && <span className="ml-1.5 text-[12px] text-ink-3">· {item.quantity}</span>}
-      </span>
+      </div>
+
       <button
         aria-label={`Remove ${item.display_text}`}
         onClick={() => startTransition(() => deleteItem(item.id))}

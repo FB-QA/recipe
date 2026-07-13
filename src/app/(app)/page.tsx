@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/app-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { SearchIcon } from "@/components/icons";
+import { SearchIcon, BookIcon } from "@/components/icons";
 import { RecipeShelf } from "@/components/recipes/recipe-card";
 import { FilterChips } from "@/components/recipes/filter-chips";
 import { listRecipes, countRecipes } from "@/lib/recipes/queries";
@@ -35,7 +35,7 @@ export default async function HomePage({
       <>
         <AppHeader title={`${name}'s Kitchen`} subtitle="Let's fill the shelf" />
         <EmptyState
-          emoji="🧺"
+          icon={<BookIcon size={30} />}
           title="Your shelf is empty"
           action={
             <Link href="/add">

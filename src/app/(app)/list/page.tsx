@@ -4,6 +4,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { GroceryBoard } from "@/components/grocery/grocery-board";
 import { getBoard } from "@/lib/grocery/queries";
 import { createList } from "@/lib/grocery/actions";
+import { CartIcon } from "@/components/icons";
 
 export default async function ListPage({
   searchParams,
@@ -18,7 +19,7 @@ export default async function ListPage({
       <AppHeader title="Grocery" />
       {board.lists.length === 0 ? (
         <EmptyState
-          emoji="🛒"
+          icon={<CartIcon size={30} />}
           title="No lists yet"
           action={
             <form action={createList.bind(null, undefined)}>

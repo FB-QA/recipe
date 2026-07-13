@@ -4,13 +4,16 @@ import { getRecipe } from "@/lib/recipes/queries";
 import { CoverImage } from "@/components/recipes/cover-image";
 import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
-import { AddToListButton } from "@/components/grocery/add-to-list-button";
+import { AddToListSheet } from "@/components/grocery/add-to-list-sheet";
+import { getLists } from "@/lib/grocery/queries";
+import { FoodImage } from "@/components/food-icons";
 import { ChevronLeftIcon, PencilIcon } from "@/components/icons";
 
 export default async function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
+  const lists = await getLists();
 
   const metrics = [
     recipe.servings ? { n: recipe.servings, l: "Serves" } : null,
@@ -66,7 +69,7 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
 
       {recipe.ingredients.length > 0 && (
         <div className="mt-4">
-          <AddToListButton recipeId={recipe.id} />
+          <AddToListSheet recipeId={recipe.id} ingredients={recipe.ingredients} lists={lists} />
         </div>
       )}
 
@@ -81,7 +84,8 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
                   key={ing.id}
                   className="flex items-center gap-3 border-b border-line-2 px-4 py-3 text-[14px] last:border-b-0"
                 >
-                  {qty && <span className="min-w-[64px] font-semibold text-ink">{qty}</span>}
+                  <FoodImage text={ing.name ?? ing.display_text} size={22} className="flex-none text-ink-3" />
+                  {qty && <span className="min-w-[56px] font-semibold text-ink">{qty}</span>}
                   <span className="text-ink-2">{ing.name ?? ing.display_text}</span>
                 </li>
               );

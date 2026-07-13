@@ -6,7 +6,7 @@ import { runImport, type ImportState } from "@/lib/import/actions";
 import { createRecipe } from "@/lib/recipes/actions";
 import { RecipeForm, type RecipeFormInitial } from "@/components/recipes/recipe-form";
 import { Button } from "@/components/ui/button";
-import { InstagramIcon, GlobeIcon } from "@/components/icons";
+import { InstagramIcon, GlobeIcon, PlayIcon } from "@/components/icons";
 import type { ExtractedRecipe } from "@/lib/import/types";
 
 const EXTRACTING_STEPS = [
@@ -174,8 +174,8 @@ function TeaserFallback({
 }) {
   return (
     <div className="mt-2 rounded-card border border-line bg-surface p-6 text-center">
-      <div aria-hidden className="mx-auto mb-4 grid h-[70px] w-[70px] place-items-center rounded-[22px] bg-basil-tint text-[32px]">
-        🎬
+      <div aria-hidden className="mx-auto mb-4 grid h-[70px] w-[70px] place-items-center rounded-[22px] bg-basil-tint text-basil">
+        <PlayIcon size={30} />
       </div>
       <h2 className="text-[17px] font-bold text-ink">The recipe&apos;s in the video</h2>
       <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed text-ink-2">{message}</p>

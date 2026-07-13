@@ -36,6 +36,7 @@ export type Database = {
     Tables: {
       grocery_items: {
         Row: {
+          category: string | null
           created_at: string
           display_text: string
           id: string
@@ -46,6 +47,7 @@ export type Database = {
           source_recipe_id: string | null
         }
         Insert: {
+          category?: string | null
           created_at?: string
           display_text: string
           id?: string
@@ -56,6 +58,7 @@ export type Database = {
           source_recipe_id?: string | null
         }
         Update: {
+          category?: string | null
           created_at?: string
           display_text?: string
           id?: string

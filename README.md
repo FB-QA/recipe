@@ -94,3 +94,9 @@ approach was evaluated and parked (`docs/spikes/`).
 
 Every import records its method + estimated cost in `recipe_imports`, which also
 caches results and backs a per-user daily rate limit.
+
+## Credits
+
+Food cutout icons in `/public/food` are from [Twemoji](https://github.com/jdecked/twemoji)
+(© Twitter, Inc. and contributors), licensed CC-BY 4.0.
+
