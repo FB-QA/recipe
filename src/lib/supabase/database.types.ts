@@ -144,7 +144,7 @@ export type Database = {
           method: string | null
           recipe_id: string | null
           source_type: Database["public"]["Enums"]["source_type"]
-          source_url: string
+          source_url: string | null
           status: Database["public"]["Enums"]["import_status"]
           user_id: string
         }
@@ -158,7 +158,7 @@ export type Database = {
           method?: string | null
           recipe_id?: string | null
           source_type: Database["public"]["Enums"]["source_type"]
-          source_url: string
+          source_url?: string | null
           status: Database["public"]["Enums"]["import_status"]
           user_id?: string
         }
@@ -172,7 +172,7 @@ export type Database = {
           method?: string | null
           recipe_id?: string | null
           source_type?: Database["public"]["Enums"]["source_type"]
-          source_url?: string
+          source_url?: string | null
           status?: Database["public"]["Enums"]["import_status"]
           user_id?: string
         }

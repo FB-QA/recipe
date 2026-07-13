@@ -3,9 +3,65 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { importFromUrl, isInstagramUrl } from "./pipeline";
-import type { ExtractedRecipe, ImportOutcome } from "./types";
+import { extractWithAi, aiToExtracted } from "./ai";
+import { hasCookableContent, type ExtractedRecipe, type ImportOutcome } from "./types";
 
 const DAILY_IMPORT_LIMIT = 25;
+
+export type PasteState =
+  | { phase: "idle" }
+  | { phase: "error"; error: string }
+  | { phase: "done"; recipe: ExtractedRecipe };
+
+/** Extract a recipe from raw pasted text (e.g. from ChatGPT or a blog). Same AI
+ *  path as caption/website import — no particular format required. */
+export async function extractPasted(
+  _prev: PasteState | undefined,
+  formData: FormData,
+): Promise<PasteState> {
+  const text = String(formData.get("text") ?? "").trim();
+  if (text.length < 20) {
+    return { phase: "error", error: "Paste a bit more — I need the full recipe text." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { phase: "error", error: "You've been signed out — log in and try again." };
+
+  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { data: recent } = await supabase.rpc("imports_since", { cutoff });
+  if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
+    return {
+      phase: "error",
+      error: "You've reached today's import limit. Try again tomorrow, or type it in manually.",
+    };
+  }
+
+  const ai = await extractWithAi(text);
+  const recipe = ai ? aiToExtracted(ai.recipe, null) : null;
+  const ok = recipe !== null && hasCookableContent(recipe);
+
+  await supabase.from("recipe_imports").insert({
+    user_id: user.id,
+    source_url: null,
+    source_type: "manual",
+    status: ok ? "success" : "no_recipe",
+    method: "ai_text",
+    estimated_cost_cents: Number((ai?.costCents ?? 0).toFixed(4)),
+    extracted: ok ? recipe : null,
+  });
+
+  if (!ok || !recipe) {
+    return {
+      phase: "error",
+      error:
+        "I couldn't pull a full recipe from that. Make sure the ingredients and steps are in the text, or type it in manually.",
+    };
+  }
+  return { phase: "done", recipe };
+}
 
 export type ImportState =
   | { phase: "idle" }

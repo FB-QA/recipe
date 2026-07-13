@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
-import { InstagramIcon, GlobeIcon, PencilIcon } from "@/components/icons";
+import { InstagramIcon, GlobeIcon, ClipboardIcon, PencilIcon } from "@/components/icons";
 
 const options = [
   {
@@ -14,6 +14,12 @@ const options = [
     Icon: GlobeIcon,
     title: "Import from website",
     sub: "Paste any recipe URL",
+  },
+  {
+    href: "/paste",
+    Icon: ClipboardIcon,
+    title: "Paste text",
+    sub: "From ChatGPT, a blog, anywhere",
   },
   {
     href: "/recipes/new",

@@ -117,6 +117,13 @@ export const GlobeIcon = (p: IconProps) => (
   </svg>
 );
 
+export const ClipboardIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <rect x="6" y="4" width="12" height="17" rx="2.5" />
+    <path d="M9 4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9.5 12h5M9.5 16h5" />
+  </svg>
+);
+
 export const PencilIcon = (p: IconProps) => (
   <svg {...base(p)} aria-hidden>
     <path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17.2z" />
