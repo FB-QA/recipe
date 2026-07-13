@@ -108,15 +108,18 @@ function Chip({ label, selected, count, onClick, children }: ChipProps) {
       aria-pressed={selected}
       className="flex w-[60px] flex-none flex-col items-center gap-1"
     >
-      <span
-        className={clsx(
-          "relative grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full border-2",
-          selected ? "border-basil" : "border-transparent",
-        )}
-      >
-        {children}
+      {/* Relative wrapper does NOT clip, so the badge can stick out past the circle. */}
+      <span className="relative">
+        <span
+          className={clsx(
+            "grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full border-2",
+            selected ? "border-basil" : "border-transparent",
+          )}
+        >
+          {children}
+        </span>
         {count > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-basil px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-1 -top-1 z-10 grid h-[20px] min-w-[20px] place-items-center rounded-full border-2 border-paper bg-basil px-1 text-[10px] font-bold leading-none text-white">
             {count}
           </span>
         )}
@@ -147,15 +150,15 @@ function FilterBar({
   const [adding, setAdding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const openCount = (listId: string | null) =>
-    items.filter((i) => !i.is_completed && (listId === null || i.list_id === listId)).length;
+  const itemCount = (listId: string | null) =>
+    items.filter((i) => listId === null || i.list_id === listId).length;
 
   return (
     <div className="mb-3.5 flex items-end gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
       <Chip
         label="All"
         selected={selected === ALL_LISTS}
-        count={openCount(null)}
+        count={itemCount(null)}
         onClick={() => onSelect(ALL_LISTS)}
       >
         <span
@@ -173,7 +176,7 @@ function FilterBar({
           key={list.id}
           label={list.name}
           selected={selected === list.id}
-          count={openCount(list.id)}
+          count={itemCount(list.id)}
           onClick={() => onSelect(list.id)}
         >
           {list.coverUrl ? (
