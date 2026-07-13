@@ -23,7 +23,7 @@ export function SearchBar({ initial }: { initial: string }) {
   }, [value, router]);
 
   return (
-    <div className="mb-4 flex items-center gap-2.5 rounded-[12px] border border-line bg-surface px-3.5 py-3">
+    <div className="mb-4 flex items-center gap-2.5 rounded-sm border border-line bg-surface px-3.5 py-3">
       <SearchIcon size={18} />
       <input
         type="search"

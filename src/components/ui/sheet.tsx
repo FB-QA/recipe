@@ -3,7 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { DUR, springSoft } from "@/lib/motion";
+import { DUR, springSoft, slideOut } from "@/lib/motion";
 import { ChevronLeftIcon } from "@/components/icons";
 import { clsx } from "@/lib/clsx";
 
@@ -59,7 +59,7 @@ export function Sheet({
       {open && (
         <motion.div
           key="backdrop"
-          className="fixed inset-0 z-50 bg-[rgba(10,14,11,0.42)]"
+          className="fixed inset-0 z-50 bg-[var(--scrim)]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -74,14 +74,14 @@ export function Sheet({
           aria-modal="true"
           aria-label={title}
           className={clsx(
-            "fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[480px] overflow-y-auto rounded-t-[26px] bg-surface px-5 pb-[calc(env(safe-area-inset-bottom)+24px)] pt-2.5",
+            "fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[var(--width-app)] overflow-y-auto rounded-t-lg bg-surface px-5 pb-[calc(env(safe-area-inset-bottom)+24px)] pt-2.5",
             tall ? "max-h-[94dvh]" : "max-h-[85dvh]",
           )}
           initial={reduce ? false : { y: "100%" }}
           animate={{ y: 0 }}
           // Open: soft spring settle. Close: a quick ease-in slide straight back
           // down, so it reads as the drawer travelling out, not fading away.
-          exit={reduce ? { opacity: 0 } : { y: "100%", transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
+          exit={reduce ? { opacity: 0 } : { y: "100%", transition: slideOut }}
           transition={reduce ? { duration: DUR.fast } : springSoft}
         >
           <div aria-hidden className="mx-auto mb-3 mt-1 h-1 w-9 rounded-full bg-line" />

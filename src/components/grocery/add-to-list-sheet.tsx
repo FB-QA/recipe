@@ -131,7 +131,7 @@ export function AddToListSheet({
 
         <div className="mt-4">
           {allOnList ? (
-            <p className="rounded-[12px] bg-basil-tint px-4 py-3 text-center text-[13.5px] font-medium text-basil">
+            <p className="rounded-sm bg-basil-tint px-4 py-3 text-center text-[13.5px] font-medium text-basil">
               Every ingredient is already on your list.
             </p>
           ) : (

@@ -32,7 +32,7 @@ export function TextField({
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         className={clsx(
-          "rounded-[12px] border bg-surface-2 px-4 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-ink-3",
+          "rounded-sm border bg-surface-2 px-4 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-ink-3",
           error ? "border-danger" : "border-line focus:border-basil",
           className,
         )}

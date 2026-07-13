@@ -2,7 +2,7 @@
 
 import { useOptimistic, useState, useTransition, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { springPop } from "@/lib/motion";
+import { DUR, springPop } from "@/lib/motion";
 import { clsx } from "@/lib/clsx";
 import { CartIcon, CheckIcon, CloseIcon, PlusIcon, ListIcon } from "@/components/icons";
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
@@ -12,6 +12,8 @@ import { addItem, toggleItem, deleteItem, clearCompleted, createNamedList, delet
 import { useToast } from "@/components/ui/toast";
 import { ALL_LISTS } from "@/lib/grocery/constants";
 import type { GroceryBoardData, GroceryItem, GroceryList } from "@/lib/grocery/queries";
+
+const LONG_PRESS_MS = 450;
 
 function groupByCategory(items: GroceryItem[]) {
   const groups = new Map<Category, GroceryItem[]>();
@@ -141,7 +143,7 @@ function Chip({
     timer.current = setTimeout(() => {
       longPressed.current = true;
       onEnterEdit();
-    }, 450);
+    }, LONG_PRESS_MS);
   };
   const endPress = () => {
     if (timer.current) clearTimeout(timer.current);
@@ -163,7 +165,7 @@ function Chip({
     <motion.div
       className="relative flex w-[60px] flex-none flex-col items-center gap-1"
       animate={wiggling ? { rotate: [-2.4 * dir, 2.4 * dir, -2.4 * dir] } : { rotate: 0 }}
-      transition={wiggling ? { duration: 0.28, repeat: Infinity, ease: "easeInOut" } : { duration: 0.15 }}
+      transition={wiggling ? { duration: DUR.base, repeat: Infinity, ease: "easeInOut" } : { duration: DUR.fast }}
     >
       <button
         type="button"
@@ -402,7 +404,7 @@ function AddItemRow({ listId }: { listId: string }) {
   };
 
   return (
-    <div className="flex items-center gap-2 rounded-[12px] border border-line bg-surface px-3.5 py-2.5">
+    <div className="flex items-center gap-2 rounded-sm border border-line bg-surface px-3.5 py-2.5">
       <input
         value={value}
         aria-label="Add an item"

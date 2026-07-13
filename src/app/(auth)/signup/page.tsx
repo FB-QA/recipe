@@ -35,7 +35,7 @@ export default function SignupPage() {
         </p>
       )}
       {state?.message && (
-        <p role="status" className="rounded-[12px] bg-basil-tint px-4 py-3 text-sm text-basil">
+        <p role="status" className="rounded-sm bg-basil-tint px-4 py-3 text-sm text-basil">
           {state.message}
         </p>
       )}

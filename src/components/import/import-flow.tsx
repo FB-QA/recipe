@@ -7,6 +7,9 @@ import { createRecipe } from "@/lib/recipes/actions";
 import { RecipeForm, type RecipeFormInitial } from "@/components/recipes/recipe-form";
 import { CoverImage } from "@/components/recipes/cover-image";
 import { Button } from "@/components/ui/button";
+import { LoadingLabel } from "@/components/ui/spinner";
+import { SkeletonLines } from "@/components/ui/skeleton";
+import { ImportNote } from "@/components/import/import-note";
 import { InstagramIcon, GlobeIcon, PlayIcon, CheckIcon } from "@/components/icons";
 import { ingredientLine } from "@/lib/recipes/ingredient";
 import type { ExtractedRecipe } from "@/lib/import/types";
@@ -16,6 +19,7 @@ const EXTRACTING_STEPS = [
   "Pulling out ingredients & steps…",
   "Tidying it up…",
 ];
+const STEP_INTERVAL_MS = 1200;
 
 /** An internal link that, inside a drawer, closes-then-navigates via the host
  * (onNavigate); on a standalone page it's a plain Link. */
@@ -126,7 +130,7 @@ function PasteForm({
           required
           aria-label="Recipe link"
           placeholder={isInsta ? "Paste a Reel or post link" : "Paste a recipe URL"}
-          className="w-full rounded-[12px] border border-line bg-surface-2 px-4 py-3.5 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+          className="w-full rounded-sm border border-line bg-surface-2 px-4 py-3.5 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
         />
       </div>
       {error && (
@@ -147,19 +151,16 @@ function PasteForm({
 function Extracting() {
   const [i, setI] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setI((n) => Math.min(n + 1, EXTRACTING_STEPS.length - 1)), 1200);
+    const t = setInterval(
+      () => setI((n) => Math.min(n + 1, EXTRACTING_STEPS.length - 1)),
+      STEP_INTERVAL_MS,
+    );
     return () => clearInterval(t);
   }, []);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2.5 text-[14px] font-semibold text-basil">
-        <span
-          aria-hidden
-          className="h-[18px] w-[18px] animate-spin rounded-full border-[2.5px] border-basil-tint border-t-basil"
-        />
-        <span role="status">{EXTRACTING_STEPS[i]}</span>
-      </div>
+      <LoadingLabel>{EXTRACTING_STEPS[i]}</LoadingLabel>
 
       {/* A full-page shell of the review that's coming. */}
       <div className="skeleton h-[190px] rounded-card" />
@@ -175,9 +176,7 @@ function Extracting() {
       </div>
       <div className="flex flex-col gap-2.5">
         <div className="skeleton h-3 w-24" />
-        {Array.from({ length: 6 }).map((_, n) => (
-          <div key={n} className="skeleton h-4" style={{ width: `${92 - (n % 3) * 14}%` }} />
-        ))}
+        <SkeletonLines />
       </div>
       <div className="skeleton h-12 w-full rounded-[14px]" />
     </div>
@@ -221,10 +220,10 @@ function Review({
           {method === "cache" ? " · from your history" : ""}
         </span>
       </div>
-      <p className="mb-4 flex gap-2 rounded-[12px] border border-line bg-surface-2 px-3.5 py-2.5 text-[12.5px] leading-snug text-ink-2">
+      <ImportNote>
         I filled in everything the source gave me. Nothing invented — anything missing is yours to
         add or leave.
-      </p>
+      </ImportNote>
       <RecipeForm
         action={createRecipe}
         initial={extractedToInitial(recipe, sourceUrl)}
@@ -289,7 +288,7 @@ function AlreadyImported({
 }) {
   return (
     <div className="flex flex-col gap-3.5 pb-1">
-      <p className="flex items-center gap-2 rounded-[12px] bg-basil-tint px-4 py-3 text-[13.5px] font-medium text-basil">
+      <p className="flex items-center gap-2 rounded-sm bg-basil-tint px-4 py-3 text-[13.5px] font-medium text-basil">
         <CheckIcon size={16} /> You&apos;ve already imported this recipe.
       </p>
       <LeaveLink

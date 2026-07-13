@@ -26,6 +26,8 @@
   --radius: 18px;
   --radius-sm: 12px;
   --radius-lg: 26px;
+  --scrim: rgba(10, 14, 11, 0.42); /* modal backdrop, fixed across themes */
+  --width-app: 480px; /* the app's max content width */
 }
 
 @media (prefers-color-scheme: dark) {

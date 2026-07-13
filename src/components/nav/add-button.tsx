@@ -6,8 +6,37 @@ import { Sheet } from "@/components/ui/sheet";
 import { ImportFlow } from "@/components/import/import-flow";
 import { PasteFlow } from "@/components/import/paste-flow";
 import { PlusIcon, InstagramIcon, GlobeIcon, ClipboardIcon, PencilIcon } from "@/components/icons";
+import { createdRecipeHref } from "@/lib/recipes/constants";
 
 type View = "menu" | "instagram" | "web" | "paste";
+
+/** One row in the add-recipe menu. */
+function MenuRow({
+  Icon,
+  title,
+  sub,
+  onClick,
+}: {
+  Icon: typeof InstagramIcon;
+  title: string;
+  sub: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-3.5 rounded-[15px] border border-line bg-surface p-[15px] text-left transition-colors hover:border-basil hover:bg-basil-tint"
+    >
+      <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-basil-tint text-basil">
+        <Icon size={21} />
+      </span>
+      <span>
+        <span className="block text-[15px] font-bold text-ink">{title}</span>
+        <span className="block text-[12.5px] text-ink-3">{sub}</span>
+      </span>
+    </button>
+  );
+}
 
 const TITLES: Record<View, string> = {
   menu: "Add a recipe",
@@ -77,39 +106,21 @@ export function AddButton() {
         {view === "menu" ? (
           <div className="flex flex-col gap-2.5">
             {importOptions.map(({ view: v, Icon, title, sub }) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className="flex items-center gap-3.5 rounded-[15px] border border-line bg-surface p-[15px] text-left transition-colors hover:border-basil hover:bg-basil-tint"
-              >
-                <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-basil-tint text-basil">
-                  <Icon size={21} />
-                </span>
-                <span>
-                  <span className="block text-[15px] font-bold text-ink">{title}</span>
-                  <span className="block text-[12.5px] text-ink-3">{sub}</span>
-                </span>
-              </button>
+              <MenuRow key={v} Icon={Icon} title={title} sub={sub} onClick={() => setView(v)} />
             ))}
-            <button
+            <MenuRow
+              Icon={PencilIcon}
+              title="Create manually"
+              sub="Type it in yourself"
               onClick={() => leave("/recipes/new")}
-              className="flex items-center gap-3.5 rounded-[15px] border border-line bg-surface p-[15px] text-left transition-colors hover:border-basil hover:bg-basil-tint"
-            >
-              <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-basil-tint text-basil">
-                <PencilIcon size={21} />
-              </span>
-              <span>
-                <span className="block text-[15px] font-bold text-ink">Create manually</span>
-                <span className="block text-[12.5px] text-ink-3">Type it in yourself</span>
-              </span>
-            </button>
+            />
           </div>
         ) : view === "paste" ? (
-          <PasteFlow onSaved={(id) => leave(`/recipes/${id}?created=1`)} />
+          <PasteFlow onSaved={(id) => leave(createdRecipeHref(id))} />
         ) : (
           <ImportFlow
             source={view === "instagram" ? "instagram" : "web"}
-            onSaved={(id) => leave(`/recipes/${id}?created=1`)}
+            onSaved={(id) => leave(createdRecipeHref(id))}
             onNavigate={leave}
           />
         )}

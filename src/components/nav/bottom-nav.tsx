@@ -24,7 +24,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 mx-auto flex h-[76px] max-w-[480px] items-center justify-around border-t border-line bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] pb-2.5 backdrop-blur-lg"
+      className="fixed inset-x-0 bottom-0 z-40 mx-auto flex h-[76px] max-w-[var(--width-app)] items-center justify-around border-t border-line bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] pb-2.5 backdrop-blur-lg"
     >
       {items.slice(0, 2).map((item) => (
         <NavLink key={item.href} {...item} active={item.match(pathname)} />

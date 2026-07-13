@@ -8,6 +8,12 @@ import { extractWithAi, aiToExtracted } from "./ai";
 import { hasCookableContent, type ExtractedRecipe, type ImportOutcome } from "./types";
 
 const DAILY_IMPORT_LIMIT = 25;
+const IMPORT_WINDOW_MS = 24 * 3600 * 1000;
+
+/** Start of the rolling import-limit window, as an ISO timestamp. */
+function windowCutoff() {
+  return new Date(Date.now() - IMPORT_WINDOW_MS).toISOString();
+}
 
 export type PasteState =
   | { phase: "idle" }
@@ -31,7 +37,7 @@ export async function extractPasted(
   } = await supabase.auth.getUser();
   if (!user) return { phase: "error", error: "You've been signed out — log in and try again." };
 
-  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const cutoff = windowCutoff();
   const { data: recent } = await supabase.rpc("imports_since", { cutoff });
   if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
     return {
@@ -107,7 +113,7 @@ export async function runImport(
   }
 
   // Per-user rate limit (rolling 24h).
-  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const cutoff = windowCutoff();
   const { data: recent } = await supabase.rpc("imports_since", { cutoff });
   if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
     return {

@@ -6,6 +6,7 @@ import { TextField } from "@/components/ui/text-field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { CloseIcon, PlusIcon } from "@/components/icons";
 import type { RecipeFormState } from "@/lib/recipes/actions";
+import { createdRecipeHref } from "@/lib/recipes/constants";
 
 export type RecipeFormInitial = {
   title: string;
@@ -63,7 +64,7 @@ export function RecipeForm({
     if (!state || !("ok" in state) || handled.current) return;
     handled.current = true;
     if (onSaved) onSaved(state.id);
-    else router.push(`/recipes/${state.id}${isNew ? "?created=1" : ""}`);
+    else router.push(isNew ? createdRecipeHref(state.id) : `/recipes/${state.id}`);
   }, [state, onSaved, isNew, router]);
 
   const formError = state && "error" in state ? state.error : undefined;
@@ -182,7 +183,7 @@ export function RecipeForm({
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
           placeholder="A line about this recipe (optional)"
-          className="w-full rounded-[12px] border border-line bg-surface-2 px-4 py-3 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+          className="w-full rounded-sm border border-line bg-surface-2 px-4 py-3 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
         />
       </div>
 
@@ -284,7 +285,7 @@ function DynamicList({
                 onChange={(e) => update(i, e.target.value)}
                 placeholder={placeholder}
                 rows={2}
-                className="w-full rounded-[12px] border border-line bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
               />
             ) : (
               <input
@@ -292,7 +293,7 @@ function DynamicList({
                 aria-label={`${label} ${i + 1}`}
                 onChange={(e) => update(i, e.target.value)}
                 placeholder={placeholder}
-                className="w-full rounded-[12px] border border-line bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
               />
             )}
             <button

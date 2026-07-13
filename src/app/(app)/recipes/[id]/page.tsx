@@ -8,6 +8,7 @@ import { DeleteButton } from "@/components/recipes/delete-button";
 import { IngredientsSection } from "@/components/recipes/ingredients-section";
 import { SavedToast } from "@/components/recipes/saved-toast";
 import { listedIngredientIds } from "@/lib/grocery/queries";
+import { CREATED_PARAM } from "@/lib/recipes/constants";
 import { highlightStep, ingredientTerms } from "@/lib/recipes/highlight";
 import {
   ChevronLeftIcon,
@@ -22,10 +23,10 @@ export default async function RecipeDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { id } = await params;
-  const { created } = await searchParams;
+  const created = (await searchParams)[CREATED_PARAM];
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
   const addedIngredientIds = await listedIngredientIds(recipe.id);

@@ -21,6 +21,7 @@ const ToastContext = createContext<(message: string) => void>(() => {});
 export const useToast = () => useContext(ToastContext);
 
 const emptySubscribe = () => () => {};
+const TOAST_DURATION_MS = 2800;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -29,7 +30,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const toast = useCallback((message: string) => {
     const id = (nextId.current += 1);
     setToasts((t) => [...t, { id, message }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2800);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), TOAST_DURATION_MS);
   }, []);
 
   const isClient = useSyncExternalStore(emptySubscribe, () => true, () => false);
@@ -39,7 +40,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {isClient &&
         createPortal(
-          <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[60] mx-auto flex max-w-[480px] flex-col items-center gap-2 px-4">
+          <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[60] mx-auto flex max-w-[var(--width-app)] flex-col items-center gap-2 px-4">
             <AnimatePresence>
               {toasts.map((t) => (
                 <motion.div
