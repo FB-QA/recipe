@@ -1,7 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-
-const BUCKET = "recipe-images";
-const SIGNED_TTL = 60 * 60;
+import { signStoragePaths } from "@/lib/supabase/storage";
 
 export type GroceryList = { id: string; name: string };
 
@@ -57,18 +55,10 @@ export async function getBoard(requestedListId?: string): Promise<GroceryBoardDa
       .select("id, title, cover_image_path")
       .in("id", recipeIds);
 
-    const paths = [
-      ...new Set(
-        (recipes ?? []).map((r) => r.cover_image_path).filter((x): x is string => Boolean(x)),
-      ),
-    ];
-    const covers: Record<string, string> = {};
-    if (paths.length > 0) {
-      const { data } = await supabase.storage.from(BUCKET).createSignedUrls(paths, SIGNED_TTL);
-      for (const entry of data ?? []) {
-        if (entry.signedUrl && entry.path) covers[entry.path] = entry.signedUrl;
-      }
-    }
+    const covers = await signStoragePaths(
+      supabase,
+      (recipes ?? []).map((r) => r.cover_image_path),
+    );
     for (const r of recipes ?? []) {
       sourceMap[r.id] = {
         title: r.title,

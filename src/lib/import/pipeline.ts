@@ -3,9 +3,7 @@ import { extractWithAi, aiToExtracted } from "./ai";
 import { fetchInstagram } from "./apify";
 import { isSafeImportUrl } from "./url-guard";
 import { hasCookableContent, type ImportOutcome } from "./types";
-
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17 Safari/605.1.15";
+import { BROWSER_USER_AGENT } from "@/lib/http";
 
 export function isInstagramUrl(url: string): boolean {
   try {
@@ -35,7 +33,7 @@ function htmlToText(html: string): string {
 async function fetchHtml(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
-      headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" },
+      headers: { "user-agent": BROWSER_USER_AGENT, accept: "text/html,application/xhtml+xml" },
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return null;

@@ -5,15 +5,8 @@ import { FoodImage } from "@/components/food-icons";
 import { AddToListSheet } from "@/components/grocery/add-to-list-sheet";
 import { MinusIcon, PlusIcon } from "@/components/icons";
 import { parseServings, scaleIngredientText } from "@/lib/recipes/scale";
-
-type Ingredient = {
-  id: string;
-  display_text: string;
-  quantity: string | null;
-  unit: string | null;
-  name: string | null;
-};
-type List = { id: string; name: string };
+import type { IngredientLike } from "@/lib/recipes/ingredient";
+import type { GroceryList } from "@/lib/grocery/queries";
 
 export function IngredientsSection({
   recipeId,
@@ -22,9 +15,9 @@ export function IngredientsSection({
   lists,
 }: {
   recipeId: string;
-  ingredients: Ingredient[];
+  ingredients: IngredientLike[];
   servingsText: string | null;
-  lists: List[];
+  lists: GroceryList[];
 }) {
   const base = parseServings(servingsText);
   const [target, setTarget] = useState(base ?? 1);

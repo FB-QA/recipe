@@ -5,6 +5,7 @@ import { CloseIcon } from "@/components/icons";
 import { RecipeForm, type RecipeFormInitial } from "@/components/recipes/recipe-form";
 import { getRecipe } from "@/lib/recipes/queries";
 import { updateRecipe } from "@/lib/recipes/actions";
+import { ingredientLine } from "@/lib/recipes/ingredient";
 
 export default async function EditRecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,9 +19,7 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
     prep_time: recipe.prep_time ?? "",
     cook_time: recipe.cook_time ?? "",
     source_url: recipe.source_url ?? "",
-    ingredients: recipe.ingredients.map(
-      (i) => [i.quantity, i.unit, i.name].filter(Boolean).join(" ") || i.display_text,
-    ),
+    ingredients: recipe.ingredients.map(ingredientLine),
     steps: recipe.steps.map((s) => s.instruction),
     tips: recipe.tips.map((t) => t.text),
     coverUrl: recipe.coverUrl,

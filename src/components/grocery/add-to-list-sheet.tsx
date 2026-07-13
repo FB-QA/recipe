@@ -9,15 +9,8 @@ import { FoodImage } from "@/components/food-icons";
 import { addRecipeIngredientsToList } from "@/lib/grocery/actions";
 import { scaleIngredientText } from "@/lib/recipes/scale";
 import { clsx } from "@/lib/clsx";
-
-type Ingredient = {
-  id: string;
-  display_text: string;
-  quantity: string | null;
-  unit: string | null;
-  name: string | null;
-};
-type List = { id: string; name: string };
+import type { IngredientLike } from "@/lib/recipes/ingredient";
+import type { GroceryList } from "@/lib/grocery/queries";
 
 export function AddToListSheet({
   recipeId,
@@ -26,8 +19,8 @@ export function AddToListSheet({
   scale = 1,
 }: {
   recipeId: string;
-  ingredients: Ingredient[];
-  lists: List[];
+  ingredients: IngredientLike[];
+  lists: GroceryList[];
   scale?: number;
 }) {
   const [open, setOpen] = useState(false);

@@ -7,8 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseRecipePayload, type RecipeInput } from "./schema";
 import { optimizeCover, optimizeFromUrl } from "@/lib/images/optimize";
+import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
 
-const BUCKET = "recipe-images";
 type Client = SupabaseClient<Database>;
 
 export type RecipeFormState = { error?: string } | undefined;

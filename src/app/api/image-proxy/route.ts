@@ -1,8 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { isSafeImportUrl } from "@/lib/import/url-guard";
-
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17 Safari/605.1.15";
+import { BROWSER_USER_AGENT } from "@/lib/http";
 
 /**
  * Proxies a remote image for the import review preview. Instagram's CDN blocks
@@ -18,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const res = await fetch(url, {
-      headers: { "user-agent": UA },
+      headers: { "user-agent": BROWSER_USER_AGENT },
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return new NextResponse("Upstream error", { status: 502 });

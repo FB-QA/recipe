@@ -7,6 +7,7 @@ import { createRecipe } from "@/lib/recipes/actions";
 import { RecipeForm, type RecipeFormInitial } from "@/components/recipes/recipe-form";
 import { Button } from "@/components/ui/button";
 import { InstagramIcon, GlobeIcon, PlayIcon } from "@/components/icons";
+import { ingredientLine } from "@/lib/recipes/ingredient";
 import type { ExtractedRecipe } from "@/lib/import/types";
 
 const EXTRACTING_STEPS = [
@@ -129,9 +130,7 @@ function extractedToInitial(recipe: ExtractedRecipe, sourceUrl: string): RecipeF
     prep_time: recipe.prep_time ?? "",
     cook_time: recipe.cook_time ?? "",
     source_url: sourceUrl,
-    ingredients: recipe.ingredients.map(
-      (i) => [i.quantity, i.unit, i.name].filter(Boolean).join(" ") || i.display_text,
-    ),
+    ingredients: recipe.ingredients.map(ingredientLine),
     steps: recipe.steps,
     tips: recipe.tips,
     coverUrl: null,

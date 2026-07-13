@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { categorize } from "./categorize";
 import { scaleIngredientText } from "@/lib/recipes/scale";
+import { quantityLabel } from "@/lib/recipes/ingredient";
 
 async function nextSortOrder(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -117,7 +118,7 @@ export async function addRecipeToList(recipeId: string): Promise<{ listId: strin
   const rows = ingredients.map((ing, i) => ({
     list_id: listId!,
     display_text: ing.name ?? ing.display_text,
-    quantity: [ing.quantity, ing.unit].filter(Boolean).join(" ") || null,
+    quantity: quantityLabel(ing),
     source_recipe_id: recipeId,
     sort_order: base + i,
     category: categorize(ing.name ?? ing.display_text),
@@ -175,7 +176,7 @@ export async function addRecipeIngredientsToList(
 
   const base = await nextSortOrder(supabase, target);
   const rows = ingredients.map((ing, i) => {
-    const qty = [ing.quantity, ing.unit].filter(Boolean).join(" ") || null;
+    const qty = quantityLabel(ing);
     return {
       list_id: target!,
       display_text: scaleIngredientText(ing.name ?? ing.display_text, scale),

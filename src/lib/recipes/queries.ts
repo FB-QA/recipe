@@ -1,22 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { signStoragePaths } from "@/lib/supabase/storage";
 import type { Database } from "@/lib/supabase/database.types";
-
-const BUCKET = "recipe-images";
-const SIGNED_TTL = 60 * 60; // 1 hour
-
-type Client = SupabaseClient<Database>;
-
-async function signPaths(supabase: Client, paths: string[]): Promise<Record<string, string>> {
-  const unique = [...new Set(paths.filter(Boolean))];
-  if (unique.length === 0) return {};
-  const { data } = await supabase.storage.from(BUCKET).createSignedUrls(unique, SIGNED_TTL);
-  const map: Record<string, string> = {};
-  for (const entry of data ?? []) {
-    if (entry.signedUrl && entry.path) map[entry.path] = entry.signedUrl;
-  }
-  return map;
-}
 
 export type RecipeListItem = {
   id: string;
@@ -48,7 +32,7 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
   const { data, error } = await query;
   if (error || !data) return [];
 
-  const covers = await signPaths(
+  const covers = await signStoragePaths(
     supabase,
     data.map((r) => r.cover_image_path).filter((p): p is string => Boolean(p)),
   );
@@ -84,7 +68,7 @@ export async function getRecipe(id: string) {
 
   if (error || !data) return null;
 
-  const covers = await signPaths(
+  const covers = await signStoragePaths(
     supabase,
     [data.cover_image_path, ...data.recipe_steps.map((s) => s.image_path)].filter(
       (p): p is string => Boolean(p),
