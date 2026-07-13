@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/session";
 import { categorize } from "./categorize";
 import { scaleIngredientText } from "@/lib/recipes/scale";
 import { quantityLabel } from "@/lib/recipes/ingredient";
@@ -120,9 +121,7 @@ export async function addRecipeIngredientsToList(
 ): Promise<AddToListResult> {
   const empty: AddToListResult = { listId: "", count: 0, skipped: 0, created: false, listName: "" };
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user || ingredientIds.length === 0) return empty;
 
   const { data: recipe } = await supabase

@@ -1,13 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/supabase/database.types";
+import { stampVerifiedUser } from "@/lib/auth/session";
 
 const PUBLIC_ROUTES = ["/login", "/signup", "/reset-password", "/auth", "/welcome", "/test-fixtures"];
 
 /**
- * Refreshes the Supabase auth session on every request and enforces
- * route protection. Unauthenticated users are bounced to /login; signed-in
- * users hitting an auth page are sent to the app.
+ * Refreshes the Supabase auth session on every request, enforces route protection,
+ * and — the new part — STAMPS the verified user onto the request so nothing
+ * downstream has to verify it again.
+ *
+ * This runs on every navigation (the matcher covers RSC payload requests too), and
+ * `getUser()` is a network round-trip to Supabase's auth server, not a cookie read.
+ * It is the single most expensive thing on the request path. Doing it here once, and
+ * handing the result on, is why pages no longer pay for it a second time.
+ * See `@/lib/auth/session`.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -53,5 +60,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return response;
+  // Hand the verified identity downstream. stampVerifiedUser() strips any inbound
+  // copy first — a client can send these headers itself, and trusting them
+  // unstripped would be an impersonation hole.
+  //
+  // Rebuilt from `request.headers` (not `response`) because the cookie refresh above
+  // may have replaced `response`; the cookies it set are on the request already.
+  const requestHeaders = stampVerifiedUser(request.headers, user);
+  const forwarded = NextResponse.next({ request: { headers: requestHeaders } });
+  response.cookies.getAll().forEach((c) => forwarded.cookies.set(c));
+  return forwarded;
 }

@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
 import { signStoragePaths } from "@/lib/supabase/storage";
 import { importFromUrl, isInstagramUrl } from "./pipeline";
 import { extractWithAi, aiToExtracted } from "./ai";
@@ -32,10 +33,8 @@ export async function extractPasted(
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { phase: "error", error: "You've been signed out — log in and try again." };
+  const user = await currentUser();
+  if (!user) return { phase: "error", error: SIGNED_OUT_ERROR };
 
   const cutoff = windowCutoff();
   const { data: recent } = await supabase.rpc("imports_since", { cutoff });
@@ -90,10 +89,8 @@ export async function runImport(
   const url = parsed.data;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { phase: "error", error: "You've been signed out — log in and try again." };
+  const user = await currentUser();
+  if (!user) return { phase: "error", error: SIGNED_OUT_ERROR };
 
   // Already saved this URL? Send them straight to it instead of re-importing.
   const { data: existing } = await supabase

@@ -10,14 +10,25 @@ const sourceLabel: Record<RecipeListItem["source_type"], string> = {
   manual: "Manual",
 };
 
+/**
+ * The shelf's layout, shared with its loading skeleton (`ShelfSkeleton`). Exported
+ * rather than written twice: a skeleton with its own copy of the grid drifts from
+ * the real thing the first time either is touched, and then the page jumps as it
+ * loads. One definition, so they cannot disagree.
+ */
+export const SHELF_GRID = "grid grid-cols-2 gap-3.5";
+export const CARD_SHELL =
+  "block overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow)]";
+export const CARD_COVER_H = "h-[118px]";
+
 export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
   const serves = parseServings(recipe.servings);
   return (
     <Link
       href={`/recipes/${recipe.id}`}
-      className="block overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow)] transition-transform duration-150 active:scale-[0.97]"
+      className={`${CARD_SHELL} transition-transform duration-150 active:scale-[0.97]`}
     >
-      <CoverImage url={recipe.coverUrl} title={recipe.title} className="h-[118px] p-2.5">
+      <CoverImage url={recipe.coverUrl} title={recipe.title} className={`${CARD_COVER_H} p-2.5`}>
         {recipe.is_favourite && (
           <span className="absolute right-2.5 top-2.5 grid h-7 w-7 place-items-center rounded-full bg-white/85 text-heart">
             <HeartIcon size={14} filled />
@@ -52,7 +63,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
 
 export function RecipeShelf({ recipes }: { recipes: RecipeListItem[] }) {
   return (
-    <div className="grid grid-cols-2 gap-3.5">
+    <div className={SHELF_GRID}>
       {recipes.map((r, i) => (
         <div key={r.id} className="reveal-item" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}>
           <RecipeCard recipe={r} />

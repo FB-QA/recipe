@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getRecipe } from "@/lib/recipes/queries";
-import { CoverImage } from "@/components/recipes/cover-image";
+import { CoverImage, DETAIL_COVER } from "@/components/recipes/cover-image";
 import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { ShareButton } from "@/components/recipes/share-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
@@ -42,7 +42,7 @@ export default async function RecipeDetailPage({
   return (
     <div className="-mt-2">
       {created && <SavedToast recipeId={recipe.id} message={`Saved “${recipe.title}”`} />}
-      <CoverImage url={recipe.coverUrl} title={recipe.title} className="-mx-[18px] h-[250px] p-[18px]">
+      <CoverImage url={recipe.coverUrl} title={recipe.title} className={DETAIL_COVER}>
         <Link
           href="/recipes"
           aria-label="Back"

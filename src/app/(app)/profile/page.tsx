@@ -1,29 +1,23 @@
-import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/(auth)/actions";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { countRecipes } from "@/lib/recipes/queries";
+import { getProfile, countImports } from "@/lib/profile/queries";
 import { firstName } from "@/lib/name";
 
 export default async function ProfilePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name, email")
-    .eq("id", user!.id)
-    .single();
+  // Was four awaits in a row — verify the token, fetch the profile, count the
+  // recipes, count the imports — each waiting on the last for no reason. They are
+  // independent, so they run together.
+  const [profile, recipeCount, importCount] = await Promise.all([
+    getProfile(),
+    countRecipes(),
+    countImports(),
+  ]);
 
-  const name = profile?.display_name ?? firstName(user?.email);
+  const name = profile.displayName ?? firstName(profile.email);
   const initial = (name?.[0] ?? "?").toUpperCase();
-
-  const recipeCount = await countRecipes();
-  const { count: importCount } = await supabase
-    .from("recipe_imports")
-    .select("id", { count: "exact", head: true });
 
   return (
     <>
@@ -35,7 +29,9 @@ export default async function ProfilePage() {
         </div>
         <div>
           <div className="text-[16px] font-bold text-ink">{name}</div>
-          <div className="text-[13px] text-ink-3">{profile?.email ?? user?.email}</div>
+          {/* getProfile() already falls back to the identity the proxy verified,
+              so the two-way `?? user?.email` this replaced is now one value. */}
+          <div className="text-[13px] text-ink-3">{profile.email}</div>
         </div>
       </div>
 
