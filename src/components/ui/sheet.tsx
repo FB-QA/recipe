@@ -65,8 +65,10 @@ export function Sheet({
           className="fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[85dvh] max-w-[480px] overflow-y-auto rounded-t-[26px] bg-surface px-5 pb-[calc(env(safe-area-inset-bottom)+24px)] pt-2.5"
           initial={reduce ? false : { y: "100%" }}
           animate={{ y: 0 }}
-          exit={reduce ? { opacity: 0 } : { y: "100%" }}
-          transition={reduce ? { duration: DUR.fast } : { ...springSoft, restDelta: 0.5 }}
+          // Open: soft spring settle. Close: a quick ease-in slide straight back
+          // down, so it reads as the drawer travelling out, not fading away.
+          exit={reduce ? { opacity: 0 } : { y: "100%", transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
+          transition={reduce ? { duration: DUR.fast } : springSoft}
         >
           <div aria-hidden className="mx-auto mb-3 mt-1 h-1 w-9 rounded-full bg-line" />
           {title && (
