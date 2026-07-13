@@ -43,8 +43,9 @@ export async function renameList(id: string, name: string) {
 export async function deleteList(id: string) {
   const supabase = await createClient();
   await supabase.from("grocery_lists").delete().eq("id", id);
+  // No redirect: the board re-renders in place so edit-mode survives deleting
+  // several lists in a row. A deleted active list falls back to the All view.
   revalidatePath("/list");
-  redirect("/list");
 }
 
 export async function addItem(listId: string, text: string) {

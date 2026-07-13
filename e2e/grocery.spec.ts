@@ -152,7 +152,7 @@ test.describe("M3 — grocery lists", () => {
     await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(0);
   });
 
-  test("delete a grocery list via right-click and confirm", async ({ page }) => {
+  test("delete a grocery list via long-press edit mode (no confirmation)", async ({ page }) => {
     await signUp(page);
     await page.goto("/recipes/new");
     await page.getByLabel("Title").fill("Tacos");
@@ -165,10 +165,12 @@ test.describe("M3 — grocery lists", () => {
     await page.getByRole("button", { name: /view list/i }).click();
     await expect(page.getByRole("button", { name: /Tacos/ })).toBeVisible();
 
-    // Right-click the chip → confirm → the list and its items are gone.
+    // Right-click (the desktop equivalent of long-press) enters edit mode; the
+    // per-chip delete control appears and removes the list immediately.
     await page.getByRole("button", { name: /Tacos/ }).click({ button: "right" });
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await page.getByRole("button", { name: "Delete list" }).click();
+    // force: the delete control wiggles continuously (intentional), so it never
+    // reports "stable"; a real tap lands fine on a moving element.
+    await page.getByRole("button", { name: "Delete Tacos" }).click({ force: true });
 
     await expect(page.getByRole("button", { name: /Tacos/ })).toHaveCount(0);
     await expect(page.getByText("tortilla")).toHaveCount(0);

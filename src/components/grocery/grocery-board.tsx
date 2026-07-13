@@ -1,23 +1,14 @@
 "use client";
 
 import { useOptimistic, useState, useTransition, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { springPop } from "@/lib/motion";
 import { clsx } from "@/lib/clsx";
 import { CartIcon, CheckIcon, CloseIcon, PlusIcon, ListIcon } from "@/components/icons";
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
 import { CategoryIcon, FoodImage } from "@/components/food-icons";
 import { gradientFor } from "@/components/recipes/cover-image";
-import { Sheet } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import {
-  addItem,
-  toggleItem,
-  deleteItem,
-  clearCompleted,
-  createList,
-  deleteList,
-} from "@/lib/grocery/actions";
+import { addItem, toggleItem, deleteItem, clearCompleted, createList, deleteList } from "@/lib/grocery/actions";
 import { ALL_LISTS } from "@/lib/grocery/constants";
 import type { GroceryBoardData, GroceryItem, GroceryList } from "@/lib/grocery/queries";
 
@@ -35,7 +26,6 @@ function groupByCategory(items: GroceryItem[]) {
 export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
   const [, startTransition] = useTransition();
   const [selected, setSelected] = useState<string>(activeId ?? ALL_LISTS);
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [optimisticItems, applyOptimistic] = useOptimistic(
     items,
     (state, patch: { id: string; is_completed: boolean }) =>
@@ -48,10 +38,12 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
       await toggleItem(id, is_completed);
     });
 
+  // A deleted (or otherwise missing) active list falls back to the combined view.
+  const activeSel =
+    selected !== ALL_LISTS && !lists.some((l) => l.id === selected) ? ALL_LISTS : selected;
+
   const shown =
-    selected === ALL_LISTS
-      ? optimisticItems
-      : optimisticItems.filter((i) => i.list_id === selected);
+    activeSel === ALL_LISTS ? optimisticItems : optimisticItems.filter((i) => i.list_id === activeSel);
 
   const active = shown.filter((i) => !i.is_completed);
   const done = shown.filter((i) => i.is_completed);
@@ -61,14 +53,14 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
     <div>
       <FilterBar
         lists={lists}
-        selected={selected}
+        selected={activeSel}
         onSelect={setSelected}
-        onRequestDelete={(l) => setPendingDelete({ id: l.id, name: l.name })}
+        onDelete={(id) => startTransition(() => deleteList(id))}
         items={optimisticItems}
       />
 
       {/* Manual add only within a specific list — "All" is a combined view. */}
-      {selected !== ALL_LISTS && <AddItemRow listId={selected} />}
+      {activeSel !== ALL_LISTS && <AddItemRow listId={activeSel} />}
 
       {active.length === 0 && done.length === 0 ? (
         <p className="mt-3 rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-sm text-ink-2">
@@ -111,29 +103,6 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
           </ul>
         </>
       )}
-
-      <Sheet open={pendingDelete !== null} onClose={() => setPendingDelete(null)} title="Delete list">
-        <p className="text-sm leading-relaxed text-ink-2">
-          Delete <span className="font-semibold text-ink">{pendingDelete?.name}</span> and everything
-          on it? This can’t be undone.
-        </p>
-        <div className="mt-4 flex gap-2">
-          <Button variant="ghost" fullWidth onClick={() => setPendingDelete(null)}>
-            Cancel
-          </Button>
-          <Button
-            variant="danger"
-            fullWidth
-            onClick={() => {
-              const id = pendingDelete?.id;
-              setPendingDelete(null);
-              if (id) startTransition(() => deleteList(id));
-            }}
-          >
-            Delete list
-          </Button>
-        </div>
-      </Sheet>
     </div>
   );
 }
@@ -142,69 +111,91 @@ type ChipProps = {
   label: string;
   selected: boolean;
   count: number;
+  editing?: boolean;
+  index?: number;
   onClick: () => void;
+  onEnterEdit?: () => void;
   onDelete?: () => void;
   children: React.ReactNode;
 };
 
-function Chip({ label, selected, count, onClick, onDelete, children }: ChipProps) {
+function Chip({
+  label,
+  selected,
+  count,
+  editing = false,
+  index = 0,
+  onClick,
+  onEnterEdit,
+  onDelete,
+  children,
+}: ChipProps) {
+  const reduce = useReducedMotion();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressed = useRef(false);
 
   const startPress = () => {
-    if (!onDelete) return;
-    longPressed.current = false;
-    timer.current = setTimeout(() => {
-      longPressed.current = true;
-      onDelete();
-    }, 500);
+    if (!onEnterEdit) return;
+    timer.current = setTimeout(onEnterEdit, 450);
   };
   const endPress = () => {
     if (timer.current) clearTimeout(timer.current);
   };
-  const handleClick = () => {
-    if (longPressed.current) {
-      longPressed.current = false;
-      return; // a long-press fired — don't also select the chip
-    }
-    onClick();
-  };
+
+  const wiggling = editing && !!onDelete && !reduce;
+  const dir = index % 2 === 0 ? 1 : -1;
 
   return (
-    <button
-      onClick={handleClick}
-      onContextMenu={onDelete ? (e) => { e.preventDefault(); onDelete(); } : undefined}
-      onTouchStart={onDelete ? startPress : undefined}
-      onTouchEnd={endPress}
-      onTouchMove={endPress}
-      aria-pressed={selected}
-      className="flex w-[60px] flex-none flex-col items-center gap-1 select-none [-webkit-touch-callout:none]"
+    <motion.div
+      className="relative flex w-[60px] flex-none flex-col items-center gap-1"
+      animate={wiggling ? { rotate: [-2.4 * dir, 2.4 * dir, -2.4 * dir] } : { rotate: 0 }}
+      transition={wiggling ? { duration: 0.28, repeat: Infinity, ease: "easeInOut" } : { duration: 0.15 }}
     >
-      {/* Relative wrapper does NOT clip, so the badge can stick out past the circle. */}
-      <span className="relative">
+      <button
+        type="button"
+        onClick={onClick}
+        onContextMenu={onEnterEdit ? (e) => { e.preventDefault(); onEnterEdit(); } : undefined}
+        onTouchStart={onEnterEdit ? startPress : undefined}
+        onTouchEnd={endPress}
+        onTouchMove={endPress}
+        aria-pressed={selected}
+        className="flex flex-col items-center gap-1 select-none [-webkit-touch-callout:none]"
+      >
+        <span className="relative">
+          <span
+            className={clsx(
+              "grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full border-2",
+              selected ? "border-basil" : "border-transparent",
+            )}
+          >
+            {children}
+          </span>
+          {!editing && count > 0 && (
+            <span className="absolute -right-1 -top-1 z-10 grid h-[20px] min-w-[20px] place-items-center rounded-full border-2 border-paper bg-basil px-1 text-[10px] font-bold leading-none text-white">
+              {count}
+            </span>
+          )}
+        </span>
         <span
           className={clsx(
-            "grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full border-2",
-            selected ? "border-basil" : "border-transparent",
+            "w-full truncate text-center text-[10px]",
+            selected ? "font-semibold text-ink" : "text-ink-3",
           )}
         >
-          {children}
+          {label}
         </span>
-        {count > 0 && (
-          <span className="absolute -right-1 -top-1 z-10 grid h-[20px] min-w-[20px] place-items-center rounded-full border-2 border-paper bg-basil px-1 text-[10px] font-bold leading-none text-white">
-            {count}
-          </span>
-        )}
-      </span>
-      <span
-        className={clsx(
-          "w-full truncate text-center text-[10px]",
-          selected ? "font-semibold text-ink" : "text-ink-3",
-        )}
-      >
-        {label}
-      </span>
-    </button>
+      </button>
+
+      {editing && onDelete && (
+        <button
+          type="button"
+          aria-label={`Delete ${label}`}
+          onClick={onDelete}
+          className="absolute left-[2px] top-0 z-20 grid h-[20px] w-[20px] place-items-center rounded-full border-2 border-paper bg-ink text-white shadow-[var(--shadow)]"
+        >
+          <CloseIcon size={11} />
+        </button>
+      )}
+    </motion.div>
   );
 }
 
@@ -212,20 +203,24 @@ function FilterBar({
   lists,
   selected,
   onSelect,
-  onRequestDelete,
+  onDelete,
   items,
 }: {
   lists: GroceryList[];
   selected: string;
   onSelect: (id: string) => void;
-  onRequestDelete: (list: GroceryList) => void;
+  onDelete: (id: string) => void;
   items: GroceryItem[];
 }) {
+  const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const itemCount = (listId: string | null) =>
     items.filter((i) => listId === null || i.list_id === listId).length;
+
+  // While editing, tapping a chip body exits edit mode rather than selecting.
+  const bodyClick = (id: string) => () => (editing ? setEditing(false) : onSelect(id));
 
   return (
     <div className="mb-3.5 flex items-end gap-3 overflow-x-auto px-1 pb-1 pt-2 [scrollbar-width:none]">
@@ -233,7 +228,7 @@ function FilterBar({
         label="All"
         selected={selected === ALL_LISTS}
         count={itemCount(null)}
-        onClick={() => onSelect(ALL_LISTS)}
+        onClick={bodyClick(ALL_LISTS)}
       >
         <span
           className={clsx(
@@ -245,20 +240,22 @@ function FilterBar({
         </span>
       </Chip>
 
-      {lists.map((list) => (
+      {lists.map((list, i) => (
         <Chip
           key={list.id}
           label={list.name}
           selected={selected === list.id}
           count={itemCount(list.id)}
-          onClick={() => onSelect(list.id)}
-          onDelete={() => onRequestDelete(list)}
+          editing={editing}
+          index={i}
+          onClick={bodyClick(list.id)}
+          onEnterEdit={() => setEditing(true)}
+          onDelete={() => onDelete(list.id)}
         >
           {list.coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={list.coverUrl} alt="" className="h-full w-full object-cover" />
           ) : list.isRecipe ? (
-            // Coverless recipe — mirror the shelf card's title-derived gradient.
             <span className="h-full w-full" style={{ backgroundImage: gradientFor(list.name) }} />
           ) : (
             <span className="grid h-full w-full place-items-center bg-basil-tint text-basil">
@@ -268,7 +265,17 @@ function FilterBar({
         </Chip>
       ))}
 
-      {adding ? (
+      {editing ? (
+        <button
+          onClick={() => setEditing(false)}
+          className="flex w-[60px] flex-none flex-col items-center gap-1"
+        >
+          <span className="grid h-[52px] w-[52px] place-items-center rounded-full border-2 border-basil bg-basil text-white">
+            <CheckIcon size={20} />
+          </span>
+          <span className="text-[10px] font-semibold text-ink">Done</span>
+        </button>
+      ) : adding ? (
         <form action={createList.bind(null, undefined)} className="flex-none self-center">
           <input
             ref={inputRef}
