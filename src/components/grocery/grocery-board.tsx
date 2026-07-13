@@ -2,14 +2,14 @@
 
 import { useOptimistic, useState, useTransition, useRef } from "react";
 import { motion } from "framer-motion";
-import Link from "next/link";
 import { springPop } from "@/lib/motion";
 import { clsx } from "@/lib/clsx";
-import { CheckIcon, CloseIcon, PlusIcon } from "@/components/icons";
+import { CartIcon, CheckIcon, CloseIcon, PlusIcon, ListIcon } from "@/components/icons";
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
 import { CategoryIcon, FoodImage } from "@/components/food-icons";
 import { addItem, toggleItem, deleteItem, clearCompleted, createList } from "@/lib/grocery/actions";
-import type { GroceryBoardData, GroceryItem } from "@/lib/grocery/queries";
+import { ALL_LISTS } from "@/lib/grocery/constants";
+import type { GroceryBoardData, GroceryItem, GroceryList } from "@/lib/grocery/queries";
 
 function groupByCategory(items: GroceryItem[]) {
   const groups = new Map<Category, GroceryItem[]>();
@@ -24,6 +24,7 @@ function groupByCategory(items: GroceryItem[]) {
 
 export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
   const [, startTransition] = useTransition();
+  const [selected, setSelected] = useState<string>(activeId ?? ALL_LISTS);
   const [optimisticItems, applyOptimistic] = useOptimistic(
     items,
     (state, patch: { id: string; is_completed: boolean }) =>
@@ -36,60 +37,177 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
       await toggleItem(id, is_completed);
     });
 
-  const active = optimisticItems.filter((i) => !i.is_completed);
-  const done = optimisticItems.filter((i) => i.is_completed);
+  const shown =
+    selected === ALL_LISTS
+      ? optimisticItems
+      : optimisticItems.filter((i) => i.list_id === selected);
+
+  const active = shown.filter((i) => !i.is_completed);
+  const done = shown.filter((i) => i.is_completed);
   const grouped = groupByCategory(active);
 
   return (
     <div>
-      <ListTabs lists={lists} activeId={activeId} />
+      <FilterBar lists={lists} selected={selected} onSelect={setSelected} items={optimisticItems} />
 
-      {activeId && (
-        <>
-          <AddItemRow listId={activeId} />
+      {/* Manual add only within a specific list — "All" is a combined view. */}
+      {selected !== ALL_LISTS && <AddItemRow listId={selected} />}
 
-          {active.length === 0 && done.length === 0 ? (
-            <p className="mt-3 rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-sm text-ink-2">
-              Nothing on this list yet. Add an item above, or tap “Add to grocery list” on any recipe.
-            </p>
-          ) : (
-            <div className="mt-4 flex flex-col gap-4">
-              {grouped.map((group) => (
-                <section key={group.category}>
-                  <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[12px] font-bold uppercase tracking-[0.05em] text-ink-3">
-                    <CategoryIcon category={group.category} size={15} /> {group.category}
-                  </h3>
-                  <ul className="overflow-hidden rounded-card border border-line bg-surface">
-                    {group.items.map((item) => (
-                      <Item key={item.id} item={item} onToggle={toggle} />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          )}
-
-          {done.length > 0 && (
-            <>
-              <div className="mb-2 mt-6 flex items-center justify-between px-0.5">
-                <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
-                  Completed · {done.length}
-                </span>
-                <button
-                  onClick={() => startTransition(() => clearCompleted(done.map((i) => i.id)))}
-                  className="text-[12px] font-semibold text-basil"
-                >
-                  Clear completed
-                </button>
-              </div>
+      {active.length === 0 && done.length === 0 ? (
+        <p className="mt-3 rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-sm text-ink-2">
+          Nothing here yet. Tap “Add to grocery list” on any recipe, or start a list of your own.
+        </p>
+      ) : (
+        <div className="mt-4 flex flex-col gap-4">
+          {grouped.map((group) => (
+            <section key={group.category}>
+              <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[12px] font-bold uppercase tracking-[0.05em] text-ink-3">
+                <CategoryIcon category={group.category} size={15} /> {group.category}
+              </h3>
               <ul className="overflow-hidden rounded-card border border-line bg-surface">
-                {done.map((item) => (
+                {group.items.map((item) => (
                   <Item key={item.id} item={item} onToggle={toggle} />
                 ))}
               </ul>
-            </>
-          )}
+            </section>
+          ))}
+        </div>
+      )}
+
+      {done.length > 0 && (
+        <>
+          <div className="mb-2 mt-6 flex items-center justify-between px-0.5">
+            <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+              Completed · {done.length}
+            </span>
+            <button
+              onClick={() => startTransition(() => clearCompleted(done.map((i) => i.id)))}
+              className="text-[12px] font-semibold text-basil"
+            >
+              Clear completed
+            </button>
+          </div>
+          <ul className="overflow-hidden rounded-card border border-line bg-surface">
+            {done.map((item) => (
+              <Item key={item.id} item={item} onToggle={toggle} />
+            ))}
+          </ul>
         </>
+      )}
+    </div>
+  );
+}
+
+type ChipProps = { label: string; selected: boolean; count: number; onClick: () => void; children: React.ReactNode };
+
+function Chip({ label, selected, count, onClick, children }: ChipProps) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={selected}
+      className="flex w-[60px] flex-none flex-col items-center gap-1"
+    >
+      <span
+        className={clsx(
+          "relative grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full border-2",
+          selected ? "border-basil" : "border-transparent",
+        )}
+      >
+        {children}
+        {count > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-basil px-1 text-[10px] font-bold text-white">
+            {count}
+          </span>
+        )}
+      </span>
+      <span
+        className={clsx(
+          "w-full truncate text-center text-[10px]",
+          selected ? "font-semibold text-ink" : "text-ink-3",
+        )}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function FilterBar({
+  lists,
+  selected,
+  onSelect,
+  items,
+}: {
+  lists: GroceryList[];
+  selected: string;
+  onSelect: (id: string) => void;
+  items: GroceryItem[];
+}) {
+  const [adding, setAdding] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const openCount = (listId: string | null) =>
+    items.filter((i) => !i.is_completed && (listId === null || i.list_id === listId)).length;
+
+  return (
+    <div className="mb-3.5 flex items-end gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
+      <Chip
+        label="All"
+        selected={selected === ALL_LISTS}
+        count={openCount(null)}
+        onClick={() => onSelect(ALL_LISTS)}
+      >
+        <span
+          className={clsx(
+            "grid h-full w-full place-items-center",
+            selected === ALL_LISTS ? "bg-basil text-white" : "bg-basil-tint text-basil",
+          )}
+        >
+          <ListIcon size={20} />
+        </span>
+      </Chip>
+
+      {lists.map((list) => (
+        <Chip
+          key={list.id}
+          label={list.name}
+          selected={selected === list.id}
+          count={openCount(list.id)}
+          onClick={() => onSelect(list.id)}
+        >
+          {list.coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={list.coverUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="grid h-full w-full place-items-center bg-basil-tint text-basil">
+              <CartIcon size={20} />
+            </span>
+          )}
+        </Chip>
+      ))}
+
+      {adding ? (
+        <form action={createList.bind(null, undefined)} className="flex-none self-center">
+          <input
+            ref={inputRef}
+            name="name"
+            autoFocus
+            aria-label="New list name"
+            placeholder="List name"
+            className="w-[130px] rounded-full border border-basil bg-surface px-3.5 py-2 text-[13px] text-ink outline-none"
+          />
+        </form>
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          aria-label="New list"
+          className="flex w-[60px] flex-none flex-col items-center gap-1"
+        >
+          <span className="grid h-[52px] w-[52px] place-items-center rounded-full border-2 border-dashed border-line text-ink-2">
+            <PlusIcon size={18} />
+          </span>
+          <span className="text-[10px] text-ink-3">New</span>
+        </button>
       )}
     </div>
   );
@@ -182,50 +300,6 @@ function AddItemRow({ listId }: { listId: string }) {
       >
         <PlusIcon size={18} />
       </button>
-    </div>
-  );
-}
-
-function ListTabs({ lists, activeId }: { lists: GroceryBoardData["lists"]; activeId: string | null }) {
-  const [adding, setAdding] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <div className="mb-3.5 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-      {lists.map((list) => (
-        <Link
-          key={list.id}
-          href={`/list?list=${list.id}`}
-          aria-current={list.id === activeId ? "true" : undefined}
-          className={clsx(
-            "flex-none rounded-full border px-3.5 py-2 text-[13px] font-semibold",
-            list.id === activeId ? "border-basil bg-basil text-white" : "border-line bg-surface text-ink-2",
-          )}
-        >
-          {list.name}
-        </Link>
-      ))}
-
-      {adding ? (
-        <form action={createList.bind(null, undefined)} className="flex-none">
-          <input
-            ref={inputRef}
-            name="name"
-            autoFocus
-            aria-label="New list name"
-            placeholder="List name"
-            className="w-[130px] rounded-full border border-basil bg-surface px-3.5 py-2 text-[13px] text-ink outline-none"
-          />
-        </form>
-      ) : (
-        <button
-          onClick={() => setAdding(true)}
-          aria-label="New list"
-          className="flex flex-none items-center gap-1 rounded-full border border-dashed border-line px-3 py-2 text-[13px] font-semibold text-ink-2"
-        >
-          <PlusIcon size={15} /> New
-        </button>
-      )}
     </div>
   );
 }
