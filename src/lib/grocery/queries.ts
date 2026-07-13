@@ -43,27 +43,35 @@ export async function getBoard(requestedListId?: string): Promise<GroceryBoardDa
   const recipeIds = [
     ...new Set(rawLists.map((l) => l.source_recipe_id).filter((x): x is string => Boolean(x))),
   ];
-  const coverByRecipe: Record<string, string | null> = {};
+  const recipeById: Record<string, { title: string; coverUrl: string | null }> = {};
   if (recipeIds.length > 0) {
     const { data: recipes } = await supabase
       .from("recipes")
-      .select("id, cover_image_path")
+      .select("id, title, cover_image_path")
       .in("id", recipeIds);
     const covers = await signStoragePaths(
       supabase,
       (recipes ?? []).map((r) => r.cover_image_path),
     );
     for (const r of recipes ?? []) {
-      coverByRecipe[r.id] = r.cover_image_path ? (covers[r.cover_image_path] ?? null) : null;
+      recipeById[r.id] = {
+        title: r.title,
+        coverUrl: r.cover_image_path ? (covers[r.cover_image_path] ?? null) : null,
+      };
     }
   }
 
-  const lists: GroceryList[] = rawLists.map((l) => ({
-    id: l.id,
-    name: l.name,
-    coverUrl: l.source_recipe_id ? (coverByRecipe[l.source_recipe_id] ?? null) : null,
-    isRecipe: Boolean(l.source_recipe_id),
-  }));
+  // For recipe-bound lists, the chip name and cover come from the recipe record
+  // (the single source of truth), so a recipe rename is never stale.
+  const lists: GroceryList[] = rawLists.map((l) => {
+    const recipe = l.source_recipe_id ? recipeById[l.source_recipe_id] : undefined;
+    return {
+      id: l.id,
+      name: recipe?.title ?? l.name,
+      coverUrl: recipe?.coverUrl ?? null,
+      isRecipe: Boolean(l.source_recipe_id),
+    };
+  });
 
   const { data: rows } = await supabase
     .from("grocery_items")

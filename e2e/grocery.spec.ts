@@ -125,4 +125,52 @@ test.describe("M3 — grocery lists", () => {
     await page.getByRole("button", { name: "Add item" }).click();
     await expect(page.getByText("milk")).toBeVisible();
   });
+
+  test("renaming a recipe updates its grocery list chip", async ({ page }) => {
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Curry");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("onion");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Curry" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+    await expect(page.getByRole("button", { name: /Curry/ })).toBeVisible();
+
+    // Rename the recipe → the chip follows, because the name is the recipe's.
+    await page.goto("/");
+    await page.getByRole("link", { name: /Curry/ }).first().click();
+    await page.getByRole("link", { name: "Edit recipe" }).click();
+    await page.getByLabel("Title").fill("Dal");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("heading", { name: "Dal" })).toBeVisible();
+
+    await page.goto("/list");
+    await expect(page.getByRole("button", { name: /Dal/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(0);
+  });
+
+  test("delete a grocery list via right-click and confirm", async ({ page }) => {
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Tacos");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("tortilla");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Tacos" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+    await expect(page.getByRole("button", { name: /Tacos/ })).toBeVisible();
+
+    // Right-click the chip → confirm → the list and its items are gone.
+    await page.getByRole("button", { name: /Tacos/ }).click({ button: "right" });
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: "Delete list" }).click();
+
+    await expect(page.getByRole("button", { name: /Tacos/ })).toHaveCount(0);
+    await expect(page.getByText("tortilla")).toHaveCount(0);
+  });
 });

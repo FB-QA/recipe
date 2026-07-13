@@ -172,6 +172,7 @@ export async function updateRecipe(
 
   revalidatePath("/");
   revalidatePath(`/recipes/${id}`);
+  revalidatePath("/list"); // the grocery chip name mirrors the recipe title
   redirect(`/recipes/${id}`);
 }
 

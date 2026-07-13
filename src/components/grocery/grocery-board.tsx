@@ -8,7 +8,16 @@ import { CartIcon, CheckIcon, CloseIcon, PlusIcon, ListIcon } from "@/components
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
 import { CategoryIcon, FoodImage } from "@/components/food-icons";
 import { gradientFor } from "@/components/recipes/cover-image";
-import { addItem, toggleItem, deleteItem, clearCompleted, createList } from "@/lib/grocery/actions";
+import { Sheet } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import {
+  addItem,
+  toggleItem,
+  deleteItem,
+  clearCompleted,
+  createList,
+  deleteList,
+} from "@/lib/grocery/actions";
 import { ALL_LISTS } from "@/lib/grocery/constants";
 import type { GroceryBoardData, GroceryItem, GroceryList } from "@/lib/grocery/queries";
 
@@ -26,6 +35,7 @@ function groupByCategory(items: GroceryItem[]) {
 export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
   const [, startTransition] = useTransition();
   const [selected, setSelected] = useState<string>(activeId ?? ALL_LISTS);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [optimisticItems, applyOptimistic] = useOptimistic(
     items,
     (state, patch: { id: string; is_completed: boolean }) =>
@@ -49,7 +59,13 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
 
   return (
     <div>
-      <FilterBar lists={lists} selected={selected} onSelect={setSelected} items={optimisticItems} />
+      <FilterBar
+        lists={lists}
+        selected={selected}
+        onSelect={setSelected}
+        onRequestDelete={(l) => setPendingDelete({ id: l.id, name: l.name })}
+        items={optimisticItems}
+      />
 
       {/* Manual add only within a specific list — "All" is a combined view. */}
       {selected !== ALL_LISTS && <AddItemRow listId={selected} />}
@@ -95,18 +111,74 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
           </ul>
         </>
       )}
+
+      <Sheet open={pendingDelete !== null} onClose={() => setPendingDelete(null)} title="Delete list">
+        <p className="text-sm leading-relaxed text-ink-2">
+          Delete <span className="font-semibold text-ink">{pendingDelete?.name}</span> and everything
+          on it? This can’t be undone.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <Button variant="ghost" fullWidth onClick={() => setPendingDelete(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            fullWidth
+            onClick={() => {
+              const id = pendingDelete?.id;
+              setPendingDelete(null);
+              if (id) startTransition(() => deleteList(id));
+            }}
+          >
+            Delete list
+          </Button>
+        </div>
+      </Sheet>
     </div>
   );
 }
 
-type ChipProps = { label: string; selected: boolean; count: number; onClick: () => void; children: React.ReactNode };
+type ChipProps = {
+  label: string;
+  selected: boolean;
+  count: number;
+  onClick: () => void;
+  onDelete?: () => void;
+  children: React.ReactNode;
+};
 
-function Chip({ label, selected, count, onClick, children }: ChipProps) {
+function Chip({ label, selected, count, onClick, onDelete, children }: ChipProps) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+
+  const startPress = () => {
+    if (!onDelete) return;
+    longPressed.current = false;
+    timer.current = setTimeout(() => {
+      longPressed.current = true;
+      onDelete();
+    }, 500);
+  };
+  const endPress = () => {
+    if (timer.current) clearTimeout(timer.current);
+  };
+  const handleClick = () => {
+    if (longPressed.current) {
+      longPressed.current = false;
+      return; // a long-press fired — don't also select the chip
+    }
+    onClick();
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
+      onContextMenu={onDelete ? (e) => { e.preventDefault(); onDelete(); } : undefined}
+      onTouchStart={onDelete ? startPress : undefined}
+      onTouchEnd={endPress}
+      onTouchMove={endPress}
       aria-pressed={selected}
-      className="flex w-[60px] flex-none flex-col items-center gap-1"
+      className="flex w-[60px] flex-none flex-col items-center gap-1 select-none [-webkit-touch-callout:none]"
     >
       {/* Relative wrapper does NOT clip, so the badge can stick out past the circle. */}
       <span className="relative">
@@ -140,11 +212,13 @@ function FilterBar({
   lists,
   selected,
   onSelect,
+  onRequestDelete,
   items,
 }: {
   lists: GroceryList[];
   selected: string;
   onSelect: (id: string) => void;
+  onRequestDelete: (list: GroceryList) => void;
   items: GroceryItem[];
 }) {
   const [adding, setAdding] = useState(false);
@@ -178,6 +252,7 @@ function FilterBar({
           selected={selected === list.id}
           count={itemCount(list.id)}
           onClick={() => onSelect(list.id)}
+          onDelete={() => onRequestDelete(list)}
         >
           {list.coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
