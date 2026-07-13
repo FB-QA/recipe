@@ -115,12 +115,24 @@ export async function addRecipeIngredientsToList(
       .eq("id", recipeId)
       .maybeSingle();
     if (!recipe) return { listId: "", count: 0 };
-    const { data: created } = await supabase
+    const { data: created, error: createErr } = await supabase
       .from("grocery_lists")
       .insert({ name: recipe.title.slice(0, 80), source_recipe_id: recipeId })
       .select("id")
       .single();
-    target = created?.id;
+    if (createErr) {
+      // Lost a concurrent create race (the unique index rejected the second
+      // insert) — the winning request already made the list, so reuse it
+      // rather than dropping this request's items.
+      const { data: raced } = await supabase
+        .from("grocery_lists")
+        .select("id")
+        .eq("source_recipe_id", recipeId)
+        .maybeSingle();
+      target = raced?.id;
+    } else {
+      target = created?.id;
+    }
   }
   if (!target) return { listId: "", count: 0 };
 
