@@ -97,4 +97,13 @@ test.describe("M1 — recipes core", () => {
     await page.getByRole("searchbox", { name: /search recipes/i }).fill("pizza");
     await expect(page.getByText(/nothing matches/i)).toBeVisible();
   });
+
+  test("the add button opens a drawer and routes into a chosen flow", async ({ page }) => {
+    await signUp(page);
+    await page.getByRole("button", { name: "Add a recipe" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Import from Instagram/i })).toBeVisible();
+    await page.getByRole("link", { name: /Create manually/i }).click();
+    await expect(page).toHaveURL("/recipes/new");
+  });
 });

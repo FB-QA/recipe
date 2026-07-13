@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "@/lib/clsx";
-import { BookIcon, CalendarIcon, PlusIcon, CartIcon, UserIcon } from "@/components/icons";
+import { BookIcon, CalendarIcon, CartIcon, UserIcon } from "@/components/icons";
+import { AddButton } from "@/components/nav/add-button";
 
 const items = [
   {
@@ -29,15 +30,7 @@ export function BottomNav() {
         <NavLink key={item.href} {...item} active={item.match(pathname)} />
       ))}
 
-      <Link
-        href="/add"
-        aria-label="Add a recipe"
-        className="-mt-7 flex flex-col items-center"
-      >
-        <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-basil text-white shadow-[0_6px_16px_color-mix(in_srgb,var(--basil)_45%,transparent)] transition-transform duration-150 active:scale-90">
-          <PlusIcon size={26} />
-        </span>
-      </Link>
+      <AddButton />
 
       {items.slice(2).map((item) => (
         <NavLink key={item.href} {...item} active={item.match(pathname)} />
