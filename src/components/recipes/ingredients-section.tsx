@@ -6,18 +6,15 @@ import { AddToListSheet } from "@/components/grocery/add-to-list-sheet";
 import { MinusIcon, PlusIcon } from "@/components/icons";
 import { parseServings, scaleIngredientText } from "@/lib/recipes/scale";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
-import type { GroceryList } from "@/lib/grocery/queries";
 
 export function IngredientsSection({
   recipeId,
   ingredients,
   servingsText,
-  lists,
 }: {
   recipeId: string;
   ingredients: IngredientLike[];
   servingsText: string | null;
-  lists: GroceryList[];
 }) {
   const base = parseServings(servingsText);
   const [target, setTarget] = useState(base ?? 1);
@@ -67,7 +64,7 @@ export function IngredientsSection({
       </ul>
 
       <div className="mt-4">
-        <AddToListSheet recipeId={recipeId} ingredients={ingredients} lists={lists} scale={scale} />
+        <AddToListSheet recipeId={recipeId} ingredients={ingredients} scale={scale} />
       </div>
     </section>
   );

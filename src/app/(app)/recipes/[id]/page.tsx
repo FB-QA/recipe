@@ -6,7 +6,6 @@ import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { ShareButton } from "@/components/recipes/share-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
 import { IngredientsSection } from "@/components/recipes/ingredients-section";
-import { getLists } from "@/lib/grocery/queries";
 import { highlightStep, ingredientTerms } from "@/lib/recipes/highlight";
 import {
   ChevronLeftIcon,
@@ -20,7 +19,6 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
-  const lists = await getLists();
   const stepTerms = ingredientTerms(recipe.ingredients);
 
   const metrics = [
@@ -80,7 +78,6 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
           recipeId={recipe.id}
           ingredients={recipe.ingredients}
           servingsText={recipe.servings}
-          lists={lists}
         />
       )}
 

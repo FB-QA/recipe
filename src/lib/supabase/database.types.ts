@@ -90,6 +90,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          source_recipe_id: string | null
           updated_at: string
           user_id: string
         }
@@ -97,6 +98,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          source_recipe_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -104,10 +106,19 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          source_recipe_id?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "grocery_lists_source_recipe_id_fkey"
+            columns: ["source_recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

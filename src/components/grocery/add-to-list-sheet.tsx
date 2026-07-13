@@ -10,28 +10,23 @@ import { addRecipeIngredientsToList } from "@/lib/grocery/actions";
 import { scaleIngredientText } from "@/lib/recipes/scale";
 import { clsx } from "@/lib/clsx";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
-import type { GroceryList } from "@/lib/grocery/queries";
 
 export function AddToListSheet({
   recipeId,
   ingredients,
-  lists,
   scale = 1,
 }: {
   recipeId: string;
   ingredients: IngredientLike[];
-  lists: GroceryList[];
   scale?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(() => new Set(ingredients.map((i) => i.id)));
-  const [listId, setListId] = useState<string>(lists[0]?.id ?? "");
-  const [addedCount, setAddedCount] = useState<number | null>(null);
+  const [added, setAdded] = useState<{ count: number; listId: string } | null>(null);
   const router = useRouter();
 
   const allSelected = selected.size === ingredients.length;
-  const targetName = lists.find((l) => l.id === listId)?.name ?? lists[0]?.name ?? "This Week";
 
   const toggle = (id: string) =>
     setSelected((s) => {
@@ -43,22 +38,17 @@ export function AddToListSheet({
 
   const confirm = () =>
     startTransition(async () => {
-      const result = await addRecipeIngredientsToList(
-        recipeId,
-        [...selected],
-        listId || undefined,
-        scale,
-      );
+      const result = await addRecipeIngredientsToList(recipeId, [...selected], scale);
       if (result.count > 0) {
-        setAddedCount(result.count);
+        setAdded({ count: result.count, listId: result.listId });
         setOpen(false);
       }
     });
 
-  if (addedCount !== null) {
+  if (added) {
     return (
-      <Button variant="ghost" fullWidth onClick={() => router.push("/list")}>
-        <CheckIcon size={18} /> Added {addedCount} item{addedCount === 1 ? "" : "s"} — view list
+      <Button variant="ghost" fullWidth onClick={() => router.push(`/list?list=${added.listId}`)}>
+        <CheckIcon size={18} /> Added {added.count} item{added.count === 1 ? "" : "s"} — view list
       </Button>
     );
   }
@@ -70,30 +60,6 @@ export function AddToListSheet({
       </Button>
 
       <Sheet open={open} onClose={() => setOpen(false)} title="Add to grocery list">
-        {lists.length > 1 && (
-          <div className="mb-4">
-            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">
-              List
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {lists.map((l) => (
-                <button
-                  key={l.id}
-                  onClick={() => setListId(l.id)}
-                  className={clsx(
-                    "rounded-full border px-3.5 py-2 text-[13px] font-semibold",
-                    l.id === listId
-                      ? "border-basil bg-basil text-white"
-                      : "border-line bg-surface text-ink-2",
-                  )}
-                >
-                  {l.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
             {selected.size} of {ingredients.length} selected
@@ -140,7 +106,7 @@ export function AddToListSheet({
 
         <div className="mt-4">
           <Button fullWidth loading={pending} disabled={selected.size === 0} onClick={confirm}>
-            Add {selected.size} item{selected.size === 1 ? "" : "s"} to {targetName}
+            Add {selected.size} item{selected.size === 1 ? "" : "s"}
           </Button>
         </div>
       </Sheet>

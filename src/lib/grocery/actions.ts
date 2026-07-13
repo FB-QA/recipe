@@ -83,39 +83,44 @@ export async function clearCompleted(ids: string[]) {
 }
 
 /**
- * Add a chosen subset of a recipe's ingredients to a list. Ingredients are
- * re-fetched by id server-side (RLS-scoped), so client-supplied text is never
- * trusted. Creates "This Week" if the user has no list yet.
+ * Add a chosen subset of a recipe's ingredients to that recipe's own grocery
+ * list. Ingredients are re-fetched by id server-side (RLS-scoped), so
+ * client-supplied text is never trusted. The recipe's list is found by its
+ * source_recipe_id, or created on first add and named after the recipe.
  */
 export async function addRecipeIngredientsToList(
   recipeId: string,
   ingredientIds: string[],
-  listId?: string,
   scale: number = 1,
 ): Promise<{ listId: string; count: number }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || ingredientIds.length === 0) return { listId: listId ?? "", count: 0 };
+  if (!user || ingredientIds.length === 0) return { listId: "", count: 0 };
 
-  // Resolve the target list: a verified-owned one, the first list, or a new one.
+  // The recipe's own list — found by binding, or created and named after it.
   let target: string | undefined;
-  if (listId) {
-    const { data } = await supabase.from("grocery_lists").select("id").eq("id", listId).maybeSingle();
-    target = data?.id;
-  }
+  const { data: existing } = await supabase
+    .from("grocery_lists")
+    .select("id")
+    .eq("source_recipe_id", recipeId)
+    .maybeSingle();
+  target = existing?.id;
+
   if (!target) {
-    const { data: lists } = await supabase
+    const { data: recipe } = await supabase
+      .from("recipes")
+      .select("title")
+      .eq("id", recipeId)
+      .maybeSingle();
+    if (!recipe) return { listId: "", count: 0 };
+    const { data: created } = await supabase
       .from("grocery_lists")
+      .insert({ name: recipe.title.slice(0, 80), source_recipe_id: recipeId })
       .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1);
-    target = lists?.[0]?.id;
-  }
-  if (!target) {
-    const { data } = await supabase.from("grocery_lists").insert({ name: "This Week" }).select("id").single();
-    target = data?.id;
+      .single();
+    target = created?.id;
   }
   if (!target) return { listId: "", count: 0 };
 
