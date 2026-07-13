@@ -2,11 +2,18 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { signStoragePaths } from "@/lib/supabase/storage";
 import { importFromUrl, isInstagramUrl } from "./pipeline";
 import { extractWithAi, aiToExtracted } from "./ai";
 import { hasCookableContent, type ExtractedRecipe, type ImportOutcome } from "./types";
 
 const DAILY_IMPORT_LIMIT = 25;
+const IMPORT_WINDOW_MS = 24 * 3600 * 1000;
+
+/** Start of the rolling import-limit window, as an ISO timestamp. */
+function windowCutoff() {
+  return new Date(Date.now() - IMPORT_WINDOW_MS).toISOString();
+}
 
 export type PasteState =
   | { phase: "idle" }
@@ -30,7 +37,7 @@ export async function extractPasted(
   } = await supabase.auth.getUser();
   if (!user) return { phase: "error", error: "You've been signed out — log in and try again." };
 
-  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const cutoff = windowCutoff();
   const { data: recent } = await supabase.rpc("imports_since", { cutoff });
   if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
     return {
@@ -66,6 +73,7 @@ export async function extractPasted(
 export type ImportState =
   | { phase: "idle" }
   | { phase: "error"; error: string }
+  | { phase: "exists"; recipeId: string; title: string; coverUrl: string | null }
   | ({ phase: "done"; sourceUrl: string } & ImportOutcome);
 
 export async function runImport(
@@ -87,8 +95,25 @@ export async function runImport(
   } = await supabase.auth.getUser();
   if (!user) return { phase: "error", error: "You've been signed out — log in and try again." };
 
+  // Already saved this URL? Send them straight to it instead of re-importing.
+  const { data: existing } = await supabase
+    .from("recipes")
+    .select("id, title, cover_image_path")
+    .eq("source_url", url)
+    .limit(1)
+    .maybeSingle();
+  if (existing) {
+    const covers = await signStoragePaths(supabase, [existing.cover_image_path]);
+    return {
+      phase: "exists",
+      recipeId: existing.id,
+      title: existing.title,
+      coverUrl: existing.cover_image_path ? (covers[existing.cover_image_path] ?? null) : null,
+    };
+  }
+
   // Per-user rate limit (rolling 24h).
-  const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const cutoff = windowCutoff();
   const { data: recent } = await supabase.rpc("imports_since", { cutoff });
   if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
     return {

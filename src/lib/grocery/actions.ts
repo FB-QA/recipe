@@ -32,6 +32,22 @@ export async function createList(_prev: unknown, formData: FormData): Promise<vo
   if (data) redirect(`/list?list=${data.id}`);
 }
 
+/** Client-callable list create that returns the id (no redirect) so the caller
+ * can select it and show a toast. */
+export async function createNamedList(name: string): Promise<{ id: string } | null> {
+  const parsed = z.string().trim().min(1).max(80).safeParse(name);
+  if (!parsed.success) return null;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("grocery_lists")
+    .insert({ name: parsed.data })
+    .select("id")
+    .single();
+  revalidatePath("/list");
+  return data ? { id: data.id } : null;
+}
+
 export async function renameList(id: string, name: string) {
   const parsed = z.string().trim().min(1).max(80).safeParse(name);
   if (!parsed.success) return;
@@ -43,8 +59,9 @@ export async function renameList(id: string, name: string) {
 export async function deleteList(id: string) {
   const supabase = await createClient();
   await supabase.from("grocery_lists").delete().eq("id", id);
+  // No redirect: the board re-renders in place so edit-mode survives deleting
+  // several lists in a row. A deleted active list falls back to the All view.
   revalidatePath("/list");
-  redirect("/list");
 }
 
 export async function addItem(listId: string, text: string) {
@@ -83,65 +100,123 @@ export async function clearCompleted(ids: string[]) {
 }
 
 /**
- * Add a chosen subset of a recipe's ingredients to a list. Ingredients are
- * re-fetched by id server-side (RLS-scoped), so client-supplied text is never
- * trusted. Creates "This Week" if the user has no list yet.
+ * Add a chosen subset of a recipe's ingredients to that recipe's own grocery
+ * list. Ingredients are re-fetched by id server-side (RLS-scoped), so
+ * client-supplied text is never trusted. The recipe's list is found by its
+ * source_recipe_id, or created on first add and named after the recipe.
  */
+export type AddToListResult = {
+  listId: string;
+  count: number; // newly added
+  skipped: number; // already on the list, not re-added
+  created: boolean;
+  listName: string;
+};
+
 export async function addRecipeIngredientsToList(
   recipeId: string,
   ingredientIds: string[],
-  listId?: string,
   scale: number = 1,
-): Promise<{ listId: string; count: number }> {
+): Promise<AddToListResult> {
+  const empty: AddToListResult = { listId: "", count: 0, skipped: 0, created: false, listName: "" };
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || ingredientIds.length === 0) return { listId: listId ?? "", count: 0 };
+  if (!user || ingredientIds.length === 0) return empty;
 
-  // Resolve the target list: a verified-owned one, the first list, or a new one.
+  const { data: recipe } = await supabase
+    .from("recipes")
+    .select("title")
+    .eq("id", recipeId)
+    .maybeSingle();
+  if (!recipe) return empty;
+  const listName = recipe.title;
+
+  // The recipe's own list — found by binding, or created and named after it.
   let target: string | undefined;
-  if (listId) {
-    const { data } = await supabase.from("grocery_lists").select("id").eq("id", listId).maybeSingle();
-    target = data?.id;
-  }
+  let created = false;
+  const { data: existing } = await supabase
+    .from("grocery_lists")
+    .select("id")
+    .eq("source_recipe_id", recipeId)
+    .maybeSingle();
+  target = existing?.id;
+
   if (!target) {
-    const { data: lists } = await supabase
+    const { data: inserted, error: createErr } = await supabase
       .from("grocery_lists")
+      .insert({ name: listName.slice(0, 80), source_recipe_id: recipeId })
       .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1);
-    target = lists?.[0]?.id;
+      .single();
+    if (createErr) {
+      // Lost a concurrent create race (the unique index rejected the second
+      // insert) — the winning request already made the list, so reuse it
+      // rather than dropping this request's items.
+      const { data: raced } = await supabase
+        .from("grocery_lists")
+        .select("id")
+        .eq("source_recipe_id", recipeId)
+        .maybeSingle();
+      target = raced?.id;
+    } else {
+      target = inserted?.id;
+      created = true;
+    }
   }
-  if (!target) {
-    const { data } = await supabase.from("grocery_lists").insert({ name: "This Week" }).select("id").single();
-    target = data?.id;
-  }
-  if (!target) return { listId: "", count: 0 };
+  if (!target) return { ...empty, listName };
 
   const { data: ingredients } = await supabase
     .from("recipe_ingredients")
-    .select("display_text, quantity, unit, name, sort_order")
+    .select("id, display_text, quantity, unit, name, sort_order")
     .eq("recipe_id", recipeId)
     .in("id", ingredientIds)
     .order("sort_order", { ascending: true });
-  if (!ingredients || ingredients.length === 0) return { listId: target, count: 0 };
+  if (!ingredients || ingredients.length === 0)
+    return { listId: target, count: 0, skipped: 0, created, listName };
+
+  // Skip ingredients already on this list, so re-adding never duplicates.
+  // Match on provenance (source_ingredient_id) and, as a fallback, on the
+  // rendered text — editing a recipe reinserts its ingredients with new ids,
+  // which nulls the provenance FK on existing grocery rows.
+  const { data: existingItems } = await supabase
+    .from("grocery_items")
+    .select("source_ingredient_id, display_text")
+    .eq("list_id", target)
+    .eq("source_recipe_id", recipeId);
+  const alreadyIds = new Set(
+    (existingItems ?? []).map((r) => r.source_ingredient_id).filter(Boolean),
+  );
+  const alreadyText = new Set((existingItems ?? []).map((r) => r.display_text));
+  const displayFor = (ing: (typeof ingredients)[number]) =>
+    scaleIngredientText(ing.name ?? ing.display_text, scale);
+  const fresh = ingredients.filter(
+    (ing) => !alreadyIds.has(ing.id) && !alreadyText.has(displayFor(ing)),
+  );
+  const skipped = ingredients.length - fresh.length;
+  if (fresh.length === 0) return { listId: target, count: 0, skipped, created, listName };
 
   const base = await nextSortOrder(supabase, target);
-  const rows = ingredients.map((ing, i) => {
+  const rows = fresh.map((ing, i) => {
     const qty = quantityLabel(ing);
     return {
       list_id: target!,
       display_text: scaleIngredientText(ing.name ?? ing.display_text, scale),
       quantity: qty ? scaleIngredientText(qty, scale) : null,
       source_recipe_id: recipeId,
+      source_ingredient_id: ing.id,
       sort_order: base + i,
       category: categorize(ing.name ?? ing.display_text),
     };
   });
-  const { error } = await supabase.from("grocery_items").insert(rows);
-  if (error) return { listId: target, count: 0 };
+  // Upsert with ignoreDuplicates: if a concurrent add already inserted the same
+  // (list, ingredient), the unique index makes this a no-op rather than an error
+  // or a duplicate row.
+  const { error } = await supabase
+    .from("grocery_items")
+    .upsert(rows, { onConflict: "list_id,source_ingredient_id", ignoreDuplicates: true });
+  if (error) return { listId: target, count: 0, skipped, created, listName };
 
   revalidatePath("/list");
-  return { listId: target, count: rows.length };
+  return { listId: target, count: rows.length, skipped, created, listName };
 }

@@ -23,7 +23,7 @@ export default async function ListPage({
           title="No lists yet"
           action={
             <form action={createList.bind(null, undefined)}>
-              <input type="hidden" name="name" value="This Week" />
+              <input type="hidden" name="name" value="Shopping list" />
               <SubmitButton>Start a list</SubmitButton>
             </form>
           }
@@ -32,7 +32,7 @@ export default async function ListPage({
           here.
         </EmptyState>
       ) : (
-        <GroceryBoard {...board} />
+        <GroceryBoard key={board.activeId} {...board} />
       )}
     </>
   );

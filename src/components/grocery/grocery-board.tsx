@@ -1,15 +1,19 @@
 "use client";
 
 import { useOptimistic, useState, useTransition, useRef } from "react";
-import { motion } from "framer-motion";
-import Link from "next/link";
-import { springPop } from "@/lib/motion";
+import { motion, useReducedMotion } from "framer-motion";
+import { DUR, springPop } from "@/lib/motion";
 import { clsx } from "@/lib/clsx";
-import { CartIcon, CheckIcon, CloseIcon, PlusIcon } from "@/components/icons";
+import { CartIcon, CheckIcon, CloseIcon, PlusIcon, ListIcon } from "@/components/icons";
 import { CATEGORY_ORDER, type Category } from "@/lib/grocery/categorize";
 import { CategoryIcon, FoodImage } from "@/components/food-icons";
-import { addItem, toggleItem, deleteItem, clearCompleted, createList } from "@/lib/grocery/actions";
-import type { GroceryBoardData, GroceryItem } from "@/lib/grocery/queries";
+import { gradientFor } from "@/components/recipes/cover-image";
+import { addItem, toggleItem, deleteItem, clearCompleted, createNamedList, deleteList } from "@/lib/grocery/actions";
+import { useToast } from "@/components/ui/toast";
+import { ALL_LISTS } from "@/lib/grocery/constants";
+import type { GroceryBoardData, GroceryItem, GroceryList } from "@/lib/grocery/queries";
+
+const LONG_PRESS_MS = 450;
 
 function groupByCategory(items: GroceryItem[]) {
   const groups = new Map<Category, GroceryItem[]>();
@@ -22,75 +26,9 @@ function groupByCategory(items: GroceryItem[]) {
   return CATEGORY_ORDER.filter((c) => groups.has(c)).map((c) => ({ category: c, items: groups.get(c)! }));
 }
 
-type Pinned = { id: string; title: string; coverUrl: string | null };
-
-function pinnedRecipes(items: GroceryItem[]): Pinned[] {
-  const map = new Map<string, Pinned>();
-  for (const i of items) {
-    if (i.sourceRecipeId && i.source && !map.has(i.sourceRecipeId)) {
-      map.set(i.sourceRecipeId, {
-        id: i.sourceRecipeId,
-        title: i.source.title,
-        coverUrl: i.source.coverUrl,
-      });
-    }
-  }
-  return [...map.values()];
-}
-
-function PinnedRecipes({
-  recipes,
-  selected,
-  onSelect,
-}: {
-  recipes: Pinned[];
-  selected: string | null;
-  onSelect: (id: string | null) => void;
-}) {
-  if (recipes.length === 0) return null;
-  return (
-    <div className="mb-3.5 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
-      <button onClick={() => onSelect(null)} className="flex w-[58px] flex-none flex-col items-center gap-1">
-        <span
-          className={clsx(
-            "grid h-[52px] w-[52px] place-items-center rounded-full border-2 text-[12px] font-bold",
-            selected === null ? "border-basil bg-basil text-white" : "border-line bg-surface text-ink-2",
-          )}
-        >
-          All
-        </span>
-        <span className="text-[10px] text-ink-3">Everything</span>
-      </button>
-      {recipes.map((r) => (
-        <button
-          key={r.id}
-          aria-pressed={selected === r.id}
-          onClick={() => onSelect(selected === r.id ? null : r.id)}
-          className="flex w-[58px] flex-none flex-col items-center gap-1"
-        >
-          <span
-            className={clsx(
-              "grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full border-2 bg-basil-tint text-basil",
-              selected === r.id ? "border-basil" : "border-transparent",
-            )}
-          >
-            {r.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={r.coverUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <CartIcon size={20} />
-            )}
-          </span>
-          <span className="w-full truncate text-center text-[10px] text-ink-3">{r.title}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
   const [, startTransition] = useTransition();
-  const [recipeFilter, setRecipeFilter] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string>(activeId ?? ALL_LISTS);
   const [optimisticItems, applyOptimistic] = useOptimistic(
     items,
     (state, patch: { id: string; is_completed: boolean }) =>
@@ -103,11 +41,12 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
       await toggleItem(id, is_completed);
     });
 
-  const pinned = pinnedRecipes(optimisticItems);
+  // A deleted (or otherwise missing) active list falls back to the combined view.
+  const activeSel =
+    selected !== ALL_LISTS && !lists.some((l) => l.id === selected) ? ALL_LISTS : selected;
+
   const shown =
-    recipeFilter && pinned.some((r) => r.id === recipeFilter)
-      ? optimisticItems.filter((i) => i.sourceRecipeId === recipeFilter)
-      : optimisticItems;
+    activeSel === ALL_LISTS ? optimisticItems : optimisticItems.filter((i) => i.list_id === activeSel);
 
   const active = shown.filter((i) => !i.is_completed);
   const done = shown.filter((i) => i.is_completed);
@@ -115,55 +54,285 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
 
   return (
     <div>
-      <ListTabs lists={lists} activeId={activeId} />
+      <FilterBar
+        lists={lists}
+        selected={activeSel}
+        onSelect={setSelected}
+        onDelete={(id) => startTransition(() => deleteList(id))}
+        items={optimisticItems}
+      />
 
-      {activeId && (
-        <>
-          <PinnedRecipes recipes={pinned} selected={recipeFilter} onSelect={setRecipeFilter} />
-          <AddItemRow listId={activeId} />
+      {/* Manual add only within a specific list — "All" is a combined view. */}
+      {activeSel !== ALL_LISTS && <AddItemRow listId={activeSel} />}
 
-          {active.length === 0 && done.length === 0 ? (
-            <p className="mt-3 rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-sm text-ink-2">
-              Nothing on this list yet. Add an item above, or tap “Add to grocery list” on any recipe.
-            </p>
-          ) : (
-            <div className="mt-4 flex flex-col gap-4">
-              {grouped.map((group) => (
-                <section key={group.category}>
-                  <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[12px] font-bold uppercase tracking-[0.05em] text-ink-3">
-                    <CategoryIcon category={group.category} size={15} /> {group.category}
-                  </h3>
-                  <ul className="overflow-hidden rounded-card border border-line bg-surface">
-                    {group.items.map((item) => (
-                      <Item key={item.id} item={item} onToggle={toggle} />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          )}
-
-          {done.length > 0 && (
-            <>
-              <div className="mb-2 mt-6 flex items-center justify-between px-0.5">
-                <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
-                  Completed · {done.length}
-                </span>
-                <button
-                  onClick={() => startTransition(() => clearCompleted(done.map((i) => i.id)))}
-                  className="text-[12px] font-semibold text-basil"
-                >
-                  Clear completed
-                </button>
-              </div>
+      {active.length === 0 && done.length === 0 ? (
+        <p className="mt-3 rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-sm text-ink-2">
+          Nothing here yet. Tap “Add to grocery list” on any recipe, or start a list of your own.
+        </p>
+      ) : (
+        <div className="mt-4 flex flex-col gap-4">
+          {grouped.map((group) => (
+            <section key={group.category}>
+              <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[12px] font-bold uppercase tracking-[0.05em] text-ink-3">
+                <CategoryIcon category={group.category} size={15} /> {group.category}
+              </h3>
               <ul className="overflow-hidden rounded-card border border-line bg-surface">
-                {done.map((item) => (
+                {group.items.map((item) => (
                   <Item key={item.id} item={item} onToggle={toggle} />
                 ))}
               </ul>
-            </>
-          )}
+            </section>
+          ))}
+        </div>
+      )}
+
+      {done.length > 0 && (
+        <>
+          <div className="mb-2 mt-6 flex items-center justify-between px-0.5">
+            <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+              Completed · {done.length}
+            </span>
+            <button
+              onClick={() => startTransition(() => clearCompleted(done.map((i) => i.id)))}
+              className="text-[12px] font-semibold text-basil"
+            >
+              Clear completed
+            </button>
+          </div>
+          <ul className="overflow-hidden rounded-card border border-line bg-surface">
+            {done.map((item) => (
+              <Item key={item.id} item={item} onToggle={toggle} />
+            ))}
+          </ul>
         </>
+      )}
+    </div>
+  );
+}
+
+type ChipProps = {
+  label: string;
+  selected: boolean;
+  count: number;
+  editing?: boolean;
+  index?: number;
+  onClick: () => void;
+  onEnterEdit?: () => void;
+  onDelete?: () => void;
+  children: React.ReactNode;
+};
+
+function Chip({
+  label,
+  selected,
+  count,
+  editing = false,
+  index = 0,
+  onClick,
+  onEnterEdit,
+  onDelete,
+  children,
+}: ChipProps) {
+  const reduce = useReducedMotion();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+
+  const startPress = () => {
+    if (!onEnterEdit) return;
+    longPressed.current = false;
+    timer.current = setTimeout(() => {
+      longPressed.current = true;
+      onEnterEdit();
+    }, LONG_PRESS_MS);
+  };
+  const endPress = () => {
+    if (timer.current) clearTimeout(timer.current);
+  };
+  // On touch, the release still fires a click — swallow it so a long-press that
+  // just entered edit mode doesn't immediately exit it.
+  const handleClick = () => {
+    if (longPressed.current) {
+      longPressed.current = false;
+      return;
+    }
+    onClick();
+  };
+
+  const wiggling = editing && !!onDelete && !reduce;
+  const dir = index % 2 === 0 ? 1 : -1;
+
+  return (
+    <motion.div
+      className="relative flex w-[60px] flex-none flex-col items-center gap-1"
+      animate={wiggling ? { rotate: [-2.4 * dir, 2.4 * dir, -2.4 * dir] } : { rotate: 0 }}
+      transition={wiggling ? { duration: DUR.base, repeat: Infinity, ease: "easeInOut" } : { duration: DUR.fast }}
+    >
+      <button
+        type="button"
+        onClick={handleClick}
+        onContextMenu={onEnterEdit ? (e) => { e.preventDefault(); onEnterEdit(); } : undefined}
+        onTouchStart={onEnterEdit ? startPress : undefined}
+        onTouchEnd={endPress}
+        onTouchMove={endPress}
+        aria-pressed={selected}
+        className="flex w-full min-w-0 flex-col items-center gap-1 select-none [-webkit-touch-callout:none]"
+      >
+        <span className="relative">
+          <span
+            className={clsx(
+              "grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full border-2",
+              selected ? "border-basil" : "border-transparent",
+            )}
+          >
+            {children}
+          </span>
+          {!editing && count > 0 && (
+            <span className="absolute -right-1 -top-1 z-10 grid h-[20px] min-w-[20px] place-items-center rounded-full border-2 border-paper bg-basil px-1 text-[10px] font-bold leading-none text-white">
+              {count}
+            </span>
+          )}
+        </span>
+        <span
+          className={clsx(
+            "w-full truncate text-center text-[10px]",
+            selected ? "font-semibold text-ink" : "text-ink-3",
+          )}
+        >
+          {label}
+        </span>
+      </button>
+
+      {editing && onDelete && (
+        <button
+          type="button"
+          aria-label={`Delete ${label}`}
+          onClick={onDelete}
+          className="absolute left-[2px] top-0 z-20 grid h-[20px] w-[20px] place-items-center rounded-full border-2 border-paper bg-ink text-white shadow-[var(--shadow)]"
+        >
+          <CloseIcon size={11} />
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
+function FilterBar({
+  lists,
+  selected,
+  onSelect,
+  onDelete,
+  items,
+}: {
+  lists: GroceryList[];
+  selected: string;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  items: GroceryItem[];
+}) {
+  const [editing, setEditing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [, startTransition] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+
+  const itemCount = (listId: string | null) =>
+    items.filter((i) => listId === null || i.list_id === listId).length;
+
+  const createList = () => {
+    const name = inputRef.current?.value.trim();
+    setAdding(false);
+    if (!name) return;
+    startTransition(async () => {
+      const res = await createNamedList(name);
+      toast(`List “${name}” created`);
+      if (res) onSelect(res.id);
+    });
+  };
+
+  // While editing, tapping a chip body exits edit mode rather than selecting.
+  const bodyClick = (id: string) => () => (editing ? setEditing(false) : onSelect(id));
+
+  return (
+    <div className="mb-3.5 flex items-end gap-3 overflow-x-auto px-1 pb-1 pt-2 [scrollbar-width:none]">
+      <Chip
+        label="All"
+        selected={selected === ALL_LISTS}
+        count={itemCount(null)}
+        onClick={bodyClick(ALL_LISTS)}
+      >
+        <span
+          className={clsx(
+            "grid h-full w-full place-items-center",
+            selected === ALL_LISTS ? "bg-basil text-white" : "bg-basil-tint text-basil",
+          )}
+        >
+          <ListIcon size={20} />
+        </span>
+      </Chip>
+
+      {lists.map((list, i) => (
+        <Chip
+          key={list.id}
+          label={list.name}
+          selected={selected === list.id}
+          count={itemCount(list.id)}
+          editing={editing}
+          index={i}
+          onClick={bodyClick(list.id)}
+          onEnterEdit={() => setEditing(true)}
+          onDelete={() => onDelete(list.id)}
+        >
+          {list.coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={list.coverUrl} alt="" className="h-full w-full object-cover" />
+          ) : list.isRecipe ? (
+            <span className="h-full w-full" style={{ backgroundImage: gradientFor(list.name) }} />
+          ) : (
+            <span className="grid h-full w-full place-items-center bg-basil-tint text-basil">
+              <CartIcon size={20} />
+            </span>
+          )}
+        </Chip>
+      ))}
+
+      {editing ? (
+        <button
+          onClick={() => setEditing(false)}
+          className="flex w-[60px] flex-none flex-col items-center gap-1"
+        >
+          <span className="grid h-[52px] w-[52px] place-items-center rounded-full border-2 border-basil bg-basil text-white">
+            <CheckIcon size={20} />
+          </span>
+          <span className="text-[10px] font-semibold text-ink">Done</span>
+        </button>
+      ) : adding ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            createList();
+          }}
+          className="flex-none self-center"
+        >
+          <input
+            ref={inputRef}
+            name="name"
+            autoFocus
+            aria-label="New list name"
+            placeholder="List name"
+            className="w-[130px] rounded-full border border-basil bg-surface px-3.5 py-2 text-[13px] text-ink outline-none"
+          />
+        </form>
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          aria-label="New list"
+          className="flex w-[60px] flex-none flex-col items-center gap-1"
+        >
+          <span className="grid h-[52px] w-[52px] place-items-center rounded-full border-2 border-dashed border-line text-ink-2">
+            <PlusIcon size={18} />
+          </span>
+          <span className="text-[10px] text-ink-3">New</span>
+        </button>
       )}
     </div>
   );
@@ -235,7 +404,7 @@ function AddItemRow({ listId }: { listId: string }) {
   };
 
   return (
-    <div className="flex items-center gap-2 rounded-[12px] border border-line bg-surface px-3.5 py-2.5">
+    <div className="flex items-center gap-2 rounded-sm border border-line bg-surface px-3.5 py-2.5">
       <input
         value={value}
         aria-label="Add an item"
@@ -256,50 +425,6 @@ function AddItemRow({ listId }: { listId: string }) {
       >
         <PlusIcon size={18} />
       </button>
-    </div>
-  );
-}
-
-function ListTabs({ lists, activeId }: { lists: GroceryBoardData["lists"]; activeId: string | null }) {
-  const [adding, setAdding] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <div className="mb-3.5 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-      {lists.map((list) => (
-        <Link
-          key={list.id}
-          href={`/list?list=${list.id}`}
-          aria-current={list.id === activeId ? "true" : undefined}
-          className={clsx(
-            "flex-none rounded-full border px-3.5 py-2 text-[13px] font-semibold",
-            list.id === activeId ? "border-basil bg-basil text-white" : "border-line bg-surface text-ink-2",
-          )}
-        >
-          {list.name}
-        </Link>
-      ))}
-
-      {adding ? (
-        <form action={createList.bind(null, undefined)} className="flex-none">
-          <input
-            ref={inputRef}
-            name="name"
-            autoFocus
-            aria-label="New list name"
-            placeholder="List name"
-            className="w-[130px] rounded-full border border-basil bg-surface px-3.5 py-2 text-[13px] text-ink outline-none"
-          />
-        </form>
-      ) : (
-        <button
-          onClick={() => setAdding(true)}
-          aria-label="New list"
-          className="flex flex-none items-center gap-1 rounded-full border border-dashed border-line px-3 py-2 text-[13px] font-semibold text-ink-2"
-        >
-          <PlusIcon size={15} /> New
-        </button>
-      )}
     </div>
   );
 }

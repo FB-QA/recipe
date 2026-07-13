@@ -11,7 +11,7 @@ import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
 
 type Client = SupabaseClient<Database>;
 
-export type RecipeFormState = { error?: string } | undefined;
+export type RecipeFormState = { error?: string } | { ok: true; id: string } | undefined;
 
 function readPayload(formData: FormData) {
   try {
@@ -85,6 +85,19 @@ export async function createRecipe(
   } = await supabase.auth.getUser();
   if (!user) return { error: "You've been signed out — log in and try again." };
 
+  // Recheck the source URL at save time (not just at import) so a second tab
+  // that already imported the same link lands on the existing recipe instead
+  // of inserting a duplicate.
+  if (input.source_url) {
+    const { data: dupe } = await supabase
+      .from("recipes")
+      .select("id")
+      .eq("source_url", input.source_url)
+      .limit(1)
+      .maybeSingle();
+    if (dupe) return { ok: true, id: dupe.id };
+  }
+
   const { data: recipe, error } = await supabase
     .from("recipes")
     .insert({
@@ -121,7 +134,9 @@ export async function createRecipe(
   if (!saved) return { error: "Couldn't save all of the recipe — open it and try again." };
 
   revalidatePath("/");
-  redirect(`/recipes/${recipe.id}`);
+  // Return the id (not redirect) so the client can toast, animate the drawer
+  // closed, then navigate — navigation must never be what closes a drawer.
+  return { ok: true, id: recipe.id };
 }
 
 export async function updateRecipe(
@@ -172,7 +187,8 @@ export async function updateRecipe(
 
   revalidatePath("/");
   revalidatePath(`/recipes/${id}`);
-  redirect(`/recipes/${id}`);
+  revalidatePath("/list"); // the grocery chip name mirrors the recipe title
+  return { ok: true, id };
 }
 
 export async function deleteRecipe(id: string): Promise<void> {

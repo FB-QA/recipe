@@ -19,7 +19,7 @@ export default function NewRecipePage() {
           </Link>
         }
       />
-      <RecipeForm action={createRecipe} submitLabel="Save recipe" />
+      <RecipeForm action={createRecipe} submitLabel="Save recipe" isNew />
     </>
   );
 }

@@ -97,4 +97,24 @@ test.describe("M1 — recipes core", () => {
     await page.getByRole("searchbox", { name: /search recipes/i }).fill("pizza");
     await expect(page.getByText(/nothing matches/i)).toBeVisible();
   });
+
+  test("the add drawer runs imports inline and routes manual create to its page", async ({ page }) => {
+    await signUp(page);
+    await expect(page).toHaveURL("/");
+    await page.getByRole("button", { name: "Add a recipe" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    // An import option opens its flow inside the drawer — no navigation.
+    await page.getByRole("button", { name: /Import from website/i }).click();
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    // Back returns to the option menu.
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByRole("button", { name: /Import from website/i })).toBeVisible();
+
+    // Create manually still routes to the full-page form (drawer closes first).
+    await page.getByRole("button", { name: /Create manually/i }).click();
+    await expect(page).toHaveURL("/recipes/new");
+  });
 });

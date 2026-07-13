@@ -5,8 +5,12 @@ import Link from "next/link";
 import { runImport, type ImportState } from "@/lib/import/actions";
 import { createRecipe } from "@/lib/recipes/actions";
 import { RecipeForm, type RecipeFormInitial } from "@/components/recipes/recipe-form";
+import { CoverImage } from "@/components/recipes/cover-image";
 import { Button } from "@/components/ui/button";
-import { InstagramIcon, GlobeIcon, PlayIcon } from "@/components/icons";
+import { LoadingLabel } from "@/components/ui/spinner";
+import { SkeletonLines } from "@/components/ui/skeleton";
+import { ImportNote } from "@/components/import/import-note";
+import { InstagramIcon, GlobeIcon, PlayIcon, CheckIcon } from "@/components/icons";
 import { ingredientLine } from "@/lib/recipes/ingredient";
 import type { ExtractedRecipe } from "@/lib/import/types";
 
@@ -15,18 +19,80 @@ const EXTRACTING_STEPS = [
   "Pulling out ingredients & steps…",
   "Tidying it up…",
 ];
+const STEP_INTERVAL_MS = 1200;
 
-export function ImportFlow({ source }: { source: "instagram" | "web" }) {
+/** An internal link that, inside a drawer, closes-then-navigates via the host
+ * (onNavigate); on a standalone page it's a plain Link. */
+function LeaveLink({
+  href,
+  onNavigate,
+  className,
+  children,
+}: {
+  href: string;
+  onNavigate?: (href: string) => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (onNavigate) {
+    return (
+      <button type="button" onClick={() => onNavigate(href)} className={className}>
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
+
+export function ImportFlow({
+  source,
+  onSaved,
+  onNavigate,
+}: {
+  source: "instagram" | "web";
+  onSaved?: (id: string) => void;
+  /** In a drawer, internal links close-then-navigate through the host. */
+  onNavigate?: (href: string) => void;
+}) {
   const [state, action, pending] = useActionState<ImportState, FormData>(runImport, {
     phase: "idle",
   });
 
   if (pending) return <Extracting />;
+  if (state.phase === "exists") {
+    return (
+      <AlreadyImported
+        recipeId={state.recipeId}
+        title={state.title}
+        coverUrl={state.coverUrl}
+        onNavigate={onNavigate}
+      />
+    );
+  }
   if (state.phase === "done" && state.status === "success") {
-    return <Review recipe={state.recipe} sourceType={state.sourceType} sourceUrl={state.sourceUrl} method={state.method} />;
+    return (
+      <Review
+        recipe={state.recipe}
+        sourceType={state.sourceType}
+        sourceUrl={state.sourceUrl}
+        method={state.method}
+        onSaved={onSaved}
+      />
+    );
   }
   if (state.phase === "done" && state.status === "no_recipe") {
-    return <TeaserFallback message={state.message} mediaUrl={state.mediaUrl} sourceUrl={state.sourceUrl} />;
+    return (
+      <TeaserFallback
+        message={state.message}
+        mediaUrl={state.mediaUrl}
+        sourceUrl={state.sourceUrl}
+        onNavigate={onNavigate}
+      />
+    );
   }
   return (
     <PasteForm
@@ -64,7 +130,7 @@ function PasteForm({
           required
           aria-label="Recipe link"
           placeholder={isInsta ? "Paste a Reel or post link" : "Paste a recipe URL"}
-          className="w-full rounded-[12px] border border-line bg-surface-2 px-4 py-3.5 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+          className="w-full rounded-sm border border-line bg-surface-2 px-4 py-3.5 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
         />
       </div>
       {error && (
@@ -85,19 +151,16 @@ function PasteForm({
 function Extracting() {
   const [i, setI] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setI((n) => Math.min(n + 1, EXTRACTING_STEPS.length - 1)), 1200);
+    const t = setInterval(
+      () => setI((n) => Math.min(n + 1, EXTRACTING_STEPS.length - 1)),
+      STEP_INTERVAL_MS,
+    );
     return () => clearInterval(t);
   }, []);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2.5 text-[14px] font-semibold text-basil">
-        <span
-          aria-hidden
-          className="h-[18px] w-[18px] animate-spin rounded-full border-[2.5px] border-basil-tint border-t-basil"
-        />
-        <span role="status">{EXTRACTING_STEPS[i]}</span>
-      </div>
+      <LoadingLabel>{EXTRACTING_STEPS[i]}</LoadingLabel>
 
       {/* A full-page shell of the review that's coming. */}
       <div className="skeleton h-[190px] rounded-card" />
@@ -113,9 +176,7 @@ function Extracting() {
       </div>
       <div className="flex flex-col gap-2.5">
         <div className="skeleton h-3 w-24" />
-        {Array.from({ length: 6 }).map((_, n) => (
-          <div key={n} className="skeleton h-4" style={{ width: `${92 - (n % 3) * 14}%` }} />
-        ))}
+        <SkeletonLines />
       </div>
       <div className="skeleton h-12 w-full rounded-[14px]" />
     </div>
@@ -142,11 +203,13 @@ function Review({
   sourceType,
   sourceUrl,
   method,
+  onSaved,
 }: {
   recipe: ExtractedRecipe;
   sourceType: "instagram" | "website";
   sourceUrl: string;
   method: string;
+  onSaved?: (id: string) => void;
 }) {
   return (
     <div>
@@ -157,16 +220,18 @@ function Review({
           {method === "cache" ? " · from your history" : ""}
         </span>
       </div>
-      <p className="mb-4 flex gap-2 rounded-[12px] border border-line bg-surface-2 px-3.5 py-2.5 text-[12.5px] leading-snug text-ink-2">
+      <ImportNote>
         I filled in everything the source gave me. Nothing invented — anything missing is yours to
         add or leave.
-      </p>
+      </ImportNote>
       <RecipeForm
         action={createRecipe}
         initial={extractedToInitial(recipe, sourceUrl)}
         source={{ type: sourceType, url: sourceUrl, handle: recipe.sourceHandle }}
         importCoverUrl={recipe.imageUrl}
         submitLabel="Save to shelf"
+        isNew
+        onSaved={onSaved}
       />
     </div>
   );
@@ -176,10 +241,12 @@ function TeaserFallback({
   message,
   mediaUrl,
   sourceUrl,
+  onNavigate,
 }: {
   message: string;
   mediaUrl: string | null;
   sourceUrl: string;
+  onNavigate?: (href: string) => void;
 }) {
   return (
     <div className="mt-2 rounded-card border border-line bg-surface p-6 text-center">
@@ -194,10 +261,51 @@ function TeaserFallback({
             Open the video
           </Button>
         </a>
-        <Link href="/recipes/new">
-          <Button fullWidth>Add it manually</Button>
-        </Link>
+        {onNavigate ? (
+          <Button fullWidth onClick={() => onNavigate("/recipes/new")}>
+            Add it manually
+          </Button>
+        ) : (
+          <Link href="/recipes/new">
+            <Button fullWidth>Add it manually</Button>
+          </Link>
+        )}
       </div>
+    </div>
+  );
+}
+
+function AlreadyImported({
+  recipeId,
+  title,
+  coverUrl,
+  onNavigate,
+}: {
+  recipeId: string;
+  title: string;
+  coverUrl: string | null;
+  onNavigate?: (href: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3.5 pb-1">
+      <p className="flex items-center gap-2 rounded-sm bg-basil-tint px-4 py-3 text-[13.5px] font-medium text-basil">
+        <CheckIcon size={16} /> You&apos;ve already imported this recipe.
+      </p>
+      <LeaveLink
+        href={`/recipes/${recipeId}`}
+        onNavigate={onNavigate}
+        className="flex items-center gap-3.5 rounded-card border border-line bg-surface p-3 text-left transition-colors hover:border-basil hover:bg-basil-tint"
+      >
+        <CoverImage
+          url={coverUrl}
+          title={title}
+          className="h-[56px] w-[56px] flex-none rounded-xl"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-bold text-ink">{title}</span>
+          <span className="block text-[12.5px] font-semibold text-basil">Open it</span>
+        </span>
+      </LeaveLink>
     </div>
   );
 }

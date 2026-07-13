@@ -1,4 +1,5 @@
 import { clsx } from "@/lib/clsx";
+import { Spinner } from "@/components/ui/spinner";
 
 type Variant = "primary" | "ghost" | "danger";
 
@@ -38,12 +39,7 @@ export function Button({
       aria-busy={loading || undefined}
       disabled={loading || disabled}
     >
-      {loading && (
-        <span
-          aria-hidden
-          className="h-[16px] w-[16px] animate-spin rounded-full border-2 border-white/40 border-t-white"
-        />
-      )}
+      {loading && <Spinner size={16} tone="white" />}
       {children}
     </button>
   );

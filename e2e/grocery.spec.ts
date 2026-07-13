@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { signUp } from "./helpers";
 
 test.describe("M3 — grocery lists", () => {
-  test("add a recipe's ingredients, add a manual item, check off, and clear completed", async ({
+  test("add a recipe's ingredients onto its own list, add a manual item, check off, and clear completed", async ({
     page,
   }) => {
     await signUp(page);
@@ -19,15 +19,19 @@ test.describe("M3 — grocery lists", () => {
     // Open the drawer, keep all selected, add them.
     await page.getByRole("button", { name: "Add to grocery list" }).click();
     await expect(page.getByText("2 of 2 selected")).toBeVisible();
-    await page.getByRole("button", { name: /Add 2 items to/i }).click();
+    await page.getByRole("button", { name: /Add 2 items/i }).click();
+    // A toast confirms the background create/add.
+    await expect(page.getByRole("status").filter({ hasText: /Started/ })).toBeVisible();
     await page.getByRole("button", { name: /view list/i }).click();
     await expect(page).toHaveURL(/\/list/);
+
+    // Landed on the recipe's own list chip, named after it.
+    await expect(page.getByRole("button", { name: /Salad/ })).toBeVisible();
     await expect(page.getByText("cucumber")).toBeVisible();
     await expect(page.getByText("feta")).toBeVisible();
-    // Grouped by food type.
     await expect(page.getByRole("heading", { name: /Produce/i })).toBeVisible();
 
-    // Add a manual item.
+    // Add a manual item to this list.
     await page.getByLabel("Add an item").fill("olive oil");
     await page.getByRole("button", { name: "Add item" }).click();
     await expect(page.getByText("olive oil")).toBeVisible();
@@ -54,21 +58,149 @@ test.describe("M3 — grocery lists", () => {
     await page.getByRole("button", { name: "Add to grocery list" }).click();
     await page.getByRole("button", { name: /^butter$/i }).click(); // deselect
     await expect(page.getByText("1 of 2 selected")).toBeVisible();
-    await page.getByRole("button", { name: /Add 1 item to/i }).click();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
     await page.getByRole("button", { name: /view list/i }).click();
 
     await expect(page.getByText("bread")).toBeVisible();
     await expect(page.getByText("butter")).toHaveCount(0);
   });
 
-  test("start a list from empty and add an item", async ({ page }) => {
+  test("re-adding reuses the list and never duplicates ingredients", async ({ page }) => {
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Curry");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("onion");
+    await page.getByRole("button", { name: "Add ingredient" }).click();
+    await page.getByRole("textbox", { name: "Ingredients 2" }).fill("garlic");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Curry" })).toBeVisible();
+    const recipeUrl = page.url();
+
+    // First add: onion only (deselect garlic).
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await page.getByRole("button", { name: /^garlic$/i }).click();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+    await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(1);
+    await expect(page.getByText("onion")).toHaveCount(1);
+
+    // Revisit → onion shows as already on the list; add garlic to the same list.
+    await page.goto(recipeUrl);
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await expect(page.getByText("On list")).toBeVisible();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+
+    // One list, and neither ingredient duplicated.
+    await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(1);
+    await expect(page.getByText("onion")).toHaveCount(1);
+    await expect(page.getByText("garlic")).toHaveCount(1);
+  });
+
+  test("re-adding every ingredient shows an already-on-list message", async ({ page }) => {
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Toast");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("bread");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Toast" })).toBeVisible();
+    const recipeUrl = page.url();
+
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+
+    await page.goto(recipeUrl);
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await expect(page.getByText(/already on your list/i)).toBeVisible();
+  });
+
+  test("the All filter combines every list into one view", async ({ page }) => {
+    await signUp(page);
+
+    for (const [title, ingredient] of [
+      ["Pasta", "spaghetti"],
+      ["Soup", "stock cube"],
+    ]) {
+      await page.goto("/recipes/new");
+      await page.getByLabel("Title").fill(title);
+      await page.getByRole("textbox", { name: "Ingredients 1" }).fill(ingredient);
+      await page.getByRole("button", { name: "Save recipe" }).click();
+      await expect(page.getByRole("heading", { name: title })).toBeVisible();
+      await page.getByRole("button", { name: "Add to grocery list" }).click();
+      await page.getByRole("button", { name: /Add 1 item/i }).click();
+      await page.getByRole("button", { name: /view list/i }).click();
+    }
+
+    // Default view is All → both recipes' items show together.
+    await page.goto("/list");
+    await expect(page.getByText("spaghetti")).toBeVisible();
+    await expect(page.getByText("stock cube")).toBeVisible();
+
+    // Selecting one list narrows to just its items.
+    await page.getByRole("button", { name: /Pasta/ }).click();
+    await expect(page.getByText("spaghetti")).toBeVisible();
+    await expect(page.getByText("stock cube")).toHaveCount(0);
+  });
+
+  test("start a manual list from empty and add an item", async ({ page }) => {
     await signUp(page);
     await page.goto("/list");
     await page.getByRole("button", { name: "Start a list" }).click();
-    await expect(page.getByRole("link", { name: "This Week" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Shopping list/i })).toBeVisible();
 
     await page.getByLabel("Add an item").fill("milk");
     await page.getByRole("button", { name: "Add item" }).click();
     await expect(page.getByText("milk")).toBeVisible();
+  });
+
+  test("renaming a recipe updates its grocery list chip", async ({ page }) => {
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Curry");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("onion");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Curry" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+    await expect(page.getByRole("button", { name: /Curry/ })).toBeVisible();
+
+    // Rename the recipe → the chip follows, because the name is the recipe's.
+    await page.goto("/");
+    await page.getByRole("link", { name: /Curry/ }).first().click();
+    await page.getByRole("link", { name: "Edit recipe" }).click();
+    await page.getByLabel("Title").fill("Dal");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("heading", { name: "Dal" })).toBeVisible();
+
+    await page.goto("/list");
+    await expect(page.getByRole("button", { name: /Dal/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(0);
+  });
+
+  test("delete a grocery list via long-press edit mode (no confirmation)", async ({ page }) => {
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Tacos");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("tortilla");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Tacos" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+    await expect(page.getByRole("button", { name: /Tacos/ })).toBeVisible();
+
+    // Right-click (the desktop equivalent of long-press) enters edit mode; the
+    // per-chip delete control appears and removes the list immediately.
+    await page.getByRole("button", { name: /Tacos/ }).click({ button: "right" });
+    // force: the delete control wiggles continuously (intentional), so it never
+    // reports "stable"; a real tap lands fine on a moving element.
+    await page.getByRole("button", { name: "Delete Tacos" }).click({ force: true });
+
+    await expect(page.getByRole("button", { name: /Tacos/ })).toHaveCount(0);
+    await expect(page.getByText("tortilla")).toHaveCount(0);
   });
 });
