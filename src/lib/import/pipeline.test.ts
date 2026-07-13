@@ -12,11 +12,14 @@ const RECIPE_HTML = `<html><head><script type="application/ld+json">${JSON.strin
 afterEach(() => vi.unstubAllGlobals());
 
 describe("isInstagramUrl", () => {
-  it("recognises instagram hosts", () => {
+  it("recognises real instagram hosts and rejects lookalikes", () => {
     expect(isInstagramUrl("https://www.instagram.com/reel/ABC/")).toBe(true);
     expect(isInstagramUrl("https://instagram.com/p/XYZ/")).toBe(true);
     expect(isInstagramUrl("https://bbcgoodfood.com/recipes/x")).toBe(false);
     expect(isInstagramUrl("not a url")).toBe(false);
+    // Lookalikes that must NOT route through the paid Apify actor.
+    expect(isInstagramUrl("https://notinstagram.com/reel/x")).toBe(false);
+    expect(isInstagramUrl("https://instagram.com.evil.com/x")).toBe(false);
   });
 });
 

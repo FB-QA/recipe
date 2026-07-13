@@ -27,16 +27,16 @@ create index recipe_imports_user_url_idx on public.recipe_imports (user_id, sour
 
 alter table public.recipe_imports enable row level security;
 alter table public.recipe_imports force row level security;
-grant select, insert, update, delete on public.recipe_imports to authenticated;
+-- Append-only from the client: this ledger backs the daily rate limit + cost
+-- tracking, so no update/delete grants — a user must not be able to erase their
+-- recent imports to bypass the cap. (ON DELETE CASCADE from auth.users still
+-- cleans up when an account is deleted, which runs as the owner, not the client.)
+grant select, insert on public.recipe_imports to authenticated;
 
 create policy "imports: owner select" on public.recipe_imports
   for select using ((select auth.uid()) = user_id);
 create policy "imports: owner insert" on public.recipe_imports
   for insert with check ((select auth.uid()) = user_id);
-create policy "imports: owner update" on public.recipe_imports
-  for update using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
-create policy "imports: owner delete" on public.recipe_imports
-  for delete using ((select auth.uid()) = user_id);
 
 -- Count a user's imports since a cutoff — used to enforce the daily cap
 -- without leaking other users' rows. SECURITY DEFINER + explicit user filter.

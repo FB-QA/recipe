@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { safeRelativePath } from "@/lib/safe-path";
 
 export type AuthState = { error?: string; message?: string } | undefined;
 
@@ -17,6 +18,7 @@ async function siteUrl() {
   const origin = h.get("origin") ?? `http://${h.get("host") ?? "localhost:3000"}`;
   return origin;
 }
+
 
 export async function signIn(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentials.safeParse({
@@ -33,8 +35,7 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
     return { error: "That email and password don't match. Try again." };
   }
 
-  const next = (formData.get("next") as string) || "/";
-  redirect(next);
+  redirect(safeRelativePath(formData.get("next")));
 }
 
 export async function signUp(_prev: AuthState, formData: FormData): Promise<AuthState> {

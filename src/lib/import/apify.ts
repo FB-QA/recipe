@@ -53,7 +53,21 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
       usageUsd = body.data.usageTotalUsd ?? usageUsd;
       if (["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"].includes(status)) break;
     }
-    if (status !== "SUCCEEDED") return null;
+    if (status !== "SUCCEEDED") {
+      // We've stopped waiting — abort the run so Apify doesn't keep billing
+      // compute for a result we'll never read.
+      if (status === "RUNNING" || status === "READY") {
+        try {
+          await fetch(`${BASE}/actor-runs/${runId}/abort?token=${token}`, {
+            method: "POST",
+            signal: AbortSignal.timeout(10_000),
+          });
+        } catch {
+          // best effort
+        }
+      }
+      return null;
+    }
 
     const itemsRes = await fetch(`${BASE}/datasets/${datasetId}/items?clean=true&token=${token}`, {
       signal: AbortSignal.timeout(15_000),

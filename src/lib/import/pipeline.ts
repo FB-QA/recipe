@@ -1,6 +1,7 @@
 import { extractRecipeFromHtml } from "./jsonld";
 import { extractWithAi, aiToExtracted } from "./ai";
 import { fetchInstagram } from "./apify";
+import { isSafeImportUrl } from "./url-guard";
 import { hasCookableContent, type ImportOutcome } from "./types";
 
 const UA =
@@ -8,7 +9,8 @@ const UA =
 
 export function isInstagramUrl(url: string): boolean {
   try {
-    return new URL(url).hostname.replace(/^www\./, "").endsWith("instagram.com");
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "instagram.com" || host.endsWith(".instagram.com");
   } catch {
     return false;
   }
@@ -45,6 +47,14 @@ async function fetchHtml(url: string): Promise<string | null> {
 
 /** Public entry: turn any supported URL into an ImportOutcome. */
 export async function importFromUrl(url: string): Promise<ImportOutcome> {
+  // SSRF guard — never let a submitted URL point our server at internal hosts.
+  if (!(await isSafeImportUrl(url))) {
+    return {
+      status: "failed",
+      costCents: 0,
+      error: "That link can't be imported — it needs to be a public recipe page.",
+    };
+  }
   return isInstagramUrl(url) ? importInstagram(url) : importWebsite(url);
 }
 
