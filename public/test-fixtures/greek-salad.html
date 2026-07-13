@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Greek Salad</title>
+    <!-- Test fixture: a recipe page carrying schema.org/Recipe JSON-LD, used by
+         the website-import E2E to exercise the deterministic extraction path. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Recipe",
+        "name": "Greek Salad",
+        "description": "Crisp, fresh, and ready in ten minutes.",
+        "recipeYield": "2 servings",
+        "prepTime": "PT10M",
+        "recipeIngredient": [
+          "1 cucumber, chopped",
+          "3 tomatoes, wedged",
+          "100g feta",
+          "1 tbsp olive oil"
+        ],
+        "recipeInstructions": [
+          { "@type": "HowToStep", "text": "Chop the cucumber and tomatoes into a bowl." },
+          { "@type": "HowToStep", "text": "Crumble over the feta and dress with olive oil." }
+        ],
+        "image": "https://example.com/greek-salad.jpg"
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Greek Salad</h1>
+  </body>
+</html>
