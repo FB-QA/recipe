@@ -12,6 +12,13 @@ test.describe("M4 — polish", () => {
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   });
 
+  test("the Meal Plan tab shows a coming-soon state", async ({ page }) => {
+    await signUp(page);
+    await page.getByRole("link", { name: "Plan" }).click();
+    await expect(page).toHaveURL("/plan");
+    await expect(page.getByRole("heading", { name: /coming soon/i })).toBeVisible();
+  });
+
   test("serves an installable web app manifest", async ({ page }) => {
     const res = await page.request.get("/manifest.webmanifest");
     expect(res.ok()).toBeTruthy();

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "@/lib/clsx";
-import { BookIcon, PlusIcon, CartIcon, UserIcon } from "@/components/icons";
+import { BookIcon, CalendarIcon, PlusIcon, CartIcon, UserIcon } from "@/components/icons";
 
 const items = [
   {
@@ -12,6 +12,7 @@ const items = [
     Icon: BookIcon,
     match: (p: string) => p === "/" || p.startsWith("/recipes"),
   },
+  { href: "/plan", label: "Plan", Icon: CalendarIcon, match: (p: string) => p.startsWith("/plan") },
   { href: "/list", label: "List", Icon: CartIcon, match: (p: string) => p.startsWith("/list") },
   { href: "/profile", label: "Profile", Icon: UserIcon, match: (p: string) => p.startsWith("/profile") },
 ];
