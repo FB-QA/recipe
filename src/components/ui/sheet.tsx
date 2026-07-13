@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { DUR, springSoft } from "@/lib/motion";
+
+const emptySubscribe = () => () => {};
 
 export function Sheet({
   open,
@@ -17,6 +20,14 @@ export function Sheet({
 }) {
   const reduce = useReducedMotion();
 
+  // Client-only: the portal needs `document`. useSyncExternalStore gives a
+  // hydration-safe client flag without setState-in-effect.
+  const isClient = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -24,7 +35,12 @@ export function Sheet({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  return (
+  if (!isClient) return null;
+
+  // Portal to <body> so the fixed backdrop escapes any ancestor stacking or
+  // transform context (the page-transition wrapper) and truly covers the page.
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -54,6 +70,7 @@ export function Sheet({
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
