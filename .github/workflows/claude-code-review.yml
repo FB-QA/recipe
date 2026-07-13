@@ -46,7 +46,19 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
-          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          # The trailing instruction is load-bearing. Without it the review completes,
+          # posts its findings, and THEN spends every remaining turn being denied
+          # `npm ci` / `npm test` over and over until it dies on error_max_turns — a
+          # red cross on a PR it had already reviewed correctly. ci.yml runs the gates;
+          # the reviewer's job is to read the code, not to re-run the build.
+          prompt: |
+            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+            Review statically. Do NOT run package-manager or build commands
+            (npm/pnpm/tsc/eslint/vitest/playwright) — you will be denied, and the
+            retries will exhaust your turn budget before you can post. The typecheck,
+            lint and unit-test gates run separately in ci.yml; read its result rather
+            than reproducing it.
           # Post a tracking comment. Without it, a run that reviews the diff and then
           # fails to publish looks identical to a run that had nothing to say — which
           # is exactly how the first one went unnoticed.

@@ -1,0 +1,47 @@
+name: CI
+
+# The gates. Typecheck, lint, unit tests — on every PR and every push to main.
+#
+# These are deterministic, fast and free, and they are what "all green" in a PR
+# description should actually mean. Until now nothing in CI ran them; the claim
+# was only ever as good as whoever remembered to run them locally.
+#
+# E2E (Playwright) is NOT here on purpose: it needs the local Supabase stack
+# (Docker + `supabase start` + `db reset`), which is a different, slower job.
+# Adding it is worth doing — it is just not this file.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
