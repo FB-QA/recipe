@@ -42,7 +42,7 @@ jobs:
       # GitHub App token; omit it and the action fails before doing any work.
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
