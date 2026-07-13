@@ -37,7 +37,7 @@ export default async function ShelfPage({
   if (total === 0) {
     return (
       <>
-        <AppHeader title={`${name}'s Kitchen`} subtitle="Let's fill the shelf" />
+        <AppHeader title={`${name}'s recipes`} subtitle="Let's fill the shelf" />
         <EmptyState
           icon={<BookIcon size={30} />}
           title="Your shelf is empty"
@@ -57,7 +57,7 @@ export default async function ShelfPage({
   return (
     <>
       <AppHeader
-        title={`${name}'s Kitchen`}
+        title={`${name}'s recipes`}
         subtitle={`${total} recipe${total === 1 ? "" : "s"}`}
       />
       <SearchBar initial={q ?? ""} />

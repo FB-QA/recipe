@@ -23,7 +23,7 @@ test.describe("M4 — polish", () => {
     const res = await page.request.get("/manifest.webmanifest");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
-    expect(body.name).toBe("Romy's Kitchen");
+    expect(body.name).toBe("Cookdex");
     expect(body.display).toBe("standalone");
     expect(body.icons.length).toBeGreaterThan(0);
   });

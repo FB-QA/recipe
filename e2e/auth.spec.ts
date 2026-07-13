@@ -16,7 +16,7 @@ test.describe("M0 — auth & app shell", () => {
 
     // Auto-confirmed locally → dropped straight onto the personalised shelf.
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: "Romy's Kitchen" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Romy's recipes" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Your shelf is empty" })).toBeVisible();
 
     // Identity shows on Profile; sign out returns to login.

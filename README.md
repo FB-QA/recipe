@@ -1,4 +1,6 @@
-# Romy's Kitchen
+# Cookdex
+
+**Save it. Cook it.**
 
 A mobile-first recipe app: keep every recipe you love in one place you can cook
 from, and — the point of the whole thing — **import recipes from Instagram and

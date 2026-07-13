@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Romy's Kitchen",
-    short_name: "Romy's Kitchen",
-    description: "Every recipe you love, in one place you can cook from.",
+    name: "Cookdex",
+    short_name: "Cookdex",
+    description: "Save it. Cook it. Every recipe you love, in one place.",
     start_url: "/",
     display: "standalone",
     orientation: "portrait",

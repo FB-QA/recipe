@@ -9,10 +9,10 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Romy's Kitchen",
-  description: "Every recipe you love, in one place you can cook from.",
-  applicationName: "Romy's Kitchen",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Romy's Kitchen" },
+  title: "Cookdex",
+  description: "Save it. Cook it. Every recipe you love, in one place.",
+  applicationName: "Cookdex",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Cookdex" },
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
 };
 
