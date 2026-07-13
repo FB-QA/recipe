@@ -21,6 +21,26 @@ export async function getLists(): Promise<GroceryList[]> {
   return board.lists;
 }
 
+/** Ids of a recipe's ingredients that are already on its grocery list, so the
+ * add sheet can show them as done and never re-add duplicates. */
+export async function listedIngredientIds(recipeId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data: list } = await supabase
+    .from("grocery_lists")
+    .select("id")
+    .eq("source_recipe_id", recipeId)
+    .maybeSingle();
+  if (!list) return [];
+  const { data } = await supabase
+    .from("grocery_items")
+    .select("source_ingredient_id")
+    .eq("list_id", list.id)
+    .not("source_ingredient_id", "is", null);
+  return (data ?? [])
+    .map((r) => r.source_ingredient_id)
+    .filter((x): x is string => Boolean(x));
+}
+
 export type GroceryBoardData = {
   lists: GroceryList[];
   /** The selected chip: a list id, the "all" sentinel, or null when empty. */

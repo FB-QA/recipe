@@ -65,28 +65,54 @@ test.describe("M3 — grocery lists", () => {
     await expect(page.getByText("butter")).toHaveCount(0);
   });
 
-  test("adding the same recipe again reuses its list, never a duplicate", async ({ page }) => {
+  test("re-adding reuses the list and never duplicates ingredients", async ({ page }) => {
     await signUp(page);
     await page.goto("/recipes/new");
     await page.getByLabel("Title").fill("Curry");
     await page.getByRole("textbox", { name: "Ingredients 1" }).fill("onion");
+    await page.getByRole("button", { name: "Add ingredient" }).click();
+    await page.getByRole("textbox", { name: "Ingredients 2" }).fill("garlic");
     await page.getByRole("button", { name: "Save recipe" }).click();
     await expect(page.getByRole("heading", { name: "Curry" })).toBeVisible();
+    const recipeUrl = page.url();
+
+    // First add: onion only (deselect garlic).
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await page.getByRole("button", { name: /^garlic$/i }).click();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+    await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(1);
+    await expect(page.getByText("onion")).toHaveCount(1);
+
+    // Revisit → onion shows as already on the list; add garlic to the same list.
+    await page.goto(recipeUrl);
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await expect(page.getByText("On list")).toBeVisible();
+    await page.getByRole("button", { name: /Add 1 item/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+
+    // One list, and neither ingredient duplicated.
+    await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(1);
+    await expect(page.getByText("onion")).toHaveCount(1);
+    await expect(page.getByText("garlic")).toHaveCount(1);
+  });
+
+  test("re-adding every ingredient shows an already-on-list message", async ({ page }) => {
+    await signUp(page);
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Toast");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("bread");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Toast" })).toBeVisible();
     const recipeUrl = page.url();
 
     await page.getByRole("button", { name: "Add to grocery list" }).click();
     await page.getByRole("button", { name: /Add 1 item/i }).click();
     await page.getByRole("button", { name: /view list/i }).click();
-    await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(1);
 
-    // Back to the recipe, add again → still one list, items appended.
     await page.goto(recipeUrl);
     await page.getByRole("button", { name: "Add to grocery list" }).click();
-    await page.getByRole("button", { name: /Add 1 item/i }).click();
-    await page.getByRole("button", { name: /view list/i }).click();
-
-    await expect(page.getByRole("button", { name: /Curry/ })).toHaveCount(1);
-    await expect(page.getByText("onion")).toHaveCount(2);
+    await expect(page.getByText(/already on your list/i)).toBeVisible();
   });
 
   test("the All filter combines every list into one view", async ({ page }) => {

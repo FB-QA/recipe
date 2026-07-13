@@ -44,6 +44,7 @@ export type Database = {
           list_id: string
           quantity: string | null
           sort_order: number
+          source_ingredient_id: string | null
           source_recipe_id: string | null
         }
         Insert: {
@@ -55,6 +56,7 @@ export type Database = {
           list_id: string
           quantity?: string | null
           sort_order?: number
+          source_ingredient_id?: string | null
           source_recipe_id?: string | null
         }
         Update: {
@@ -66,6 +68,7 @@ export type Database = {
           list_id?: string
           quantity?: string | null
           sort_order?: number
+          source_ingredient_id?: string | null
           source_recipe_id?: string | null
         }
         Relationships: [
@@ -74,6 +77,13 @@ export type Database = {
             columns: ["list_id"]
             isOneToOne: false
             referencedRelation: "grocery_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grocery_items_source_ingredient_id_fkey"
+            columns: ["source_ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "recipe_ingredients"
             referencedColumns: ["id"]
           },
           {

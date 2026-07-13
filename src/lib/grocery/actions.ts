@@ -107,7 +107,8 @@ export async function clearCompleted(ids: string[]) {
  */
 export type AddToListResult = {
   listId: string;
-  count: number;
+  count: number; // newly added
+  skipped: number; // already on the list, not re-added
   created: boolean;
   listName: string;
 };
@@ -117,7 +118,7 @@ export async function addRecipeIngredientsToList(
   ingredientIds: string[],
   scale: number = 1,
 ): Promise<AddToListResult> {
-  const empty: AddToListResult = { listId: "", count: 0, created: false, listName: "" };
+  const empty: AddToListResult = { listId: "", count: 0, skipped: 0, created: false, listName: "" };
   const supabase = await createClient();
   const {
     data: { user },
@@ -167,28 +168,40 @@ export async function addRecipeIngredientsToList(
 
   const { data: ingredients } = await supabase
     .from("recipe_ingredients")
-    .select("display_text, quantity, unit, name, sort_order")
+    .select("id, display_text, quantity, unit, name, sort_order")
     .eq("recipe_id", recipeId)
     .in("id", ingredientIds)
     .order("sort_order", { ascending: true });
   if (!ingredients || ingredients.length === 0)
-    return { listId: target, count: 0, created, listName };
+    return { listId: target, count: 0, skipped: 0, created, listName };
+
+  // Skip ingredients already on this list, so re-adding never duplicates.
+  const { data: existingItems } = await supabase
+    .from("grocery_items")
+    .select("source_ingredient_id")
+    .eq("list_id", target)
+    .not("source_ingredient_id", "is", null);
+  const alreadyThere = new Set((existingItems ?? []).map((r) => r.source_ingredient_id));
+  const fresh = ingredients.filter((ing) => !alreadyThere.has(ing.id));
+  const skipped = ingredients.length - fresh.length;
+  if (fresh.length === 0) return { listId: target, count: 0, skipped, created, listName };
 
   const base = await nextSortOrder(supabase, target);
-  const rows = ingredients.map((ing, i) => {
+  const rows = fresh.map((ing, i) => {
     const qty = quantityLabel(ing);
     return {
       list_id: target!,
       display_text: scaleIngredientText(ing.name ?? ing.display_text, scale),
       quantity: qty ? scaleIngredientText(qty, scale) : null,
       source_recipe_id: recipeId,
+      source_ingredient_id: ing.id,
       sort_order: base + i,
       category: categorize(ing.name ?? ing.display_text),
     };
   });
   const { error } = await supabase.from("grocery_items").insert(rows);
-  if (error) return { listId: target, count: 0, created, listName };
+  if (error) return { listId: target, count: 0, skipped, created, listName };
 
   revalidatePath("/list");
-  return { listId: target, count: rows.length, created, listName };
+  return { listId: target, count: rows.length, skipped, created, listName };
 }

@@ -11,10 +11,12 @@ export function IngredientsSection({
   recipeId,
   ingredients,
   servingsText,
+  addedIngredientIds,
 }: {
   recipeId: string;
   ingredients: IngredientLike[];
   servingsText: string | null;
+  addedIngredientIds: string[];
 }) {
   const base = parseServings(servingsText);
   const [target, setTarget] = useState(base ?? 1);
@@ -64,7 +66,12 @@ export function IngredientsSection({
       </ul>
 
       <div className="mt-4">
-        <AddToListSheet recipeId={recipeId} ingredients={ingredients} scale={scale} />
+        <AddToListSheet
+          recipeId={recipeId}
+          ingredients={ingredients}
+          scale={scale}
+          addedIngredientIds={addedIngredientIds}
+        />
       </div>
     </section>
   );
