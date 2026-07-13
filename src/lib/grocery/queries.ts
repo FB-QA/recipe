@@ -55,7 +55,8 @@ export async function getBoard(requestedListId?: string): Promise<GroceryBoardDa
   const { data: listRows } = await supabase
     .from("grocery_lists")
     .select("id, name, source_recipe_id, created_at")
-    .order("created_at", { ascending: true });
+    // Newest first, so the most recent lists sit right beside the "All" chip.
+    .order("created_at", { ascending: false });
   const rawLists = listRows ?? [];
   if (rawLists.length === 0) return { lists: [], activeId: null, items: [] };
 
