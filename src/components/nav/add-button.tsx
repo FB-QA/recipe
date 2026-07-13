@@ -30,11 +30,11 @@ export function AddButton() {
 
   // The nav and this drawer persist across navigation. When a flow saves and
   // routes to the new recipe, close the drawer — the Sheet stays mounted so its
-  // slide-down exit animation plays, then reset to the menu for next time.
+  // slide-down exit animation plays (with the flow's own content, not swapped
+  // to the menu mid-slide). openMenu resets the view on next open.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- close ephemeral drawer on route change
     setOpen(false);
-    setView("menu");
   }, [pathname]);
 
   const openMenu = () => {
