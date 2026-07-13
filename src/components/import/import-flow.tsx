@@ -5,8 +5,9 @@ import Link from "next/link";
 import { runImport, type ImportState } from "@/lib/import/actions";
 import { createRecipe } from "@/lib/recipes/actions";
 import { RecipeForm, type RecipeFormInitial } from "@/components/recipes/recipe-form";
+import { CoverImage } from "@/components/recipes/cover-image";
 import { Button } from "@/components/ui/button";
-import { InstagramIcon, GlobeIcon, PlayIcon } from "@/components/icons";
+import { InstagramIcon, GlobeIcon, PlayIcon, CheckIcon } from "@/components/icons";
 import { ingredientLine } from "@/lib/recipes/ingredient";
 import type { ExtractedRecipe } from "@/lib/import/types";
 
@@ -22,6 +23,9 @@ export function ImportFlow({ source }: { source: "instagram" | "web" }) {
   });
 
   if (pending) return <Extracting />;
+  if (state.phase === "exists") {
+    return <AlreadyImported recipeId={state.recipeId} title={state.title} coverUrl={state.coverUrl} />;
+  }
   if (state.phase === "done" && state.status === "success") {
     return <Review recipe={state.recipe} sourceType={state.sourceType} sourceUrl={state.sourceUrl} method={state.method} />;
   }
@@ -198,6 +202,38 @@ function TeaserFallback({
           <Button fullWidth>Add it manually</Button>
         </Link>
       </div>
+    </div>
+  );
+}
+
+function AlreadyImported({
+  recipeId,
+  title,
+  coverUrl,
+}: {
+  recipeId: string;
+  title: string;
+  coverUrl: string | null;
+}) {
+  return (
+    <div className="flex flex-col gap-3.5 pb-1">
+      <p className="flex items-center gap-2 rounded-[12px] bg-basil-tint px-4 py-3 text-[13.5px] font-medium text-basil">
+        <CheckIcon size={16} /> You&apos;ve already imported this recipe.
+      </p>
+      <Link
+        href={`/recipes/${recipeId}`}
+        className="flex items-center gap-3.5 rounded-card border border-line bg-surface p-3 transition-colors hover:border-basil hover:bg-basil-tint"
+      >
+        <CoverImage
+          url={coverUrl}
+          title={title}
+          className="h-[56px] w-[56px] flex-none rounded-xl"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-bold text-ink">{title}</span>
+          <span className="block text-[12.5px] font-semibold text-basil">Open it</span>
+        </span>
+      </Link>
     </div>
   );
 }

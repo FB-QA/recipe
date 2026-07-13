@@ -25,4 +25,27 @@ test.describe("M2 — website import", () => {
     await page.goto("/");
     await expect(page.getByRole("link", { name: /Greek Salad/i })).toBeVisible();
   });
+
+  test("re-importing the same URL shows already-imported, not a duplicate", async ({ page }) => {
+    await signUp(page);
+
+    // Import + save once.
+    await page.goto("/import?source=web");
+    await page.getByLabel("Recipe link").fill(FIXTURE);
+    await page.getByRole("button", { name: "Get the recipe" }).click();
+    await expect(page.getByLabel("Title")).toHaveValue("Greek Salad");
+    await page.getByRole("button", { name: "Save to shelf" }).click();
+    await expect(page.getByRole("heading", { name: "Greek Salad" })).toBeVisible();
+
+    // Import the same URL again → already-imported card, no review form.
+    await page.goto("/import?source=web");
+    await page.getByLabel("Recipe link").fill(FIXTURE);
+    await page.getByRole("button", { name: "Get the recipe" }).click();
+    await expect(page.getByText(/already imported this recipe/i)).toBeVisible();
+    await expect(page.getByLabel("Title")).toHaveCount(0);
+
+    // Its link opens the existing recipe.
+    await page.getByRole("link", { name: /Open it/i }).click();
+    await expect(page.getByRole("heading", { name: "Greek Salad" })).toBeVisible();
+  });
 });
