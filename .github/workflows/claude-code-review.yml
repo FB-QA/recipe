@@ -1,0 +1,61 @@
+name: Claude code review
+
+# Reviews every pull request automatically, and again on each push to it.
+#
+# SETUP (once per repo — neither step can be done by an agent):
+#   1. Install the Claude GitHub App on the repo.
+#   2. Add the repo secret CLAUDE_CODE_OAUTH_TOKEN, minted with `claude setup-token`.
+# Until both exist this workflow FAILS on every PR — a permanent red cross. Do the
+# setup before the first PR, or delete this file.
+#
+# It runs on the Claude SUBSCRIPTION, not an API key: `claude_code_oauth_token` is
+# a declared input of claude-code-action@v1 ("alternative to anthropic_api_key").
+# The action's README doesn't mention it; action.yml does.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Only ever review the newest push on a branch. A burst of pushes would otherwise
+# start a review per push, each spending tokens on a diff already stale.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Skip drafts. A draft is work in progress; paying to be told it is unfinished
+    # is not a review, it is an echo.
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read # it comments; it does not commit
+      pull-requests: write
+      issues: write
+      # Required. The action mints its GitHub App installation token by exchanging
+      # an OIDC token; without this the runner never sets ACTIONS_ID_TOKEN_REQUEST_URL
+      # and the action dies before it reads a single line of the diff.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # full history: a review that cannot see the base is guessing
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          # Post a tracking comment. Without it, a run that reviews the diff and then
+          # fails to publish looks identical to a run that had nothing to say — which
+          # is exactly how the first one went unnoticed.
+          track_progress: true
+          # Setting `prompt` puts the action in AGENT mode, and agent mode grants NO
+          # tools by default. On a runner there is nobody to approve a prompt, so every
+          # call is denied: the first live run spent 5m43s and $1.39 reviewing PR #9,
+          # was denied 15 times, and posted nothing. These are the tools the review
+          # needs — read the code, then say something about it.
+          claude_args: >-
+            --max-turns 15
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*)"
