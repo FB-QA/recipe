@@ -1,5 +1,13 @@
 import { clsx } from "@/lib/clsx";
 
+/**
+ * The recipe-detail cover: full-bleed PAST the page's 18px padding, fixed 250px,
+ * square (not rounded), with the title overlaid inside it. Shared with the loading
+ * skeleton — a skeleton holding its own copy of this drifts from the real thing and
+ * the page then visibly jumps as it loads, which is the whole bug we are fixing.
+ */
+export const DETAIL_COVER = "-mx-[18px] h-[250px] p-[18px]";
+
 // Basil-friendly gradients for recipes without a photo — deterministic per
 // title so a given recipe always wears the same colour.
 const GRADIENTS = [
