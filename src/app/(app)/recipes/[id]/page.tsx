@@ -7,7 +7,13 @@ import { DeleteButton } from "@/components/recipes/delete-button";
 import { IngredientsSection } from "@/components/recipes/ingredients-section";
 import { getLists } from "@/lib/grocery/queries";
 import { highlightStep, ingredientTerms } from "@/lib/recipes/highlight";
-import { ChevronLeftIcon, PencilIcon } from "@/components/icons";
+import {
+  ChevronLeftIcon,
+  PencilIcon,
+  InstagramIcon,
+  TikTokIcon,
+  GlobeIcon,
+} from "@/components/icons";
 
 export default async function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -120,9 +126,9 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
           href={recipe.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-5 block text-center text-[13px] font-semibold text-basil"
+          className="mt-5 flex items-center justify-center gap-1.5 text-[13px] font-semibold text-basil"
         >
-          View the original
+          <PlatformIcon url={recipe.source_url} /> View the original
         </a>
       )}
 
@@ -137,4 +143,16 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="mb-3 mt-5 text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">{children}</h2>
   );
+}
+
+function PlatformIcon({ url }: { url: string }) {
+  let host = "";
+  try {
+    host = new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    // fall through to the globe
+  }
+  if (host.endsWith("instagram.com")) return <InstagramIcon size={15} />;
+  if (host.endsWith("tiktok.com")) return <TikTokIcon size={15} />;
+  return <GlobeIcon size={15} />;
 }

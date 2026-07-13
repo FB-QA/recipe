@@ -96,6 +96,12 @@ export const InstagramIcon = (p: IconProps) => (
   </svg>
 );
 
+export const TikTokIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="M9.5 10.5a3.5 3.5 0 1 0 3.5 3.5V4.5c.8 1.7 2.3 2.8 4.2 2.9" />
+  </svg>
+);
+
 export const GlobeIcon = (p: IconProps) => (
   <svg {...base(p)} aria-hidden>
     <circle cx="12" cy="12" r="9" />
