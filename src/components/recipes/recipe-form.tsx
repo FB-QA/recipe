@@ -97,6 +97,9 @@ export function RecipeForm({
   // The compressed WebP we actually upload. The raw <input> file never goes over
   // the wire — the input carries no `name`; this is injected into the FormData.
   const compressedRef = useRef<File | null>(null);
+  // Bumped on every new pick and on Remove, so a compression that resolves late
+  // can tell it has been superseded and discard its result.
+  const coverGen = useRef(0);
   const [compressing, setCompressing] = useState(false);
   const [coverError, setCoverError] = useState<string | null>(null);
 
@@ -156,6 +159,9 @@ export function RecipeForm({
               <button
                 type="button"
                 onClick={() => {
+                  // Invalidate any in-flight compression so a late result can't
+                  // re-add the cover we're removing.
+                  coverGen.current += 1;
                   setPreview(null);
                   setCoverAction("remove");
                   setCoverError(null);
@@ -177,15 +183,23 @@ export function RecipeForm({
           onChange={async (e) => {
             const file = e.target.files?.[0];
             if (!file) return;
+            const gen = ++coverGen.current;
             setCoverError(null);
             setCompressing(true);
             try {
               const optimised = await compressRecipeImage(file);
+              // A newer pick or a Remove happened while we were compressing —
+              // this result is stale, so don't let it re-apply a cover.
+              if (gen !== coverGen.current) return;
               compressedRef.current = optimised;
               setPreview(URL.createObjectURL(optimised));
               setCoverAction("replace");
             } catch (err) {
-              compressedRef.current = null;
+              if (gen !== coverGen.current) return;
+              // Keep any previously-selected valid cover intact: only surface the
+              // error and clear the input so the same file can be re-picked. (Do
+              // NOT null compressedRef — that would leave the preview showing a
+              // cover we no longer send.)
               if (fileRef.current) fileRef.current.value = "";
               setCoverError(
                 err instanceof ImageCompressionError

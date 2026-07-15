@@ -200,6 +200,10 @@ export async function updateRecipe(
     .single();
   const oldPath = current?.cover_image_path ?? null;
 
+  // A cover failure must NOT abort the edit: the main fields are already saved
+  // and the ingredient/step/tip edits below still have to run. So every cover
+  // failure sets a warning and falls through — it never returns early.
+  let coverWarning: string | undefined;
   if (coverAction === "remove") {
     // Null the pointer FIRST and confirm it — only then remove the files. If the
     // DB write fails we must not delete a file the recipe still points at.
@@ -207,36 +211,38 @@ export async function updateRecipe(
       .from("recipes")
       .update({ cover_image_path: null })
       .eq("id", id);
-    if (clearError) return { error: "Couldn't remove the photo. Try again." };
-    await removeRecipeMedia(supabase, user.id, id, oldPath);
+    if (clearError) coverWarning = "Your changes were saved, but the photo couldn't be removed. Try again.";
+    else await removeRecipeMedia(supabase, user.id, id, oldPath);
   } else if (cover instanceof File && cover.size > 0) {
-    // Upload the new image FIRST, point the recipe at it, and only THEN delete
-    // the old one — a failed upload OR a failed re-point must never leave the
-    // recipe pointing at a file that no longer exists. swapCover enforces that
-    // order and is unit-tested.
-    let path: string;
+    // Upload the new image, point the recipe at it, and only THEN delete the old
+    // one — a failed upload OR a failed re-point must never leave the recipe
+    // pointing at a file that no longer exists. swapCover enforces that order and
+    // is unit-tested. On any failure we keep the old cover and warn.
+    let path: string | null = null;
     try {
       path = await uploadCover(supabase, user.id, id, cover);
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : "The photo couldn't be uploaded." };
+    } catch {
+      coverWarning = "Your changes were saved, but the new photo didn't upload. Try again.";
     }
-    const swap = await swapCover(
-      {
-        repoint: async (p) => {
-          const { error } = await supabase
-            .from("recipes")
-            .update({ cover_image_path: p })
-            .eq("id", id);
-          return !error;
+    if (path) {
+      const swap = await swapCover(
+        {
+          repoint: async (p) => {
+            const { error } = await supabase
+              .from("recipes")
+              .update({ cover_image_path: p })
+              .eq("id", id);
+            return !error;
+          },
+          removeFile: async (p) => {
+            await supabase.storage.from(BUCKET).remove([p]);
+          },
         },
-        removeFile: async (p) => {
-          await supabase.storage.from(BUCKET).remove([p]);
-        },
-      },
-      path,
-      oldPath,
-    );
-    if (!swap.ok) return { error: "Couldn't update the photo. Try again." };
+        path,
+        oldPath,
+      );
+      if (!swap.ok) coverWarning = "Your changes were saved, but the photo couldn't be updated. Try again.";
+    }
   }
 
   const saved = await replaceChildren(supabase, id, input);
@@ -245,7 +251,7 @@ export async function updateRecipe(
   revalidatePath("/");
   revalidatePath(`/recipes/${id}`);
   revalidatePath("/list"); // the grocery chip name mirrors the recipe title
-  return { ok: true, id };
+  return { ok: true, id, coverWarning };
 }
 
 export async function deleteRecipe(id: string): Promise<void> {
