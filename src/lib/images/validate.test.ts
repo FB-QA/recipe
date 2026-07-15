@@ -30,15 +30,12 @@ describe("validateOriginalImage (client, pre-compression)", () => {
 });
 
 describe("validateStoredImage (server, post-compression — do not trust the client)", () => {
-  it("accepts the webp we expect the client to produce", () => {
+  it("accepts the webp both pipelines produce", () => {
     expect(validateStoredImage({ type: "image/webp", size: 200_000 })).toEqual({ ok: true });
   });
 
-  it("accepts a jpeg fallback (older browsers that can't encode webp)", () => {
-    expect(validateStoredImage({ type: "image/jpeg", size: 300_000 })).toEqual({ ok: true });
-  });
-
-  it("rejects a type the client compressor should never emit", () => {
+  it("rejects any type the compressor and optimiser never emit (webp-only)", () => {
+    expect(validateStoredImage({ type: "image/jpeg", size: 300_000 }).ok).toBe(false);
     expect(validateStoredImage({ type: "image/png", size: 100 }).ok).toBe(false);
     expect(validateStoredImage({ type: "application/pdf", size: 100 }).ok).toBe(false);
   });

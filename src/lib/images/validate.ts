@@ -9,10 +9,14 @@
 //     compressor produces, and small. "Do not trust the client" — a hand-crafted
 //     multipart POST could put anything in the `cover` field.
 
+import { WEBP_MIME } from "./constants";
+
 export const MAX_ORIGINAL_BYTES = 15 * 1024 * 1024; // 15 MB — a generous phone photo
 export const MAX_STORED_BYTES = 3 * 1024 * 1024; // a compressed cover is ~150–500 KB; 3 MB is slack
 
-const STORED_TYPES = new Set(["image/webp", "image/jpeg"]);
+// WebP only: the client compressor and the server optimiser both emit WebP and
+// nothing else, so the validator accepts exactly what those two produce.
+const STORED_TYPES = new Set([WEBP_MIME]);
 
 export type ImageCheck = { ok: true } | { ok: false; error: string };
 

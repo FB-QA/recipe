@@ -11,6 +11,7 @@ import { swapCover } from "./cover";
 import { optimizeFromUrl } from "@/lib/images/optimize";
 import { coverImagePath, coverFolder } from "@/lib/images/paths";
 import { validateStoredImage } from "@/lib/images/validate";
+import { WEBP_MIME } from "@/lib/images/constants";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
 
 type Client = SupabaseClient<Database>;
@@ -51,7 +52,7 @@ async function uploadCoverFromUrl(supabase: Client, userId: string, recipeId: st
   const path = coverImagePath(userId, recipeId, crypto.randomUUID());
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, optimized, { contentType: "image/webp", upsert: false });
+    .upload(path, optimized, { contentType: WEBP_MIME, upsert: false });
   return error ? null : path;
 }
 

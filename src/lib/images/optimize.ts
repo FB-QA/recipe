@@ -1,14 +1,16 @@
 import sharp from "sharp";
 import { BROWSER_USER_AGENT } from "@/lib/http";
 import { safeFetch, readCapped } from "@/lib/safe-fetch";
+import { COVER_MAX_DIMENSION, COVER_WEBP_QUALITY } from "./constants";
 
-export const COVER_MAX_DIMENSION = 1400;
-export const COVER_WEBP_QUALITY = 78;
+// sharp's webp quality is 0–100; the shared constant is a 0–1 fraction.
+const SHARP_WEBP_QUALITY = Math.round(COVER_WEBP_QUALITY * 100);
 
 /**
- * Optimise a user-supplied image before it ever reaches storage:
- * auto-orient from EXIF, cap the longest edge, and re-encode as WebP.
- * A 6 MB phone photo lands around 80–200 KB.
+ * Optimise a remote image (import-from-URL cover) before it reaches storage:
+ * auto-orient from EXIF, cap the longest edge, and re-encode as WebP. Shares the
+ * dimension/quality tuning with the client compressor via ./constants, so an
+ * imported cover and an uploaded cover come out identically sized.
  */
 export async function optimizeCover(input: ArrayBuffer | Buffer): Promise<Buffer> {
   const buffer = Buffer.isBuffer(input) ? input : Buffer.from(new Uint8Array(input));
@@ -20,7 +22,7 @@ export async function optimizeCover(input: ArrayBuffer | Buffer): Promise<Buffer
       fit: "inside",
       withoutEnlargement: true,
     })
-    .webp({ quality: COVER_WEBP_QUALITY })
+    .webp({ quality: SHARP_WEBP_QUALITY })
     .toBuffer();
 }
 
