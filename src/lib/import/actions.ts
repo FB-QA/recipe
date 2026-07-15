@@ -7,13 +7,32 @@ import { signStoragePaths } from "@/lib/supabase/storage";
 import { importFromUrl, isInstagramUrl } from "./pipeline";
 import { extractWithAi, aiToExtracted } from "./ai";
 import { hasCookableContent, type ExtractedRecipe, type ImportOutcome } from "./types";
+import { importCapReached } from "./limit";
 
-const DAILY_IMPORT_LIMIT = 25;
 const IMPORT_WINDOW_MS = 24 * 3600 * 1000;
 
 /** Start of the rolling import-limit window, as an ISO timestamp. */
 function windowCutoff() {
   return new Date(Date.now() - IMPORT_WINDOW_MS).toISOString();
+}
+
+type Client = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * True when this user has crossed the daily cap and holds no exemption.
+ * The exemption lookup only fires once the cap is actually reached, so the
+ * common case costs a single RPC — same as before exemptions existed.
+ */
+async function importBlocked(supabase: Client, userId: string): Promise<boolean> {
+  const { data: recent } = await supabase.rpc("imports_since", { cutoff: windowCutoff() });
+  if (!importCapReached(recent, false)) return false;
+
+  const { data: exemption } = await supabase
+    .from("import_limit_exemptions")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return importCapReached(recent, exemption !== null);
 }
 
 export type PasteState =
@@ -36,9 +55,7 @@ export async function extractPasted(
   const user = await currentUser();
   if (!user) return { phase: "error", error: SIGNED_OUT_ERROR };
 
-  const cutoff = windowCutoff();
-  const { data: recent } = await supabase.rpc("imports_since", { cutoff });
-  if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
+  if (await importBlocked(supabase, user.id)) {
     return {
       phase: "error",
       error: "You've reached today's import limit. Try again tomorrow, or type it in manually.",
@@ -110,9 +127,7 @@ export async function runImport(
   }
 
   // Per-user rate limit (rolling 24h).
-  const cutoff = windowCutoff();
-  const { data: recent } = await supabase.rpc("imports_since", { cutoff });
-  if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
+  if (await importBlocked(supabase, user.id)) {
     return {
       phase: "error",
       error: "You've reached today's import limit. It resets in 24 hours — or add a recipe manually.",
