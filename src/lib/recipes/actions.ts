@@ -2,15 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, type Client } from "@/lib/supabase/server";
 import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
-import type { Database } from "@/lib/supabase/database.types";
 import { parseRecipePayload, type RecipeInput } from "./schema";
 import { optimizeCover, optimizeFromUrl } from "@/lib/images/optimize";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
-
-type Client = SupabaseClient<Database>;
 
 export type RecipeFormState = { error?: string } | { ok: true; id: string } | undefined;
 

@@ -34,6 +34,13 @@ export async function createClient() {
 }
 
 /**
+ * The RLS-bound server client's type, for helpers that receive one as a
+ * parameter. Import with `import type` so pure modules stay free of this
+ * file's runtime dependencies (next/headers).
+ */
+export type Client = Awaited<ReturnType<typeof createClient>>;
+
+/**
  * Service-role client — bypasses RLS. SERVER-ONLY, never expose to the client.
  * Use sparingly: storage cleanup, admin tasks, trusted server jobs.
  */

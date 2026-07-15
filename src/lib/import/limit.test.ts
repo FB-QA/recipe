@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { importCapReached, DAILY_IMPORT_LIMIT } from "./limit";
+import { importCapReached, windowCutoff, DAILY_IMPORT_LIMIT, IMPORT_WINDOW_MS } from "./limit";
 
 describe("importCapReached", () => {
   it("allows imports below the daily cap", () => {
@@ -19,5 +19,13 @@ describe("importCapReached", () => {
 
   it("treats a missing count as zero", () => {
     expect(importCapReached(null, false)).toBe(false);
+  });
+});
+
+describe("windowCutoff", () => {
+  it("sits exactly one window before the given moment", () => {
+    const now = Date.UTC(2026, 6, 15, 12, 0, 0);
+    expect(windowCutoff(now)).toBe(new Date(now - IMPORT_WINDOW_MS).toISOString());
+    expect(windowCutoff(now)).toBe("2026-07-14T12:00:00.000Z");
   });
 });

@@ -1,8 +1,5 @@
 import { test, expect } from "@playwright/test";
-
-function uniqueEmail() {
-  return `romy_${Date.now()}_${Math.floor(Math.random() * 1e6)}@example.com`;
-}
+import { uniqueEmail, TEST_PASSWORD } from "./helpers";
 
 test.describe("M0 — auth & app shell", () => {
   test("sign up lands on the private empty shelf; sign out returns to login", async ({ page }) => {
@@ -11,7 +8,7 @@ test.describe("M0 — auth & app shell", () => {
     await page.goto("/signup");
     await page.getByLabel("Your name").fill("Romy");
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill("supersecret123");
+    await page.getByLabel("Password").fill(TEST_PASSWORD);
     await page.getByRole("button", { name: "Create account" }).click();
 
     // Auto-confirmed locally → dropped straight onto the personalised shelf.
@@ -76,7 +73,7 @@ test.describe("M0 — the verified-user header cannot be forged", () => {
     await page.goto("/signup");
     await page.getByLabel("Your name").fill("Romy");
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill("supersecret123");
+    await page.getByLabel("Password").fill(TEST_PASSWORD);
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL("/");
 

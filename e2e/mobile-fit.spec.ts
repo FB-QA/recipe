@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { signUp } from "./helpers";
+import { signUp, JSONLD_FIXTURE } from "./helpers";
 
 // Mobile-first guard: nothing may overflow the viewport horizontally. Runs at
 // the project's 390px mobile viewport.
@@ -51,7 +51,7 @@ test.describe("mobile-fit — no horizontal overflow", () => {
     // Grow into the website import flow, run the fixture, land on the review.
     await page.getByRole("button", { name: /Import from website/i }).click();
     await expectNoOverflow(page, "add drawer import input");
-    await page.getByLabel("Recipe link").fill("http://localhost:3100/test-fixtures/greek-salad.html");
+    await page.getByLabel("Recipe link").fill(JSONLD_FIXTURE);
     await page.getByRole("button", { name: "Get the recipe" }).click();
     await expect(page.getByLabel("Title")).toHaveValue("Greek Salad");
     await expectNoOverflow(page, "add drawer import review");
