@@ -14,7 +14,10 @@ export function coverImagePath(userId: string, recipeId: string, imageId: string
   return `${recipeMediaFolder(userId, recipeId)}/cover/${imageId}.webp`;
 }
 
-/** The whole per-recipe media subtree — cleared when the recipe is deleted. */
+/** The recipe's media root: covers live at {this}/cover/{uuid}.webp. Delete
+ *  cleanup enumerates the cover subfolder (V1 stores only covers). Supabase
+ *  storage list() is NOT recursive, so this prefix does not self-clear — a future
+ *  media type added as a sibling of cover/ must be added to removeRecipeMedia. */
 export function recipeMediaFolder(userId: string, recipeId: string): string {
   return `${userId}/recipes/${recipeId}`;
 }

@@ -15,7 +15,7 @@ describe("coverImagePath", () => {
 });
 
 describe("recipeMediaFolder", () => {
-  it("is the whole per-recipe subtree, so deletion can clear everything", () => {
+  it("is the recipe's media root prefix (covers live under it)", () => {
     expect(recipeMediaFolder("user-1", "recipe-9")).toBe("user-1/recipes/recipe-9");
   });
 

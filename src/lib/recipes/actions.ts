@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseRecipePayload, type RecipeInput } from "./schema";
+import { swapCover } from "./cover";
 import { optimizeFromUrl } from "@/lib/images/optimize";
 import { coverImagePath, coverFolder } from "@/lib/images/paths";
 import { validateStoredImage } from "@/lib/images/validate";
@@ -54,9 +55,11 @@ async function uploadCoverFromUrl(supabase: Client, userId: string, recipeId: st
   return error ? null : path;
 }
 
-/** Remove a recipe's stored images: the cover folder (current per-uuid layout)
- *  plus an explicit path, which also clears covers saved under the older
- *  {user}/{recipe}/cover.webp layout that predate the uuid structure. */
+/** Remove a recipe's stored images: enumerate the cover folder (current per-uuid
+ *  layout) and remove its files, plus an explicit path — which also clears covers
+ *  saved under the older {user}/{recipe}/cover.webp layout that predate the uuid
+ *  structure. Only the cover subfolder is listed (V1 stores nothing else); a new
+ *  media type must be added here — Supabase list() does not recurse. */
 async function removeRecipeMedia(
   supabase: Client,
   userId: string,
@@ -198,21 +201,42 @@ export async function updateRecipe(
   const oldPath = current?.cover_image_path ?? null;
 
   if (coverAction === "remove") {
-    await supabase.from("recipes").update({ cover_image_path: null }).eq("id", id);
+    // Null the pointer FIRST and confirm it — only then remove the files. If the
+    // DB write fails we must not delete a file the recipe still points at.
+    const { error: clearError } = await supabase
+      .from("recipes")
+      .update({ cover_image_path: null })
+      .eq("id", id);
+    if (clearError) return { error: "Couldn't remove the photo. Try again." };
     await removeRecipeMedia(supabase, user.id, id, oldPath);
   } else if (cover instanceof File && cover.size > 0) {
     // Upload the new image FIRST, point the recipe at it, and only THEN delete
-    // the old one — a failed upload must never leave the recipe with no photo.
+    // the old one — a failed upload OR a failed re-point must never leave the
+    // recipe pointing at a file that no longer exists. swapCover enforces that
+    // order and is unit-tested.
     let path: string;
     try {
       path = await uploadCover(supabase, user.id, id, cover);
     } catch (e) {
       return { error: e instanceof Error ? e.message : "The photo couldn't be uploaded." };
     }
-    await supabase.from("recipes").update({ cover_image_path: path }).eq("id", id);
-    if (oldPath && oldPath !== path) {
-      await supabase.storage.from(BUCKET).remove([oldPath]);
-    }
+    const swap = await swapCover(
+      {
+        repoint: async (p) => {
+          const { error } = await supabase
+            .from("recipes")
+            .update({ cover_image_path: p })
+            .eq("id", id);
+          return !error;
+        },
+        removeFile: async (p) => {
+          await supabase.storage.from(BUCKET).remove([p]);
+        },
+      },
+      path,
+      oldPath,
+    );
+    if (!swap.ok) return { error: "Couldn't update the photo. Try again." };
   }
 
   const saved = await replaceChildren(supabase, id, input);
