@@ -8,7 +8,7 @@
 
 create table public.import_limit_exemptions (
   user_id     uuid primary key references auth.users (id) on delete cascade,
-  note        text,
+  note        text constraint import_limit_exemptions_note_length check (char_length(note) <= 500),
   created_at  timestamptz not null default now()
 );
 
@@ -21,7 +21,7 @@ grant select on public.import_limit_exemptions to authenticated;
 -- The operator path. The service key never reaches a client, so this is the
 -- same trust boundary as running SQL directly — it exists so admin tooling
 -- (and the E2E suite's local seeding) can grant and revoke exemptions.
-grant select, insert, delete on public.import_limit_exemptions to service_role;
+grant select, insert, update, delete on public.import_limit_exemptions to service_role;
 
 create policy "exemptions: owner select" on public.import_limit_exemptions
   for select using ((select auth.uid()) = user_id);

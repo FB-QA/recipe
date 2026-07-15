@@ -49,4 +49,31 @@ test.describe("import limit exemptions", () => {
     await expect(page.getByLabel("Title")).toHaveValue("Greek Salad");
     await expect(page.getByText(/reached today's import limit/i)).toHaveCount(0);
   });
+
+  test("exemption notes are bounded and revisable by the operator", async ({ page }) => {
+    const email = await signUp(page);
+    const { userId } = await userClient(email);
+    const admin = adminClient();
+
+    // An absurdly long note is refused at the database, not by convention.
+    const { error: tooLong } = await admin
+      .from("import_limit_exemptions")
+      .insert({ user_id: userId, note: "x".repeat(501) });
+    expect(tooLong?.message).toMatch(/note_length/);
+
+    // A sane note goes in, and the operator can revise it without delete+reinsert.
+    const { error: inserted } = await admin
+      .from("import_limit_exemptions")
+      .insert({ user_id: userId, note: "granted for testing" });
+    expect(inserted).toBeNull();
+
+    const { data: revised, error: updated } = await admin
+      .from("import_limit_exemptions")
+      .update({ note: "revised" })
+      .eq("user_id", userId)
+      .select("note")
+      .single();
+    expect(updated).toBeNull();
+    expect(revised?.note).toBe("revised");
+  });
 });
