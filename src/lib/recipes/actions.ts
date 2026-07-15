@@ -7,12 +7,17 @@ import { createClient } from "@/lib/supabase/server";
 import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseRecipePayload, type RecipeInput } from "./schema";
-import { optimizeCover, optimizeFromUrl } from "@/lib/images/optimize";
+import { optimizeFromUrl } from "@/lib/images/optimize";
+import { coverImagePath, coverFolder } from "@/lib/images/paths";
+import { validateStoredImage } from "@/lib/images/validate";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
 
 type Client = SupabaseClient<Database>;
 
-export type RecipeFormState = { error?: string } | { ok: true; id: string } | undefined;
+export type RecipeFormState =
+  | { error?: string }
+  | { ok: true; id: string; coverWarning?: string }
+  | undefined;
 
 function readPayload(formData: FormData) {
   try {
@@ -23,31 +28,46 @@ function readPayload(formData: FormData) {
 }
 
 async function uploadCover(supabase: Client, userId: string, recipeId: string, file: File) {
-  const optimized = await optimizeCover(await file.arrayBuffer());
-  const path = `${userId}/${recipeId}/cover.webp`;
+  // The client has already compressed to WebP; the server does NOT re-process it
+  // (that server-side sharp step was the silent point of failure). It validates
+  // the bytes it's handed — never trust the client — and stores them under a
+  // fresh uuid so a replaced cover always gets a new URL.
+  const check = validateStoredImage({ type: file.type, size: file.size });
+  if (!check.ok) throw new Error(check.error);
+  const path = coverImagePath(userId, recipeId, crypto.randomUUID());
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, optimized, { contentType: "image/webp", upsert: true });
+    .upload(path, file, { contentType: file.type, upsert: false });
   if (error) throw new Error("upload failed");
   return path;
 }
 
 async function uploadCoverFromUrl(supabase: Client, userId: string, recipeId: string, url: string) {
+  // Import covers come from a remote page, so they're still fetched + optimised
+  // server-side (sharp) — there's no client image to compress in this path.
   const optimized = await optimizeFromUrl(url);
   if (!optimized) return null;
-  const path = `${userId}/${recipeId}/cover.webp`;
+  const path = coverImagePath(userId, recipeId, crypto.randomUUID());
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, optimized, { contentType: "image/webp", upsert: true });
+    .upload(path, optimized, { contentType: "image/webp", upsert: false });
   return error ? null : path;
 }
 
-async function removeRecipeFolder(supabase: Client, userId: string, recipeId: string) {
-  const prefix = `${userId}/${recipeId}`;
-  const { data } = await supabase.storage.from(BUCKET).list(prefix);
-  if (data && data.length > 0) {
-    await supabase.storage.from(BUCKET).remove(data.map((f) => `${prefix}/${f.name}`));
-  }
+/** Remove a recipe's stored images: the cover folder (current per-uuid layout)
+ *  plus an explicit path, which also clears covers saved under the older
+ *  {user}/{recipe}/cover.webp layout that predate the uuid structure. */
+async function removeRecipeMedia(
+  supabase: Client,
+  userId: string,
+  recipeId: string,
+  explicitPath?: string | null,
+) {
+  const folder = coverFolder(userId, recipeId);
+  const { data } = await supabase.storage.from(BUCKET).list(folder);
+  const paths = (data ?? []).map((f) => `${folder}/${f.name}`);
+  if (explicitPath && !paths.includes(explicitPath)) paths.push(explicitPath);
+  if (paths.length > 0) await supabase.storage.from(BUCKET).remove(paths);
 }
 
 /** Replace a recipe's children. Returns false if any delete/insert errored, so
@@ -117,6 +137,7 @@ export async function createRecipe(
 
   const cover = formData.get("cover");
   const importCoverUrl = String(formData.get("importCoverUrl") ?? "").trim();
+  let coverWarning: string | undefined;
   try {
     let path: string | null = null;
     if (cover instanceof File && cover.size > 0) {
@@ -126,7 +147,9 @@ export async function createRecipe(
     }
     if (path) await supabase.from("recipes").update({ cover_image_path: path }).eq("id", recipe.id);
   } catch {
-    // Non-fatal: the recipe is saved; the cover just didn't stick.
+    // The cover is optional, so a failure doesn't sink the save — but it is NOT
+    // swallowed: the caller surfaces this so the user knows the photo didn't land.
+    coverWarning = "Recipe saved, but the photo didn't upload. Open it to add one.";
   }
 
   const saved = await replaceChildren(supabase, recipe.id, input);
@@ -135,7 +158,7 @@ export async function createRecipe(
   revalidatePath("/");
   // Return the id (not redirect) so the client can toast, animate the drawer
   // closed, then navigate — navigation must never be what closes a drawer.
-  return { ok: true, id: recipe.id };
+  return { ok: true, id: recipe.id, coverWarning };
 }
 
 export async function updateRecipe(
@@ -167,15 +190,28 @@ export async function updateRecipe(
 
   const coverAction = formData.get("coverAction");
   const cover = formData.get("cover");
+  const { data: current } = await supabase
+    .from("recipes")
+    .select("cover_image_path")
+    .eq("id", id)
+    .single();
+  const oldPath = current?.cover_image_path ?? null;
+
   if (coverAction === "remove") {
-    await removeRecipeFolder(supabase, user.id, id);
     await supabase.from("recipes").update({ cover_image_path: null }).eq("id", id);
+    await removeRecipeMedia(supabase, user.id, id, oldPath);
   } else if (cover instanceof File && cover.size > 0) {
+    // Upload the new image FIRST, point the recipe at it, and only THEN delete
+    // the old one — a failed upload must never leave the recipe with no photo.
+    let path: string;
     try {
-      const path = await uploadCover(supabase, user.id, id, cover);
-      await supabase.from("recipes").update({ cover_image_path: path }).eq("id", id);
-    } catch {
-      /* non-fatal */
+      path = await uploadCover(supabase, user.id, id, cover);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "The photo couldn't be uploaded." };
+    }
+    await supabase.from("recipes").update({ cover_image_path: path }).eq("id", id);
+    if (oldPath && oldPath !== path) {
+      await supabase.storage.from(BUCKET).remove([oldPath]);
     }
   }
 
@@ -192,7 +228,12 @@ export async function deleteRecipe(id: string): Promise<void> {
   const supabase = await createClient();
   const user = await currentUser();
   if (user) {
-    await removeRecipeFolder(supabase, user.id, id);
+    const { data: current } = await supabase
+      .from("recipes")
+      .select("cover_image_path")
+      .eq("id", id)
+      .single();
+    await removeRecipeMedia(supabase, user.id, id, current?.cover_image_path ?? null);
   }
   await supabase.from("recipes").delete().eq("id", id);
   revalidatePath("/");

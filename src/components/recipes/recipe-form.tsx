@@ -7,6 +7,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { CloseIcon, PlusIcon } from "@/components/icons";
 import type { RecipeFormState } from "@/lib/recipes/actions";
 import { createdRecipeHref } from "@/lib/recipes/constants";
+import { useToast } from "@/components/ui/toast";
+import { compressRecipeImage, ImageCompressionError } from "@/lib/images/compress-client";
 
 export type RecipeFormInitial = {
   title: string;
@@ -56,6 +58,7 @@ export function RecipeForm({
 }) {
   const [state, formAction] = useActionState<RecipeFormState, FormData>(action, undefined);
   const router = useRouter();
+  const toast = useToast();
   const handled = useRef(false);
 
   // On a successful save the action returns the id (never redirects), so the
@@ -63,9 +66,10 @@ export function RecipeForm({
   useEffect(() => {
     if (!state || !("ok" in state) || handled.current) return;
     handled.current = true;
+    if (state.coverWarning) toast(state.coverWarning);
     if (onSaved) onSaved(state.id);
     else router.push(isNew ? createdRecipeHref(state.id) : `/recipes/${state.id}`);
-  }, [state, onSaved, isNew, router]);
+  }, [state, onSaved, isNew, router, toast]);
 
   const formError = state && "error" in state ? state.error : undefined;
 
@@ -90,6 +94,17 @@ export function RecipeForm({
   const [preview, setPreview] = useState<string | null>(importPreviewSrc ?? initial.coverUrl);
   const [coverAction, setCoverAction] = useState<"keep" | "replace" | "remove">("keep");
   const fileRef = useRef<HTMLInputElement>(null);
+  // The compressed WebP we actually upload. The raw <input> file never goes over
+  // the wire — the input carries no `name`; this is injected into the FormData.
+  const compressedRef = useRef<File | null>(null);
+  const [compressing, setCompressing] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
+
+  // Compress on the client, then hand the small WebP to the server action.
+  const dispatch = (fd: FormData) => {
+    if (compressedRef.current) fd.set("cover", compressedRef.current);
+    return formAction(fd);
+  };
 
   const payload = {
     title: title.trim(),
@@ -107,7 +122,7 @@ export function RecipeForm({
   };
 
   return (
-    <form action={formAction} className="flex flex-col gap-5 pb-4">
+    <form action={dispatch} className="flex flex-col gap-5 pb-4">
       <input type="hidden" name="payload" value={JSON.stringify(payload)} />
       <input type="hidden" name="coverAction" value={coverAction} />
       {/* When importing, the untouched cover is a remote thumbnail the server
@@ -132,9 +147,10 @@ export function RecipeForm({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-sm"
+              disabled={compressing}
+              className="rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-sm disabled:opacity-60"
             >
-              {preview ? "Change" : "Add photo"}
+              {compressing ? "Optimising…" : preview ? "Change" : "Add photo"}
             </button>
             {preview && (
               <button
@@ -142,6 +158,8 @@ export function RecipeForm({
                 onClick={() => {
                   setPreview(null);
                   setCoverAction("remove");
+                  setCoverError(null);
+                  compressedRef.current = null;
                   if (fileRef.current) fileRef.current.value = "";
                 }}
                 className="rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-danger shadow-sm"
@@ -154,17 +172,36 @@ export function RecipeForm({
         <input
           ref={fileRef}
           type="file"
-          name="cover"
           accept="image/*"
           className="hidden"
-          onChange={(e) => {
+          onChange={async (e) => {
             const file = e.target.files?.[0];
-            if (file) {
-              setPreview(URL.createObjectURL(file));
+            if (!file) return;
+            setCoverError(null);
+            setCompressing(true);
+            try {
+              const optimised = await compressRecipeImage(file);
+              compressedRef.current = optimised;
+              setPreview(URL.createObjectURL(optimised));
               setCoverAction("replace");
+            } catch (err) {
+              compressedRef.current = null;
+              if (fileRef.current) fileRef.current.value = "";
+              setCoverError(
+                err instanceof ImageCompressionError
+                  ? err.message
+                  : "Couldn't process that photo. Try another.",
+              );
+            } finally {
+              setCompressing(false);
             }
           }}
         />
+        {coverError && (
+          <p role="alert" className="mt-1.5 text-[13px] font-medium text-danger">
+            {coverError}
+          </p>
+        )}
       </div>
 
       <TextField
@@ -226,7 +263,7 @@ export function RecipeForm({
         </p>
       )}
 
-      <SubmitButton fullWidth>{submitLabel}</SubmitButton>
+      <SubmitButton fullWidth disabled={compressing}>{submitLabel}</SubmitButton>
     </form>
   );
 }
