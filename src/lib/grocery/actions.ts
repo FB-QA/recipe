@@ -3,16 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, type Client } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/session";
 import { categorize } from "./categorize";
 import { scaleIngredientText } from "@/lib/recipes/scale";
 import { quantityLabel } from "@/lib/recipes/ingredient";
 
-async function nextSortOrder(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  listId: string,
-): Promise<number> {
+async function nextSortOrder(supabase: Client, listId: string): Promise<number> {
   const { data } = await supabase
     .from("grocery_items")
     .select("sort_order")

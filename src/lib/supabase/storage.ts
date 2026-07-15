@@ -1,12 +1,11 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Client } from "@/lib/supabase/server";
 
 export const RECIPE_IMAGES_BUCKET = "recipe-images";
 const DEFAULT_SIGNED_TTL = 60 * 60; // 1 hour
 
 /** Batch-sign a set of storage paths (deduped, nulls dropped) → path → URL map. */
 export async function signStoragePaths(
-  supabase: SupabaseClient<Database>,
+  supabase: Client,
   paths: Array<string | null | undefined>,
   ttl: number = DEFAULT_SIGNED_TTL,
 ): Promise<Record<string, string>> {

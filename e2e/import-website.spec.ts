@@ -1,16 +1,15 @@
 import { test, expect } from "@playwright/test";
-import { signUp } from "./helpers";
+import { signUp, JSONLD_FIXTURE } from "./helpers";
 
 // Drives the real deterministic (JSON-LD) import path against a local fixture,
 // so it costs nothing and never hits an external site.
-const FIXTURE = "http://localhost:3100/test-fixtures/greek-salad.html";
 
 test.describe("M2 — website import", () => {
   test("import a recipe via JSON-LD, review it, and save it to the shelf", async ({ page }) => {
     await signUp(page);
 
     await page.goto("/import?source=web");
-    await page.getByLabel("Recipe link").fill(FIXTURE);
+    await page.getByLabel("Recipe link").fill(JSONLD_FIXTURE);
     await page.getByRole("button", { name: "Get the recipe" }).click();
 
     // Editable review, prefilled from the source, with the honesty note.
@@ -31,7 +30,7 @@ test.describe("M2 — website import", () => {
 
     // Import + save once.
     await page.goto("/import?source=web");
-    await page.getByLabel("Recipe link").fill(FIXTURE);
+    await page.getByLabel("Recipe link").fill(JSONLD_FIXTURE);
     await page.getByRole("button", { name: "Get the recipe" }).click();
     await expect(page.getByLabel("Title")).toHaveValue("Greek Salad");
     await page.getByRole("button", { name: "Save to shelf" }).click();
@@ -39,7 +38,7 @@ test.describe("M2 — website import", () => {
 
     // Import the same URL again → already-imported card, no review form.
     await page.goto("/import?source=web");
-    await page.getByLabel("Recipe link").fill(FIXTURE);
+    await page.getByLabel("Recipe link").fill(JSONLD_FIXTURE);
     await page.getByRole("button", { name: "Get the recipe" }).click();
     await expect(page.getByText(/already imported this recipe/i)).toBeVisible();
     await expect(page.getByLabel("Title")).toHaveCount(0);

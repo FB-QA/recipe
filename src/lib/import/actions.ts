@@ -7,14 +7,7 @@ import { signStoragePaths } from "@/lib/supabase/storage";
 import { importFromUrl, isInstagramUrl } from "./pipeline";
 import { extractWithAi, aiToExtracted } from "./ai";
 import { hasCookableContent, type ExtractedRecipe, type ImportOutcome } from "./types";
-
-const DAILY_IMPORT_LIMIT = 25;
-const IMPORT_WINDOW_MS = 24 * 3600 * 1000;
-
-/** Start of the rolling import-limit window, as an ISO timestamp. */
-function windowCutoff() {
-  return new Date(Date.now() - IMPORT_WINDOW_MS).toISOString();
-}
+import { importBlocked } from "./limit";
 
 export type PasteState =
   | { phase: "idle" }
@@ -36,9 +29,7 @@ export async function extractPasted(
   const user = await currentUser();
   if (!user) return { phase: "error", error: SIGNED_OUT_ERROR };
 
-  const cutoff = windowCutoff();
-  const { data: recent } = await supabase.rpc("imports_since", { cutoff });
-  if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
+  if (await importBlocked(supabase, user.id)) {
     return {
       phase: "error",
       error: "You've reached today's import limit. Try again tomorrow, or type it in manually.",
@@ -110,9 +101,7 @@ export async function runImport(
   }
 
   // Per-user rate limit (rolling 24h).
-  const cutoff = windowCutoff();
-  const { data: recent } = await supabase.rpc("imports_since", { cutoff });
-  if ((recent ?? 0) >= DAILY_IMPORT_LIMIT) {
+  if (await importBlocked(supabase, user.id)) {
     return {
       phase: "error",
       error: "You've reached today's import limit. It resets in 24 hours — or add a recipe manually.",
