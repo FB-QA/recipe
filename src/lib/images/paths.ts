@@ -6,8 +6,10 @@
 // (storage.foldername(name))[1] = auth.uid(), so every path must start with the
 // owner's id. A fresh uuid per image (rather than a fixed "cover.webp") means a
 // replaced cover gets a new URL — the old signed URL can never serve a stale
-// image after a swap. The whole {user_id}/recipes/{recipe_id} subtree is removed
-// on recipe delete, leaving room for future recipe media without a new layout.
+// image after a swap. On recipe delete, cleanup enumerates the cover subfolder
+// (V1 stores only covers); the {user_id}/recipes/{recipe_id} prefix leaves room
+// for future media, but Supabase list() is not recursive, so a new media type
+// must be added to removeRecipeMedia rather than relying on this prefix.
 
 /** Path for one cover image. `imageId` should be a fresh uuid per upload. */
 export function coverImagePath(userId: string, recipeId: string, imageId: string): string {

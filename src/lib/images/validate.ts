@@ -5,8 +5,8 @@
 //     so we fail a 40 MB burst-shot fast, with a clear message, before wasting a
 //     decode on it.
 //   validateStoredImage — server-side, AFTER compression, on the bytes actually
-//     landing in storage. Strict: it must be the webp (or jpeg fallback) our own
-//     compressor produces, and small. "Do not trust the client" — a hand-crafted
+//     landing in storage. Strict: it must be the WebP our own compressor and
+//     optimiser produce, and small. "Do not trust the client" — a hand-crafted
 //     multipart POST could put anything in the `cover` field.
 
 import { WEBP_MIME } from "./constants";
