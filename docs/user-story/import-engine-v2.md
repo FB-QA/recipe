@@ -98,11 +98,34 @@ the error/fallback messaging the new outcomes require.
 
 ## Architecture  (Archie)
 
-_Frontmatter `architecture:` is set — Archie fills this section._
+Read the access patterns before naming a column: 9 reads, 6 writes, at a
+design point of thousands of imports and tens of thousands of attempt rows.
+Two new ledger tables plus pricing, an additive extension of `recipe_imports`
+(nullable `state` marks legacy v1 rows), and the relational
+groups/ranges/alternatives extension of the recipe children. Six indexes, each
+for a uniqueness invariant, FK cascade, or hot point-lookup — none for scan
+avoidance. The §0.3 money-representation question is settled: unit prices are
+integer **nano-USD** per unit (`price_per_unit_nano_usd bigint`), computed
+costs are integer micro-USD `bigint` throughout, round-half-up per component
+at attempt write time — no float touches money. Idempotency: the import row
+itself is the claim (unique `(user_id, idempotency_key)` +
+`INSERT ... ON CONFLICT`), paid calls are a write-ahead attempt ledger under
+CAS state transitions — a double click structurally cannot pay twice. One
+envelope (`ImportResult` discriminated union) across all three server actions;
+keyset pagination `(created_at DESC, id)` reserved surface-wide for the admin
+story. Migration is forward-only additive; the only destructive work (v1
+column drops, `state` backfill) is flagged for approval, not performed.
 
-**Files:** _(paths under `docs/architecture/import-engine-v2/`)_
+**Files:**
 
-**Status:** pending
+- `docs/architecture/import-engine-v2/access-patterns.md`
+- `docs/architecture/import-engine-v2/schema.md`
+- `docs/architecture/import-engine-v2/indexes.md`
+- `docs/architecture/import-engine-v2/api.md`
+- `docs/architecture/import-engine-v2/migration.md`
+- `docs/architecture/import-engine-v2/decision.md`
+
+**Status:** done
 
 ---
 
@@ -124,4 +147,14 @@ _Frontmatter `architecture:` is set — Archie fills this section._
 
 ## Open questions for Freddi
 
-- (none yet)
+- **[Archie — Channel 2] v1 `recipe_imports` cleanup migration (destructive,
+  deferred).** v2 extends the table additively; legacy rows keep working via
+  the old columns (`status`, `method`, `estimated_cost_cents`, `media_url`)
+  with `state IS NULL` marking them. The eventual cleanup — backfilling
+  `state NOT NULL` (lossy mapping: v1 `no_recipe` conflates
+  `not_a_recipe`/`insufficient_content`) and dropping the four v1 columns plus
+  the `import_status` enum — is destructive and is **not** in this story's
+  migration. Proposed resolution: approve it as a standalone migration after
+  `import-admin-usage-v2` ships and nothing reads the v1 columns; until then
+  they cost bytes, not correctness. Full mapping and rollback notes in
+  `docs/architecture/import-engine-v2/migration.md`, "Flagged for approval".
