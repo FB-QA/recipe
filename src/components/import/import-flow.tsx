@@ -13,6 +13,7 @@ import { ImportNote } from "@/components/import/import-note";
 import { ImportFailure } from "@/components/import/import-failure";
 import { InstagramIcon, GlobeIcon, CheckIcon } from "@/components/icons";
 import { extractedToFormInitial } from "@/lib/import/to-form";
+import { attributionLabel } from "@/lib/recipes/handle";
 import type { ImportResult, ExtractedRecipe } from "@/lib/import/schema";
 
 const EXTRACTING_STEPS = ["Reading the recipe…", "Pulling out ingredients & steps…", "Tidying it up…"];
@@ -138,12 +139,13 @@ function Review({
 }) {
   const sourceType = recipe.source.sourceType.startsWith("instagram") ? "instagram" : "website";
   const cached = recipe.source.retrievalMethod === "cache";
+  const creatorLabel = attributionLabel(recipe.source.creatorName) ?? "Imported";
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-basil-tint px-3 py-1.5 text-[12px] font-semibold text-basil">
           {source === "instagram" ? <InstagramIcon size={14} /> : <GlobeIcon size={14} />}
-          {recipe.source.creatorName ? `@${recipe.source.creatorName}` : "Imported"}
+          {creatorLabel}
           {cached ? " · from your history" : ""}
         </span>
       </div>

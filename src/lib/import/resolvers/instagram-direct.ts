@@ -78,10 +78,21 @@ function quotedCaption(text: string | null): string | null {
   return m ? m[1].trim() : null;
 }
 
-/** Creator from `<name> on Instagram: "…"`. */
+/** Display name from `<name> on Instagram: "…"` (a fallback — not the handle). */
 function ogCreator(title: string | null): string | null {
   const m = title?.match(/^(.*?)\s+on Instagram\b/i);
   return m ? m[1].trim() || null : null;
+}
+
+/**
+ * The real @username lives in og:description, not og:title:
+ *   "19K likes, 185 comments - emthenutritionist on March 16, 2026: …"
+ * og:title only carries the display name ("Emily English on Instagram"). Prefer
+ * this so the attribution shows the actual handle, no login and no Apify needed.
+ */
+function ogUsernameFromDescription(description: string | null): string | null {
+  const m = description?.match(/[-–—]\s*([a-z0-9._]{1,30})\s+on\s+[A-Z]/);
+  return m ? m[1] : null;
 }
 
 /** Embedded-JSON module: caption text from script-data patterns. */
@@ -145,7 +156,9 @@ export function parseInstagramHtml(html: string): ParsedInstagramPage {
 
   const og = parseOpenGraph(html);
   const caption = embeddedCaption(html) ?? quotedCaption(og.description) ?? quotedCaption(og.title);
-  const creatorName = ogCreator(og.title) ?? ogUsernameFromJson(html);
+  // Prefer the real @username (og:description / embedded JSON) over the display
+  // name (og:title). The handle is what the attribution needs.
+  const creatorName = ogUsernameFromDescription(og.description) ?? ogUsernameFromJson(html) ?? ogCreator(og.title);
 
   let postType: PostType = "unknown";
   if (og.video || /"is_video"\s*:\s*true/.test(html)) postType = "reel";

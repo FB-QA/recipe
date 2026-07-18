@@ -41,6 +41,17 @@ describe("parseInstagramHtml", () => {
     expect(p.warnings).not.toContain("login_wall_detected");
   });
 
+  it("prefers the real @username from og:description over the display name in og:title", () => {
+    // The handle lives in og:description ("… - emthenutritionist on …"), not the
+    // og:title display name — no login and no Apify needed to read it.
+    const html = `<!DOCTYPE html><html><head>
+      <meta property="og:title" content="Emily English on Instagram: &quot;Gnocchi lasagne&quot;" />
+      <meta property="og:description" content="19K likes, 185 comments - emthenutritionist on March 16, 2026: &quot;Gnocchi lasagne. 500g chicken, 250g gnocchi. Method: brown, bake 10 min.&quot;" />
+      <meta property="og:image" content="https://scontent.cdninstagram.com/x.jpg" />
+      <title>Instagram</title></head><body></body></html>`;
+    expect(parseInstagramHtml(html).creatorName).toBe("emthenutritionist");
+  });
+
   it("emits login_wall_detected on the login shell", () => {
     const p = parseInstagramHtml(LOGIN_SHELL);
     expect(p.warnings).toContain("login_wall_detected");

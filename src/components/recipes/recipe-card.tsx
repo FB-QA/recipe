@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CoverImage } from "./cover-image";
 import { HeartIcon, UserIcon, ListIcon } from "@/components/icons";
 import { parseServings } from "@/lib/recipes/scale";
+import { attributionLabel } from "@/lib/recipes/handle";
 import type { RecipeListItem } from "@/lib/recipes/queries";
 
 const sourceLabel: Record<RecipeListItem["source_type"], string> = {
@@ -36,7 +37,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
         )}
         {(recipe.source_handle || recipe.source_type !== "manual") && (
           <span className="relative max-w-[85%] truncate rounded-full bg-[rgba(20,28,22,0.55)] px-2 py-[3px] text-[10.5px] font-bold tracking-[0.03em] text-white backdrop-blur-sm">
-            {recipe.source_handle ? `@${recipe.source_handle}` : sourceLabel[recipe.source_type]}
+            {recipe.source_handle ? attributionLabel(recipe.source_handle) : sourceLabel[recipe.source_type]}
           </span>
         )}
       </CoverImage>

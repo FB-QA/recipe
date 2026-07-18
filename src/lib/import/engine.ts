@@ -475,7 +475,7 @@ function aiClose(
 async function finishReady(
   recipe: AiExtractedRecipe, evidence: SourceEvidence, request: ImportRequest,
   fromState: string, store: ImportStore, retrievalMethod: string,
-  coverOverride: string | null = null,
+  coverOverride: string | null = null, handleOverride: string | null = null,
 ): Promise<EngineOutcome> {
   const full: ExtractedRecipe = {
     ...recipe,
@@ -483,7 +483,7 @@ async function finishReady(
       sourceType: evidence.sourceType,
       sourceUrl: evidence.sourceUrl,
       sourceTitle: evidence.title,
-      creatorName: evidence.creatorName,
+      creatorName: handleOverride ?? evidence.creatorName,
       retrievalMethod,
       coverImageUrl: coverOverride ?? evidence.media.find((m) => m.modality === "image")?.sourceUrl ?? null,
     },
