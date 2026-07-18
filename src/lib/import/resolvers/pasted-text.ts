@@ -1,10 +1,5 @@
 import { createHash } from "node:crypto";
-import type {
-  ImportRequest,
-  ResolverContext,
-  SourceResolver,
-  SourceResolverResult,
-} from "../schema";
+import type { ImportRequest, SourceResolver, SourceResolverResult } from "../schema";
 
 /**
  * §12 — pasted text. The trivial resolver: the user already handed us the
@@ -29,7 +24,7 @@ export const pastedTextResolver: SourceResolver = {
     return request.sourceKind === "pasted_text" && (request.text?.trim().length ?? 0) > 0;
   },
 
-  async resolve(request: ImportRequest, _context: ResolverContext): Promise<SourceResolverResult> {
+  async resolve(request: ImportRequest): Promise<SourceResolverResult> {
     const text = normaliseWhitespace(request.text ?? "").slice(0, MAX_TEXT_CHARS);
     return {
       evidence: {

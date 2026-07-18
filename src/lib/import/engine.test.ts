@@ -5,7 +5,6 @@ import type { PriceRow } from "./pricing";
 import type {
   AiExtractedRecipe,
   ImportRequest,
-  NormalizedImportInput,
   ProviderExtractionResult,
   RecipeExtractionProvider,
   SourceResolver,
@@ -96,7 +95,7 @@ function stubProvider(...results: ProviderExtractionResult[]): RecipeExtractionP
   const queue = [...results];
   return {
     providerId: "anthropic", serviceId: "messages", modelId: "claude-haiku-4-5",
-    supports: (_i: NormalizedImportInput) => true,
+    supports: () => true,
     extract: vi.fn(async () => queue.shift()!),
   };
 }

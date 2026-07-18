@@ -3,7 +3,6 @@ import { importConfig } from "../config";
 import { classifyInstagramUrl } from "./instagram-direct";
 import type {
   ImportRequest,
-  ResolverContext,
   SourceEvidence,
   SourceEvidenceWarning,
   SourceResolver,
@@ -66,7 +65,7 @@ export function createGeminiUrlContextResolver(options?: {
       return Boolean(apiKey) && request.url !== null && classifyInstagramUrl(request.url) !== null;
     },
 
-    async resolve(request: ImportRequest, _context: ResolverContext): Promise<SourceResolverResult> {
+    async resolve(request: ImportRequest): Promise<SourceResolverResult> {
       const sourceType = classifyInstagramUrl(request.url ?? "") ?? "instagram_post";
       const evidence = (over: Partial<SourceEvidence>): SourceEvidence => ({
         sourceType,

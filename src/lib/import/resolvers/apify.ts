@@ -6,7 +6,6 @@ import { hasRecipeSignal } from "../evidence";
 import type {
   ImportRequest,
   PostType,
-  ResolverContext,
   SourceEvidence,
   SourceEvidenceWarning,
   SourceMedia,
@@ -44,7 +43,7 @@ export function createApifyResolver(options?: { fetchInstagram?: FetchInstagramF
       );
     },
 
-    async resolve(request: ImportRequest, _context: ResolverContext): Promise<SourceResolverResult> {
+    async resolve(request: ImportRequest): Promise<SourceResolverResult> {
       const sourceType = classifyInstagramUrl(request.url ?? "") ?? "instagram_post";
       const evidence = (over: Partial<SourceEvidence>): SourceEvidence => ({
         sourceType,
