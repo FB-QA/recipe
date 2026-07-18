@@ -228,6 +228,9 @@ export const extractedRecipeSchema = z.object({
     sourceTitle: z.string().nullable(),
     creatorName: z.string().nullable(),
     retrievalMethod: z.string(),
+    /** First image from the source (Instagram og:image / website image), for the
+     *  cover thumbnail. The engine fills it from evidence; the model never sees it. */
+    coverImageUrl: z.string().nullable().default(null),
   }),
   warnings: z.array(extractionWarningSchema),
   missingFields: z.array(z.string()),

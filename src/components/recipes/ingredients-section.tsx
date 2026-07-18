@@ -7,17 +7,29 @@ import { MinusIcon, PlusIcon } from "@/components/icons";
 import { parseServings, scaleIngredientText } from "@/lib/recipes/scale";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
 
+export interface IngredientGroupView {
+  id: string;
+  name: string | null;
+  ingredients: (IngredientLike & { optional?: boolean })[];
+}
+
 export function IngredientsSection({
   recipeId,
   ingredients,
+  groups,
   servingsText,
   addedIngredientIds,
 }: {
   recipeId: string;
   ingredients: IngredientLike[];
+  /** Display sections. A single unnamed group renders with no heading (§18). */
+  groups?: IngredientGroupView[];
   servingsText: string | null;
   addedIngredientIds: string[];
 }) {
+  const sections: IngredientGroupView[] =
+    groups && groups.length > 0 ? groups : [{ id: "all", name: null, ingredients }];
+  const showHeadings = sections.length > 1 || Boolean(sections[0]?.name);
   const base = parseServings(servingsText);
   const [target, setTarget] = useState(base ?? 1);
   const scale = base ? target / base : 1;
@@ -53,17 +65,33 @@ export function IngredientsSection({
         )}
       </div>
 
-      <ul className="overflow-hidden rounded-card border border-line bg-surface">
-        {ingredients.map((ing) => (
-          <li
-            key={ing.id}
-            className="flex items-center gap-3 border-b border-line-2 px-4 py-3 text-[14px] last:border-b-0"
-          >
-            <FoodImage text={ing.name ?? ing.display_text} size={22} className="flex-none text-ink-3" />
-            <span className="text-ink-2">{scaleIngredientText(ing.display_text, scale)}</span>
-          </li>
+      <div className="flex flex-col gap-4">
+        {sections.map((section) => (
+          <div key={section.id}>
+            {showHeadings && section.name && (
+              <h3 className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.03em] text-basil">
+                {section.name}
+              </h3>
+            )}
+            <ul className="overflow-hidden rounded-card border border-line bg-surface">
+              {section.ingredients.map((ing) => (
+                <li
+                  key={ing.id}
+                  className="flex items-center gap-3 border-b border-line-2 px-4 py-3 text-[14px] last:border-b-0"
+                >
+                  <FoodImage text={ing.name ?? ing.display_text} size={22} className="flex-none text-ink-3" />
+                  <span className="text-ink-2">{scaleIngredientText(ing.display_text, scale)}</span>
+                  {ing.optional && (
+                    <span className="ml-auto flex-none rounded-full bg-surface-2 px-2 py-0.5 text-[10.5px] font-semibold text-ink-3">
+                      optional
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
-      </ul>
+      </div>
 
       <div className="mt-4">
         <AddToListSheet

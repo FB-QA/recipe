@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { CloseIcon, PlusIcon } from "@/components/icons";
 import type { RecipeFormState } from "@/lib/recipes/actions";
 import { createdRecipeHref } from "@/lib/recipes/constants";
+import { GroupedIngredients, type EditGroup } from "@/components/recipes/grouped-ingredients";
 
 export type RecipeFormInitial = {
   title: string;
@@ -19,6 +20,11 @@ export type RecipeFormInitial = {
   steps: string[];
   tips: string[];
   coverUrl: string | null;
+  /** Structured ingredient sections (imports + v2 recipes). When present the
+   *  form renders the group-aware editor and submits `ingredientGroups`. */
+  groups?: EditGroup[];
+  /** Step titles parallel to `steps`, when the source gave meaningful ones. */
+  stepTitles?: (string | null)[];
 };
 
 const EMPTY: RecipeFormInitial = {
@@ -77,7 +83,11 @@ export function RecipeForm({
   const [ingredients, setIngredients] = useState<string[]>(
     initial.ingredients.length ? initial.ingredients : [""],
   );
+  // Grouped mode: present only when the recipe carries sections.
+  const grouped = Boolean(initial.groups && initial.groups.length > 0);
+  const [groups, setGroups] = useState<EditGroup[]>(initial.groups ?? []);
   const [steps, setSteps] = useState<string[]>(initial.steps.length ? initial.steps : [""]);
+  const stepTitles = initial.stepTitles ?? [];
   const [tips, setTips] = useState<string[]>(initial.tips);
 
   // A remote import cover (e.g. an Instagram thumbnail) is hotlink-blocked in the
@@ -101,8 +111,27 @@ export function RecipeForm({
     source_type: source?.type ?? ("manual" as const),
     source_handle: source?.handle ?? null,
     tags: [] as string[],
-    ingredients: ingredients.filter((x) => x.trim()).map((t) => ({ display_text: t.trim() })),
-    steps: steps.filter((x) => x.trim()).map((t) => ({ instruction: t.trim() })),
+    // Flat ingredients still submitted in non-grouped mode (manual/legacy).
+    ingredients: grouped ? [] : ingredients.filter((x) => x.trim()).map((t) => ({ display_text: t.trim() })),
+    ingredientGroups: grouped
+      ? groups.map((g) => ({
+          name: g.name.trim() || null,
+          optional: false,
+          ingredients: g.ingredients
+            .filter((i) => i.display_text.trim())
+            .map((i) => ({
+              display_text: i.display_text.trim(),
+              quantity_min: i.quantity_min,
+              quantity_max: i.quantity_max,
+              preparation: i.preparation,
+              optional: i.optional,
+              alternative_group: i.alternative_group,
+            })),
+        }))
+      : undefined,
+    steps: steps
+      .map((instruction, i) => ({ instruction: instruction.trim(), title: stepTitles[i]?.trim() || null }))
+      .filter((s) => s.instruction),
     tips: tips.filter((x) => x.trim()).map((t) => t.trim()),
   };
 
@@ -193,13 +222,17 @@ export function RecipeForm({
         <TextField label="Cook" value={cook} onChange={(e) => setCook(e.target.value)} placeholder="20 min" />
       </div>
 
-      <DynamicList
-        label="Ingredients"
-        items={ingredients}
-        setItems={setIngredients}
-        placeholder="2 chicken breasts"
-        addLabel="Add ingredient"
-      />
+      {grouped ? (
+        <GroupedIngredients groups={groups} setGroups={setGroups} />
+      ) : (
+        <DynamicList
+          label="Ingredients"
+          items={ingredients}
+          setItems={setIngredients}
+          placeholder="2 chicken breasts"
+          addLabel="Add ingredient"
+        />
+      )}
 
       <DynamicList
         label="Method"

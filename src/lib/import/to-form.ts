@@ -1,4 +1,5 @@
 import type { RecipeFormInitial } from "@/components/recipes/recipe-form";
+import type { EditGroup } from "@/components/recipes/grouped-ingredients";
 import type { ExtractedRecipe } from "./schema";
 
 /**
@@ -18,23 +19,29 @@ export function minutesToLabel(mins: number | null): string {
   return [h ? `${h} hr` : "", m ? `${m} min` : ""].filter(Boolean).join(" ");
 }
 
-/** One editable line per ingredient, verbatim wording preserved. */
+/** Flat fallback lines (non-grouped consumers). */
 function ingredientLines(recipe: ExtractedRecipe): string[] {
-  const lines: string[] = [];
-  for (const group of recipe.ingredientGroups) {
-    for (const ing of group.ingredients) {
-      lines.push(ing.originalText);
-    }
-  }
+  const lines = recipe.ingredientGroups.flatMap((g) => g.ingredients.map((i) => i.originalText));
   return lines.length > 0 ? lines : [""];
 }
 
-function stepLines(recipe: ExtractedRecipe): string[] {
-  const lines = recipe.steps.map((s) => (s.title ? `${s.title}: ${s.instruction}` : s.instruction));
-  return lines.length > 0 ? lines : [""];
+/** The structured, editable sections — verbatim wording, ranges/optionals/alternatives preserved. */
+function editGroups(recipe: ExtractedRecipe): EditGroup[] {
+  return recipe.ingredientGroups.map((g) => ({
+    name: g.name ?? "",
+    ingredients: g.ingredients.map((i) => ({
+      display_text: i.originalText,
+      optional: i.optional,
+      quantity_min: i.quantityMin,
+      quantity_max: i.quantityMax,
+      alternative_group: i.alternativeGroupId,
+      preparation: i.preparation,
+    })),
+  }));
 }
 
 export function extractedToFormInitial(recipe: ExtractedRecipe, sourceUrl = ""): RecipeFormInitial {
+  const hasGroups = recipe.ingredientGroups.some((g) => g.ingredients.length > 0);
   return {
     title: recipe.title ?? "Untitled recipe",
     description: recipe.description ?? "",
@@ -43,7 +50,9 @@ export function extractedToFormInitial(recipe: ExtractedRecipe, sourceUrl = ""):
     cook_time: minutesToLabel(recipe.cookTimeMinutes),
     source_url: recipe.source.sourceUrl ?? sourceUrl,
     ingredients: ingredientLines(recipe),
-    steps: stepLines(recipe),
+    groups: hasGroups ? editGroups(recipe) : undefined,
+    steps: recipe.steps.length > 0 ? recipe.steps.map((s) => s.instruction) : [""],
+    stepTitles: recipe.steps.map((s) => s.title),
     tips: recipe.tips,
     coverUrl: null,
   };

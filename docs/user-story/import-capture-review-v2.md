@@ -3,7 +3,7 @@ slug: import-capture-review-v2
 project: recipe
 type: user-story
 created: 2026-07-17
-status: drafting
+status: ready-for-build
 shape: journey
 links: [spec/import-v2.md, user-story/import-engine-v2.md]
 ---

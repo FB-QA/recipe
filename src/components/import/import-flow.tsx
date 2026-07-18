@@ -154,6 +154,7 @@ function Review({
         action={createRecipe}
         initial={extractedToFormInitial(recipe)}
         source={{ type: sourceType, url: recipe.source.sourceUrl ?? "", handle: recipe.source.creatorName }}
+        importCoverUrl={recipe.source.coverImageUrl}
         submitLabel="Save to shelf"
         isNew
         onSaved={onSaved}

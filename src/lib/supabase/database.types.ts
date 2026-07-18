@@ -225,30 +225,83 @@ export type Database = {
           },
         ]
       }
-      recipe_ingredients: {
+      recipe_ingredient_groups: {
         Row: {
-          display_text: string
           id: string
           name: string | null
+          optional: boolean
+          position: number
+          recipe_id: string
+        }
+        Insert: {
+          id?: string
+          name?: string | null
+          optional?: boolean
+          position?: number
+          recipe_id: string
+        }
+        Update: {
+          id?: string
+          name?: string | null
+          optional?: boolean
+          position?: number
+          recipe_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_ingredient_groups_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipe_ingredients: {
+        Row: {
+          alternative_group: string | null
+          display_text: string
+          group_id: string | null
+          id: string
+          name: string | null
+          optional: boolean
+          preparation: string | null
           quantity: string | null
+          quantity_max: number | null
+          quantity_min: number | null
+          quantity_value: number | null
           recipe_id: string
           sort_order: number
           unit: string | null
         }
         Insert: {
+          alternative_group?: string | null
           display_text: string
+          group_id?: string | null
           id?: string
           name?: string | null
+          optional?: boolean
+          preparation?: string | null
           quantity?: string | null
+          quantity_max?: number | null
+          quantity_min?: number | null
+          quantity_value?: number | null
           recipe_id: string
           sort_order?: number
           unit?: string | null
         }
         Update: {
+          alternative_group?: string | null
           display_text?: string
+          group_id?: string | null
           id?: string
           name?: string | null
+          optional?: boolean
+          preparation?: string | null
           quantity?: string | null
+          quantity_max?: number | null
+          quantity_min?: number | null
+          quantity_value?: number | null
           recipe_id?: string
           sort_order?: number
           unit?: string | null
@@ -261,6 +314,13 @@ export type Database = {
             referencedRelation: "recipes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "recipe_ingredients_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "recipe_ingredient_groups"
+            referencedColumns: ["id"]
+          },
         ]
       }
       recipe_steps: {
@@ -270,6 +330,7 @@ export type Database = {
           instruction: string
           recipe_id: string
           sort_order: number
+          title: string | null
         }
         Insert: {
           id?: string
@@ -277,6 +338,7 @@ export type Database = {
           instruction: string
           recipe_id: string
           sort_order?: number
+          title?: string | null
         }
         Update: {
           id?: string
@@ -284,6 +346,7 @@ export type Database = {
           instruction?: string
           recipe_id?: string
           sort_order?: number
+          title?: string | null
         }
         Relationships: [
           {

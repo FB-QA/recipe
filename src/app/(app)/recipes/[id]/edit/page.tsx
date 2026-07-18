@@ -12,6 +12,24 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
 
+  // A recipe with real sections (an import, or a multi-section recipe) edits in
+  // grouped mode; a plain flat recipe stays on the simple list.
+  const hasSections =
+    recipe.ingredientGroups.length > 1 || Boolean(recipe.ingredientGroups[0]?.name);
+  const groups = hasSections
+    ? recipe.ingredientGroups.map((g) => ({
+        name: g.name ?? "",
+        ingredients: g.ingredients.map((i) => ({
+          display_text: i.display_text,
+          optional: i.optional ?? false,
+          quantity_min: i.quantity_min ?? null,
+          quantity_max: i.quantity_max ?? null,
+          alternative_group: i.alternative_group ?? null,
+          preparation: i.preparation ?? null,
+        })),
+      }))
+    : undefined;
+
   const initial: RecipeFormInitial = {
     title: recipe.title,
     description: recipe.description ?? "",
@@ -20,7 +38,9 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
     cook_time: recipe.cook_time ?? "",
     source_url: recipe.source_url ?? "",
     ingredients: recipe.ingredients.map(ingredientLine),
+    groups,
     steps: recipe.steps.map((s) => s.instruction),
+    stepTitles: recipe.steps.map((s) => s.title),
     tips: recipe.tips.map((t) => t.text),
     coverUrl: recipe.coverUrl,
   };

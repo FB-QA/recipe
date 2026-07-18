@@ -89,6 +89,7 @@ export default async function RecipeDetailPage({
         <IngredientsSection
           recipeId={recipe.id}
           ingredients={recipe.ingredients}
+          groups={recipe.ingredientGroups}
           servingsText={recipe.servings}
           addedIngredientIds={addedIngredientIds}
         />
@@ -103,17 +104,22 @@ export default async function RecipeDetailPage({
                 <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-basil-tint text-[13px] font-bold text-basil">
                   {i + 1}
                 </span>
-                <p className="pt-1 text-[14px] leading-relaxed text-ink-2">
-                  {highlightStep(step.instruction, stepTerms).map((seg, j) =>
-                    seg.bold ? (
-                      <strong key={j} className="font-semibold text-ink">
-                        {seg.text}
-                      </strong>
-                    ) : (
-                      <span key={j}>{seg.text}</span>
-                    ),
+                <div className="pt-1">
+                  {step.title && (
+                    <p className="mb-0.5 text-[14px] font-bold text-ink">{step.title}</p>
                   )}
-                </p>
+                  <p className="text-[14px] leading-relaxed text-ink-2">
+                    {highlightStep(step.instruction, stepTerms).map((seg, j) =>
+                      seg.bold ? (
+                        <strong key={j} className="font-semibold text-ink">
+                          {seg.text}
+                        </strong>
+                      ) : (
+                        <span key={j}>{seg.text}</span>
+                      ),
+                    )}
+                  </p>
+                </div>
               </li>
             ))}
           </ol>

@@ -24,7 +24,7 @@ const recipe: ExtractedRecipe = {
   ],
   tips: ["Best next day."],
   servingSuggestions: [],
-  source: { sourceType: "website", sourceUrl: "https://x.test/orzo", sourceTitle: null, creatorName: null, retrievalMethod: "jsonld" },
+  source: { sourceType: "website", sourceUrl: "https://x.test/orzo", sourceTitle: null, creatorName: null, retrievalMethod: "jsonld", coverImageUrl: null },
   warnings: [],
   missingFields: [],
 };
@@ -39,26 +39,33 @@ describe("minutesToLabel", () => {
   });
 });
 
-describe("extractedToFormInitial — display-only flattening (groups persist next story)", () => {
-  it("preserves verbatim ingredient wording across all groups, including ranges", () => {
+describe("extractedToFormInitial — structured groups + titles for the review", () => {
+  it("builds editable sections with names, verbatim wording and range/optional metadata", () => {
     const form = extractedToFormInitial(recipe);
-    expect(form.ingredients).toEqual(["1–2 tbsp olive oil", "15–20g toasted pecans"]);
+    expect(form.groups?.map((g) => g.name)).toEqual(["For the base", "To finish"]);
+    expect(form.groups?.[0].ingredients[0]).toMatchObject({
+      display_text: "1–2 tbsp olive oil",
+      quantity_min: 1,
+      quantity_max: 2,
+    });
+    expect(form.groups?.[1].ingredients[0]).toMatchObject({ display_text: "15–20g toasted pecans", optional: true });
   });
 
-  it("keeps step titles inline and the source URL from the recipe", () => {
+  it("keeps steps as instructions with titles parallel in stepTitles, and the source URL", () => {
     const form = extractedToFormInitial(recipe);
-    expect(form.steps).toEqual(["Roast: Roast the strawberries.", "Combine and chill."]);
+    expect(form.steps).toEqual(["Roast the strawberries.", "Combine and chill."]);
+    expect(form.stepTitles).toEqual(["Roast", null]);
     expect(form.source_url).toBe("https://x.test/orzo");
     expect(form.prep_time).toBe("10 min");
     expect(form.cook_time).toBe("1 hr 30 min");
     expect(form.servings).toBe("Serves 4");
   });
 
-  it("falls back to a safe title and empty lists rather than crashing on a sparse recipe", () => {
+  it("falls back to a safe title and no groups rather than crashing on a sparse recipe", () => {
     const sparse: ExtractedRecipe = { ...recipe, title: null, ingredientGroups: [], steps: [], tips: [] };
     const form = extractedToFormInitial(sparse);
     expect(form.title).toBe("Untitled recipe");
-    expect(form.ingredients).toEqual([""]);
+    expect(form.groups).toBeUndefined();
     expect(form.steps).toEqual([""]);
   });
 });

@@ -436,6 +436,7 @@ async function finishReady(
       sourceTitle: evidence.title,
       creatorName: evidence.creatorName,
       retrievalMethod,
+      coverImageUrl: evidence.media.find((m) => m.modality === "image")?.sourceUrl ?? null,
     },
   };
   const score = qualityScore(recipe);
