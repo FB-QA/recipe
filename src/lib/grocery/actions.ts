@@ -183,13 +183,15 @@ export async function addRecipeIngredientsToList(
   const alreadyIds = new Set(
     (existingItems ?? []).map((r) => r.source_ingredient_id).filter(Boolean),
   );
-  const alreadyText = new Set((existingItems ?? []).map((r) => r.display_text));
-  // The grocery line is the shopping item itself — "olive oil", not "1 tbsp
-  // olive oil". groceryName strips the measurement (the extractor often leaves
-  // the whole line in `name`); the quantity lives in its own column below.
-  const displayFor = (ing: (typeof ingredients)[number]) => groceryName(ing);
+  // Dedup on the normalised item name, scale-independent. Existing rows added
+  // before this shipped hold the old un-stripped text ("1 tbsp olive oil"), so
+  // normalise those through groceryName too — otherwise re-adding an edited
+  // recipe (whose provenance FK was nulled) would duplicate instead of dedupe.
+  const alreadyText = new Set(
+    (existingItems ?? []).map((r) => groceryName({ display_text: r.display_text })),
+  );
   const fresh = ingredients.filter(
-    (ing) => !alreadyIds.has(ing.id) && !alreadyText.has(displayFor(ing)),
+    (ing) => !alreadyIds.has(ing.id) && !alreadyText.has(groceryName(ing)),
   );
   const skipped = ingredients.length - fresh.length;
   if (fresh.length === 0) return { listId: target, count: 0, skipped, created, listName };
@@ -197,11 +199,12 @@ export async function addRecipeIngredientsToList(
   const base = await nextSortOrder(supabase, target);
   const rows = fresh.map((ing, i) => {
     // Grocery quantity from structured fields only, cooking measures dropped;
-    // for legacy rows the count (if any) is already inline in groceryName.
+    // for legacy rows the count (if any) is inline in groceryName. Scale the
+    // stored line so doubling a "3 lemons" recipe lists "6 lemons".
     const qty = groceryQuantity(ing);
     return {
       list_id: target!,
-      display_text: groceryName(ing),
+      display_text: scaleIngredientText(groceryName(ing), scale),
       quantity: qty ? scaleIngredientText(qty, scale) : null,
       source_recipe_id: recipeId,
       source_ingredient_id: ing.id,

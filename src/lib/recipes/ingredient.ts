@@ -23,7 +23,11 @@ export function quantityLabel(ing: { quantity?: string | null; unit?: string | n
   return [ing.quantity, ing.unit].filter(Boolean).join(" ") || null;
 }
 
-const LEADING_QTY = /^[\d\s.,/×x¼½¾⅓⅔⅛⅜⅝⅞+-]+/i;
+// A leading quantity: an optional "N×" multiplier, then digits / fractions /
+// ranges. The multiplier requires a digit before the x/×, so a clean name like
+// "xanthan gum" is never mistaken for a quantity. En/em dashes are accepted for
+// ranges ("1–2 tbsp"), not just the ASCII hyphen.
+const LEADING_QTY = /^(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/i;
 // Cooking MEASURES only — the "small quantity" units to drop for shopping.
 // Discrete purchasable units (can, tin, jar, pack, bottle, bunch, head) are
 // deliberately NOT here: you shop by them, so they pass through as counts.

@@ -5,8 +5,7 @@ import { CoverImage, DETAIL_COVER } from "@/components/recipes/cover-image";
 import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { ShareButton } from "@/components/recipes/share-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
-import { IngredientsSection } from "@/components/recipes/ingredients-section";
-import { MethodSteps } from "@/components/recipes/method-steps";
+import { CookSections } from "@/components/recipes/cook-sections";
 import { SavedToast } from "@/components/recipes/saved-toast";
 import { listedIngredientIds } from "@/lib/grocery/queries";
 import { CREATED_PARAM } from "@/lib/recipes/constants";
@@ -123,35 +122,27 @@ export default async function RecipeDetailPage({
         );
       })()}
 
-      {recipe.ingredients.length > 0 && (
-        <IngredientsSection
+      {(recipe.ingredients.length > 0 || recipe.steps.length > 0) && (
+        <CookSections
           recipeId={recipe.id}
           ingredients={recipe.ingredients}
           groups={recipe.ingredientGroups}
           servingsText={recipe.servings}
           addedIngredientIds={addedIngredientIds}
+          stepTerms={stepTerms}
+          steps={recipe.steps.map((step) => ({
+            id: step.id,
+            title: step.title,
+            instruction: step.instruction,
+            ingredients: ingredientsInStep(step.instruction, recipe.ingredients).map((ing) => ({
+              id: ing.id,
+              display_text: ing.display_text,
+              quantity: ing.quantity,
+              unit: ing.unit,
+              name: ing.name,
+            })),
+          }))}
         />
-      )}
-
-      {recipe.steps.length > 0 && (
-        <section>
-          <SectionHeading>Method</SectionHeading>
-          <MethodSteps
-            stepTerms={stepTerms}
-            steps={recipe.steps.map((step) => ({
-              id: step.id,
-              title: step.title,
-              instruction: step.instruction,
-              ingredients: ingredientsInStep(step.instruction, recipe.ingredients).map((ing) => ({
-                id: ing.id,
-                display_text: ing.display_text,
-                quantity: ing.quantity,
-                unit: ing.unit,
-                name: ing.name,
-              })),
-            }))}
-          />
-        </section>
       )}
 
       {recipe.tips.length > 0 && (

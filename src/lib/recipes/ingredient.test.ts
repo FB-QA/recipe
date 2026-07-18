@@ -17,6 +17,13 @@ describe("groceryName — measures dropped, counts kept", () => {
     ["2 eggs", "2 eggs"],
     ["1 onion", "1 onion"],
     ["salt", "salt"],
+    // A clean name that merely starts with "x" must not be mistaken for a multiplier.
+    ["xanthan gum", "xanthan gum"],
+    ["xylitol", "xylitol"],
+    // En-dash range is a range, and the unit still drops.
+    ["1–2 tbsp olive oil", "olive oil"],
+    // A real "2x" multiplier is a quantity and drops with its unit.
+    ["2x 400g chopped tomatoes", "chopped tomatoes"],
   ];
   for (const [input, expected] of cases) {
     it(`"${input}" → "${expected}"`, () => {

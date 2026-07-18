@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { FoodImage } from "@/components/food-icons";
 import { AddToListSheet } from "@/components/grocery/add-to-list-sheet";
 import { MinusIcon, PlusIcon } from "@/components/icons";
-import { parseServings, scaleIngredientText } from "@/lib/recipes/scale";
+import { scaleIngredientText } from "@/lib/recipes/scale";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
 
 export interface IngredientGroupView {
@@ -17,22 +17,26 @@ export function IngredientsSection({
   recipeId,
   ingredients,
   groups,
-  servingsText,
   addedIngredientIds,
+  base,
+  target,
+  setTarget,
+  scale,
 }: {
   recipeId: string;
   ingredients: IngredientLike[];
   /** Display sections. A single unnamed group renders with no heading (§18). */
   groups?: IngredientGroupView[];
-  servingsText: string | null;
   addedIngredientIds: string[];
+  /** Serving scale is lifted to a shared parent so the method drawer scales too. */
+  base: number | null;
+  target: number;
+  setTarget: Dispatch<SetStateAction<number>>;
+  scale: number;
 }) {
   const sections: IngredientGroupView[] =
     groups && groups.length > 0 ? groups : [{ id: "all", name: null, ingredients }];
   const showHeadings = sections.length > 1 || Boolean(sections[0]?.name);
-  const base = parseServings(servingsText);
-  const [target, setTarget] = useState(base ?? 1);
-  const scale = base ? target / base : 1;
 
   return (
     <section>

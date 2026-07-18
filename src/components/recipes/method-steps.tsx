@@ -5,6 +5,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { FoodImage } from "@/components/food-icons";
 import { ListIcon } from "@/components/icons";
 import { highlightStep } from "@/lib/recipes/highlight";
+import { scaleIngredientText } from "@/lib/recipes/scale";
 
 export type StepIngredient = {
   id: string;
@@ -27,7 +28,16 @@ export type MethodStep = {
  * do I need for this bit" without scrolling back up. Larger type than the old
  * inline list so it reads at a glance while cooking.
  */
-export function MethodSteps({ steps, stepTerms }: { steps: MethodStep[]; stepTerms: string[] }) {
+export function MethodSteps({
+  steps,
+  stepTerms,
+  scale = 1,
+}: {
+  steps: MethodStep[];
+  stepTerms: string[];
+  /** Serving scale, shared with the ingredient list so drawer amounts agree. */
+  scale?: number;
+}) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const active = openIdx !== null ? steps[openIdx] : null;
 
@@ -95,7 +105,7 @@ export function MethodSteps({ steps, stepTerms }: { steps: MethodStep[]; stepTer
                 className="flex items-center gap-3 border-b border-line-2 py-2.5 text-[15px] text-ink last:border-b-0"
               >
                 <FoodImage text={ing.name ?? ing.display_text} size={24} className="flex-none text-ink-3" />
-                <span>{ing.display_text}</span>
+                <span>{scaleIngredientText(ing.display_text, scale)}</span>
               </li>
             ))}
           </ul>

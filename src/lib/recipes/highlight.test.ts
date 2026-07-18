@@ -52,4 +52,20 @@ describe("ingredientsInStep", () => {
   it("returns nothing when a step names no ingredient", () => {
     expect(ingredientsInStep("Simmer for 20 minutes", ingredients)).toHaveLength(0);
   });
+
+  it("does not over-match a shared head noun (olive oil vs vegetable oil)", () => {
+    const oils = [
+      { id: "a", display_text: "1 tbsp olive oil", name: null },
+      { id: "b", display_text: "2 tbsp vegetable oil", name: null },
+    ];
+    // "oil" is shared, so only the full-phrase match should win.
+    const got = ingredientsInStep("Heat the olive oil in a pan", oils);
+    expect(got.map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("matches an ingredient written as 'X of Y' by its real noun", () => {
+    const tin = [{ id: "t", display_text: "1 can of chopped tomatoes", name: null }];
+    const got = ingredientsInStep("Pour in the chopped tomatoes", tin);
+    expect(got.map((i) => i.id)).toEqual(["t"]);
+  });
 });
