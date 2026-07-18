@@ -190,11 +190,14 @@ export function parseInstagramHtml(html: string): ParsedInstagramPage {
   // extraction is unsupported this story (§0.2).
   if (postType === "reel") warnings.push("video_unavailable");
 
-  // Structure unrecognised: nothing any module could read → flag drift.
-  if (!caption && media.length === 0 && warnings.length <= 1) {
-    warnings.push("source_format_changed");
-  }
-  if (postType === "unknown" && !caption && !warnings.includes("source_format_changed") && warnings.length > 0 && !warnings.includes("login_wall_detected") && !warnings.includes("private_content") && !warnings.includes("deleted_content")) {
+  // Structure unrecognised / changed: no caption came back and none of the
+  // decisive content warnings explain why. Every parser module ran and none
+  // yielded recipe text — flag drift and let the chain continue (§9.1 edge case).
+  const decisive =
+    warnings.includes("login_wall_detected") ||
+    warnings.includes("private_content") ||
+    warnings.includes("deleted_content");
+  if (!caption && !decisive && !warnings.includes("source_format_changed")) {
     warnings.push("source_format_changed");
   }
 

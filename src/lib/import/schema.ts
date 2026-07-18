@@ -273,6 +273,12 @@ export interface ExternalServiceCost {
 export interface SourceResolverResult {
   evidence: SourceEvidence;
   cost: ExternalServiceCost | null;
+  /**
+   * A recipe the resolver parsed deterministically, zero-cost (website JSON-LD,
+   * §11 / AC1). When present and sufficient, the engine records `ai_not_required`
+   * and spends no AI attempt. Absent for every AI-bound path.
+   */
+  deterministicRecipe?: AiExtractedRecipe | null;
   /** Resolver-internal payload (e.g. raw page HTML for the deterministic parser). */
   rawMetadata?: unknown;
   /** Retrieval telemetry for the attempt ledger. */
