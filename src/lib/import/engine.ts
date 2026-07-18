@@ -139,7 +139,7 @@ function retrievalCost(prices: PriceRow[], result: SourceResolverResult): {
     const add = (units: number, unitType: string) => {
       if (units <= 0) return;
       anyUnits = true;
-      const price = pickPrice(prices, cost.modelId ?? null, unitType);
+      const price = pickPrice(prices, cost.providerId, cost.serviceId, cost.modelId ?? null, unitType);
       if (!price) return;
       anyPriced = true;
       const { costMicroUsd, capped } = unitCostMicroUsd(units, price.price_per_unit_nano_usd);
@@ -151,7 +151,7 @@ function retrievalCost(prices: PriceRow[], result: SourceResolverResult): {
     const accuracy = !anyUnits ? "none" : anyPriced ? (anyCapped ? "estimated" : "metered") : "none";
     return { units: cost.unitsUsed, unitType: cost.unitType, costMicroUsd: micro, accuracy };
   }
-  const price = pickPrice(prices, cost.modelId ?? null, cost.unitType);
+  const price = pickPrice(prices, cost.providerId, cost.serviceId, cost.modelId ?? null, cost.unitType);
   if (!price) return { units: cost.unitsUsed, unitType: cost.unitType, costMicroUsd: 0, accuracy: "none" };
   const { costMicroUsd, capped } = unitCostMicroUsd(cost.unitsUsed, price.price_per_unit_nano_usd);
   return { units: cost.unitsUsed, unitType: cost.unitType, costMicroUsd, accuracy: capped ? "estimated" : "metered" };
@@ -162,7 +162,7 @@ interface AiCost {
 }
 
 /** Sum per-modality input tokens + output tokens into micro-USD via the price book. */
-export function aiCost(prices: PriceRow[], modelId: string, usage: ProviderUsage): AiCost {
+export function aiCost(prices: PriceRow[], providerId: string, serviceId: string, modelId: string, usage: ProviderUsage): AiCost {
   const components: Array<[number | null, string]> = [
     [usage.inputTextTokens, "input_token"],
     [usage.inputImageTokens, "image_input_token"],
@@ -178,7 +178,7 @@ export function aiCost(prices: PriceRow[], modelId: string, usage: ProviderUsage
   for (const [units, unitType] of components) {
     if (units == null || units === 0) continue;
     anyUnits = true;
-    const price = pickPrice(prices, modelId, unitType);
+    const price = pickPrice(prices, providerId, serviceId, modelId, unitType);
     if (!price) continue;
     anyPriced = true;
     const { costMicroUsd, capped } = unitCostMicroUsd(units, price.price_per_unit_nano_usd);
@@ -189,7 +189,7 @@ export function aiCost(prices: PriceRow[], modelId: string, usage: ProviderUsage
   const outUnits = usage.outputTokensTotal;
   if (outUnits != null && outUnits > 0) {
     anyUnits = true;
-    const price = pickPrice(prices, modelId, "output_token");
+    const price = pickPrice(prices, providerId, serviceId, modelId, "output_token");
     if (price) {
       anyPriced = true;
       const { costMicroUsd, capped } = unitCostMicroUsd(outUnits, price.price_per_unit_nano_usd);
@@ -499,7 +499,7 @@ async function runExtractionWithRetry(
 
     const started = now();
     const result = await provider.extract(input, { correctionErrors });
-    const cost = aiCost(store.prices, provider.modelId, result.usage);
+    const cost = aiCost(store.prices, provider.providerId, provider.serviceId, provider.modelId, result.usage);
     costMicroUsd += cost.totalMicroUsd;
 
     if (result.ok) {

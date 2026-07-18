@@ -190,8 +190,10 @@ export function computeUsage(rows: UsageRows, nowMs: number, lifetimeCostMicroUs
   return {
     costToday, cost7d, cost30d, costLifetime,
     importCount, successCount,
-    avgCostPerImport: Math.round(ratio(costLifetime, importCount)),
-    costPerSuccess: Math.round(ratio(costLifetime, successCount)),
+    // Averages use the windowed cost over windowed counts — dividing the all-time
+    // lifetime total by a windowed/filtered count would produce inflated nonsense.
+    avgCostPerImport: Math.round(ratio(costWindow, importCount)),
+    costPerSuccess: Math.round(ratio(costWindow, successCount)),
     noAiImports,
     categories,
     directSuccessRate, urlContextSuccessRate, apifyFallbackRate, userFallbackRate,

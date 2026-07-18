@@ -42,6 +42,7 @@ export function PasteFlow({ onSaved, onNavigate }: { onSaved?: (id: string) => v
         <RecipeForm
           action={createRecipe}
           initial={extractedToFormInitial(effective.recipe)}
+          importId={effective.importId}
           submitLabel="Save to shelf"
           isNew
           onSaved={onSaved}

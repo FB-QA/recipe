@@ -41,6 +41,9 @@ describe("computeUsage — cost windows and totals (AC1)", () => {
     expect(withLifetime.costLifetime).toBe(999_999); // all-time total, not the windowed sum
     expect(withLifetime.cost7d).toBe(8739);          // window figures unchanged
     expect(withLifetime.categories.total).toBe(14778); // category total reconciles to the window
+    // Averages must stay in the windowed scope — NOT lifetime / windowed-count.
+    expect(withLifetime.avgCostPerImport).toBe(Math.round(14778 / 4));
+    expect(withLifetime.costPerSuccess).toBe(Math.round(14778 / 3));
   });
   it("counts imports and successes and derives averages", () => {
     expect(u.importCount).toBe(4);

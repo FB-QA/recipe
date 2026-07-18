@@ -58,6 +58,7 @@ export function RecipeForm({
   submitLabel,
   source,
   importCoverUrl,
+  importId,
   isNew,
   onSaved,
 }: {
@@ -66,6 +67,8 @@ export function RecipeForm({
   submitLabel: string;
   source?: { type: "instagram" | "website"; url: string | null; handle?: string | null };
   importCoverUrl?: string | null;
+  /** When confirming an import draft: links the saved recipe back to its import row. */
+  importId?: string;
   /** Newly-created recipe (adds ?created=1 so the detail page toasts "Saved"). */
   isNew?: boolean;
   /** Host handles navigation on save (e.g. a drawer closes then routes). When
@@ -177,6 +180,7 @@ export function RecipeForm({
     <form action={formAction} className="flex flex-col gap-5 pb-4">
       <input type="hidden" name="payload" value={JSON.stringify(payload)} />
       <input type="hidden" name="coverAction" value={coverAction} />
+      {importId && <input type="hidden" name="importId" value={importId} />}
       {/* When importing, the untouched cover is a remote thumbnail the server
           fetches + optimises. A chosen file or a removal overrides it. */}
       <input

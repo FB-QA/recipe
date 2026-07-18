@@ -6,6 +6,7 @@ import { createClient, type Client } from "@/lib/supabase/server";
 import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
 import { parseRecipePayload, type RecipeInput } from "./schema";
 import { resolveGroups, flattenIngredients } from "./groups";
+import { markImportSaved } from "@/lib/import/store";
 import { optimizeCover, optimizeFromUrl } from "@/lib/images/optimize";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
 
@@ -174,6 +175,17 @@ export async function createRecipe(
 
   const saved = await replaceChildren(supabase, recipe.id, input);
   if (!saved) return { error: "Couldn't save all of the recipe — open it and try again." };
+
+  // If this recipe came from confirming an import draft, link it back and move
+  // the import row to `saved` (audit trail + accurate dashboard state). Best-effort.
+  const importId = String(formData.get("importId") ?? "").trim();
+  if (importId) {
+    try {
+      await markImportSaved(importId, recipe.id, user.id);
+    } catch {
+      // Non-fatal: the recipe is saved; only the import→recipe link didn't stick.
+    }
+  }
 
   revalidatePath("/");
   // Return the id (not redirect) so the client can toast, animate the drawer

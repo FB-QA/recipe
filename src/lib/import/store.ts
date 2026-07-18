@@ -278,4 +278,19 @@ export function createImportStore(prices: PriceRow[]): ImportStore {
   };
 }
 
+/**
+ * Link a confirmed import to the recipe it became and move it `ready_for_review`
+ * → `saved` (the import→recipe audit trail). Best-effort and idempotent: the
+ * `state` guard acts as a CAS so it can't clobber a failed/cancelled row, and it
+ * filters by `user_id`. A failure here never blocks the recipe save.
+ */
+export async function markImportSaved(importId: string, recipeId: string, userId: string): Promise<void> {
+  await svc()
+    .from("recipe_imports")
+    .update({ state: "saved", recipe_id: recipeId })
+    .eq("id", importId)
+    .eq("user_id", userId)
+    .eq("state", "ready_for_review");
+}
+
 export const config = importConfig;

@@ -33,14 +33,25 @@ export function unitCostMicroUsd(
 
 /**
  * R6/ADR-9 price selection: exact model match first, then the '*' wildcard.
- * Null when no row matches — a missing price never blocks an import; the
- * attempt is recorded with cost 0 and cost_accuracy='none'.
+ * Scoped by (provider, service, unit) because the same model/unit can carry
+ * different rates under different services (e.g. google/messages vs
+ * google/url_context) — without that scoping a URL-context attempt could be
+ * charged the extraction rate and vice-versa. Null when no row matches — a
+ * missing price never blocks an import (cost 0, accuracy 'none').
  */
-export function pickPrice(rows: PriceRow[], modelId: string | null, unitType: string): PriceRow | null {
-  const ofType = rows.filter((r) => r.unit_type === unitType);
+export function pickPrice(
+  rows: PriceRow[],
+  providerId: string,
+  serviceId: string,
+  modelId: string | null,
+  unitType: string,
+): PriceRow | null {
+  const scoped = rows.filter(
+    (r) => r.provider_id === providerId && r.service_id === serviceId && r.unit_type === unitType,
+  );
   return (
-    ofType.find((r) => modelId !== null && r.model_id === modelId) ??
-    ofType.find((r) => r.model_id === "*") ??
+    scoped.find((r) => modelId !== null && r.model_id === modelId) ??
+    scoped.find((r) => r.model_id === "*") ??
     null
   );
 }

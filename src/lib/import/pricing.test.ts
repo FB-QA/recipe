@@ -41,14 +41,23 @@ describe("pickPrice — ADR-9 exact model first, '*' wildcard fallback", () => {
   ];
 
   it("prefers the exact model row", () => {
-    expect(pickPrice(rows, "claude-haiku-4-5", "input_token")?.price_per_unit_nano_usd).toBe(1000);
+    expect(pickPrice(rows, "anthropic", "messages", "claude-haiku-4-5", "input_token")?.price_per_unit_nano_usd).toBe(1000);
   });
 
   it("falls back to the wildcard row when no exact match", () => {
-    expect(pickPrice(rows, "some-actor-version", "result")?.price_per_unit_nano_usd).toBe(2_700_000);
+    expect(pickPrice(rows, "apify", "instagram_scraper", "some-actor-version", "result")?.price_per_unit_nano_usd).toBe(2_700_000);
   });
 
   it("returns null when no row matches — a missing price never blocks an import (R6)", () => {
-    expect(pickPrice(rows, "claude-haiku-4-5", "output_token")).toBeNull();
+    expect(pickPrice(rows, "anthropic", "messages", "claude-haiku-4-5", "output_token")).toBeNull();
+  });
+
+  it("scopes by provider + service so same model/unit under different services don't collide", () => {
+    const scoped: PriceRow[] = [
+      { provider_id: "google", service_id: "messages", model_id: "gemini-3.1-flash-lite", unit_type: "input_token", price_per_unit_nano_usd: 100 },
+      { provider_id: "google", service_id: "url_context", model_id: "gemini-3.1-flash-lite", unit_type: "input_token", price_per_unit_nano_usd: 250 },
+    ];
+    expect(pickPrice(scoped, "google", "messages", "gemini-3.1-flash-lite", "input_token")?.price_per_unit_nano_usd).toBe(100);
+    expect(pickPrice(scoped, "google", "url_context", "gemini-3.1-flash-lite", "input_token")?.price_per_unit_nano_usd).toBe(250);
   });
 });

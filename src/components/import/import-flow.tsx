@@ -47,7 +47,7 @@ export function ImportFlow({
     return <AlreadyImported recipeId={effective.recipeId} title={effective.title} coverUrl={effective.coverUrl} onNavigate={onNavigate} />;
   }
   if (effective.phase === "ready") {
-    return <Review recipe={effective.recipe} source={source} onSaved={onSaved} />;
+    return <Review recipe={effective.recipe} importId={effective.importId} source={source} onSaved={onSaved} />;
   }
   if (effective.phase === "failed") {
     return <ImportFailure message={effective.message} fallback={effective.fallback} onNavigate={onNavigate} />;
@@ -142,10 +142,12 @@ function Extracting() {
 
 function Review({
   recipe,
+  importId,
   source,
   onSaved,
 }: {
   recipe: ExtractedRecipe;
+  importId: string;
   source: "instagram" | "web";
   onSaved?: (id: string) => void;
 }) {
@@ -169,6 +171,7 @@ function Review({
         initial={extractedToFormInitial(recipe)}
         source={{ type: sourceType, url: recipe.source.sourceUrl ?? "", handle: recipe.source.creatorName }}
         importCoverUrl={recipe.source.coverImageUrl}
+        importId={importId}
         submitLabel="Save to shelf"
         isNew
         onSaved={onSaved}
