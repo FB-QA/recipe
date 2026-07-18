@@ -93,13 +93,16 @@ the error/fallback messaging the new outcomes require.
 - Caption ending in truncation markers ("… more") → `caption_may_be_truncated`.
 - Instagram page structure unrecognised → `source_format_changed`, chain
   continues; parser modules fail independently.
-- **Login wall in disguise (probed live 2026-07-17):** anonymous fetch of a
-  public post — both the post page and `/embed/captioned/` — returns HTTP
-  200 with ~598KB of login-shell HTML (`loginPage` markers, zero OG tags,
-  zero caption JSON). The direct resolver must detect login-shell markers /
-  absent OG+caption data and emit `login_wall_detected`, never judging
-  success by status code or byte count. This is §27 fixture 9, and today's
-  expected common path.
+- **Login wall in disguise (defensive, not the common case):** anonymous
+  fetch *can* return HTTP 200 with login-shell HTML (`loginPage` markers,
+  zero OG tags, zero caption JSON). The direct resolver must detect that and
+  emit `login_wall_detected`, never judging success by status code or byte
+  count (§27 fixture 9). **Re-measured live 2026-07-18: direct fetch usually
+  SUCCEEDS** — public posts and reels alike return 200 with the full caption
+  and an `og:image` cover; the login shell is occasional, not the norm. The
+  more common fall-through is a page whose caption the parser can't locate
+  (`caption_missing` / `source_format_changed`), which continues the chain
+  correctly. Net: Apify is a rare fallback, not the default path.
 
 ---
 
