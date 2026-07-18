@@ -65,11 +65,43 @@ any visual gap Barry hits is a Channel-2 question, not an invention.
 
 ---
 
-## Build  (Barry)
+## Build  (Tara, solo — same branch as import-engine-v2, one PR)
 
-**Branch:** dev/import-capture-review-v2
+Split into two parts. **Part A delivered; Part B (screenshots) parked at
+Freddi's request 2026-07-18.**
 
-**Status:** pending
+**Part A — grouped preview + faithful save + cover + attribution (DONE):**
+- Recipe schema: structured `ingredientGroups` (ranges/optionals/alternatives),
+  step titles. `groups.ts` (`resolveGroups`/`flattenIngredients`, tested).
+- Save path (`replaceChildren`): persists groups → `group_id` ingredients →
+  step titles (wholesale replace, W6). `database.types` hand-extended.
+- `RecipeForm` group-aware editor (`GroupedIngredients`); import review + edit
+  page use it; detail page + `IngredientsSection` render sections/optionals/titles.
+- Cover: engine surfaces `og:image` → `ExtractedRecipe.source.coverImageUrl` →
+  `importCoverUrl`. Reel covers are Instagram's `cmp1` play-button composite →
+  targeted Apify enrichment for the clean full-res displayUrl (costed
+  `apify_cover` attempt; `IMPORT_REEL_COVER_ENRICH` flag). The clean image is
+  genuinely absent from the anonymous HTML — the one thing Apify is needed for.
+- Attribution: the real @handle is in `og:description`, not `og:title` (display
+  name). Parser reads it; shared `attributionLabel` only @-prefixes real handles.
+- **Verified live** vs the local stack: grouped save round-trips (sections/range/
+  optional/title); Reel cover enriched to a clean image; handle = real username.
+
+**Part B — screenshot capture flow (AC1/AC2/AC5): PARKED (not built).**
+Multimodal screenshot upload, temp-storage + cleanup, and the video-refusal
+upload path are deferred. Freddi's headline asks (sections, thumbnail, correct
+handle) are met without it.
+
+**Status:** part A done; part B parked
+
+**Test run:**
+```
+Vitest: 25 files, 154 tests pass · tsc 0 errors · eslint clean · next build 20/20
+Live (local Supabase + real Instagram/Apify/Claude):
+  grouped save round-trip — sections in order, "1–2" range, optional flag, step title ✓
+  reel cover — direct cmp1 composite → Apify displayUrl (clean, 640x1136), apify_cover 2700 micro-USD ✓
+  handle — parseInstagramHtml → "emthenutritionist" from og:description (no Apify) ✓
+```
 
 ---
 
