@@ -11,7 +11,7 @@ import { runImportPipeline } from "@/lib/import/engine";
 import { claimImport, createImportStore, loadPrices, readByIdempotencyKey } from "@/lib/import/store";
 import { createServiceClient } from "@/lib/supabase/server";
 
-const USER = "00000000-0000-4000-a000-000000000abc";
+const USER = "5a7e123a-9d3d-4ee8-9aa2-3c55bc3cc56a";
 const line = (s: string) => console.log(s);
 
 const TEXT = `Roasted Strawberry Cheesecake Pots

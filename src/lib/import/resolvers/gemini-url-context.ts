@@ -46,7 +46,7 @@ interface Stage1Evidence {
   loginWall: boolean;
 }
 
-const GEMINI_MODEL = "gemini-2.5-flash-lite";
+const GEMINI_MODEL = "gemini-3.1-flash-lite"; // 2.5-flash-lite is closed to new keys (§3.4)
 const TIMEOUT_MS = 45_000;
 
 export function createGeminiUrlContextResolver(options?: {

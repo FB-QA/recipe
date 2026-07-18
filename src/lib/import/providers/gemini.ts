@@ -16,8 +16,96 @@ import {
  * Live verification is deferred with the §29 benchmark (spec §0.4–0.5).
  */
 
-const GEMINI_MODEL_DEFAULT = "gemini-2.5-flash-lite";
+// gemini-2.5-flash-lite (the spec's original) is closed to new keys; 3.1 is the
+// current flash-lite and the spec's named replacement (§3.4/§29).
+const GEMINI_MODEL_DEFAULT = "gemini-3.1-flash-lite";
 const TIMEOUT_MS = 45_000;
+
+/**
+ * Gemini's responseSchema (OpenAPI-subset) mirroring aiExtractedRecipeSchema.
+ * Without it, Flash-Lite invents its own flat JSON shape; with it, the model is
+ * constrained to the exact §18 structure (the equivalent of Claude's
+ * output_config.format). Nullable via `nullable: true`, not a `[type,null]` union.
+ */
+const nul = (type: string) => ({ type, nullable: true });
+const RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    extractionStatus: { type: "STRING", enum: ["recipe", "not_recipe", "insufficient_content"] },
+    title: nul("STRING"),
+    description: nul("STRING"),
+    servings: {
+      type: "OBJECT",
+      properties: { value: nul("NUMBER"), originalText: nul("STRING") },
+      required: ["value", "originalText"],
+    },
+    prepTimeMinutes: nul("NUMBER"),
+    cookTimeMinutes: nul("NUMBER"),
+    totalTimeMinutes: nul("NUMBER"),
+    ingredientGroups: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          temporaryId: { type: "STRING" },
+          name: nul("STRING"),
+          position: { type: "INTEGER" },
+          optional: { type: "BOOLEAN" },
+          ingredients: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                temporaryId: { type: "STRING" },
+                position: { type: "INTEGER" },
+                originalText: { type: "STRING" },
+                quantityText: nul("STRING"),
+                quantityValue: nul("NUMBER"),
+                quantityMin: nul("NUMBER"),
+                quantityMax: nul("NUMBER"),
+                unit: nul("STRING"),
+                name: { type: "STRING" },
+                preparation: nul("STRING"),
+                optional: { type: "BOOLEAN" },
+                alternativeGroupId: nul("STRING"),
+              },
+              required: [
+                "temporaryId", "position", "originalText", "quantityText", "quantityValue",
+                "quantityMin", "quantityMax", "unit", "name", "preparation", "optional", "alternativeGroupId",
+              ],
+            },
+          },
+        },
+        required: ["temporaryId", "name", "position", "optional", "ingredients"],
+      },
+    },
+    steps: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          position: { type: "INTEGER" },
+          title: nul("STRING"),
+          instruction: { type: "STRING" },
+          ingredientGroupReferences: { type: "ARRAY", items: { type: "STRING" } },
+        },
+        required: ["position", "title", "instruction", "ingredientGroupReferences"],
+      },
+    },
+    tips: { type: "ARRAY", items: { type: "STRING" } },
+    servingSuggestions: { type: "ARRAY", items: { type: "STRING" } },
+    warnings: {
+      type: "ARRAY",
+      items: { type: "OBJECT", properties: { code: { type: "STRING" }, message: { type: "STRING" } }, required: ["code", "message"] },
+    },
+    missingFields: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: [
+    "extractionStatus", "title", "description", "servings", "prepTimeMinutes",
+    "cookTimeMinutes", "totalTimeMinutes", "ingredientGroups", "steps", "tips",
+    "servingSuggestions", "warnings", "missingFields",
+  ],
+} as const;
 
 interface GeminiUsageMetadata {
   promptTokenCount?: number;
@@ -85,7 +173,7 @@ export function createGeminiProvider(options?: {
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: EXTRACTION_SYSTEM_PROMPT }] },
               contents: [{ role: "user", parts }],
-              generationConfig: { responseMimeType: "application/json" },
+              generationConfig: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA },
             }),
             signal: AbortSignal.timeout(TIMEOUT_MS),
           },
