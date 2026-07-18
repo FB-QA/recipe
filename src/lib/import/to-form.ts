@@ -25,10 +25,13 @@ function ingredientLines(recipe: ExtractedRecipe): string[] {
   return lines.length > 0 ? lines : [""];
 }
 
-/** The structured, editable sections — verbatim wording, ranges/optionals/alternatives preserved. */
+/** The structured, editable sections — verbatim wording; ranges, optionals,
+ *  alternatives, and the parsed quantity/unit/name the extractor produced are
+ *  all carried through so nothing is dropped when a grouped import is saved. */
 function editGroups(recipe: ExtractedRecipe): EditGroup[] {
   return recipe.ingredientGroups.map((g) => ({
     name: g.name ?? "",
+    optional: g.optional,
     ingredients: g.ingredients.map((i) => ({
       display_text: i.originalText,
       optional: i.optional,
@@ -36,6 +39,10 @@ function editGroups(recipe: ExtractedRecipe): EditGroup[] {
       quantity_max: i.quantityMax,
       alternative_group: i.alternativeGroupId,
       preparation: i.preparation,
+      quantity: i.quantityText,
+      unit: i.unit,
+      name: i.name,
+      quantity_value: i.quantityValue,
     })),
   }));
 }
@@ -59,7 +66,10 @@ export function extractedToFormInitial(recipe: ExtractedRecipe, sourceUrl = ""):
     groups: hasGroups ? editGroups(recipe) : undefined,
     steps: recipe.steps.length > 0 ? recipe.steps.map((s) => s.instruction) : [""],
     stepTitles: recipe.steps.map((s) => s.title),
-    tips: recipe.tips,
+    // Serving suggestions ("Serve with rice") are freeform source notes with no
+    // column of their own; fold them into tips so they survive the save rather
+    // than being silently dropped from the review form.
+    tips: [...recipe.tips, ...recipe.servingSuggestions],
     coverUrl: null,
   };
 }

@@ -18,10 +18,18 @@ export interface EditIngredient {
   quantity_max: number | null;
   alternative_group: string | null;
   preparation: string | null;
+  // Parsed fields the extractor produced (grocery-list metadata). Not edited in
+  // this UI, but carried through so a grouped import/save doesn't null them out.
+  quantity: string | null;
+  unit: string | null;
+  name: string | null;
+  quantity_value: number | null;
 }
 
 export interface EditGroup {
   name: string;
+  /** A whole section the source marked optional (e.g. "For the garnish"). */
+  optional: boolean;
   ingredients: EditIngredient[];
 }
 
@@ -32,6 +40,10 @@ export const blankIngredient = (): EditIngredient => ({
   quantity_max: null,
   alternative_group: null,
   preparation: null,
+  quantity: null,
+  unit: null,
+  name: null,
+  quantity_value: null,
 });
 
 function RangeBadge({ min, max }: { min: number | null; max: number | null }) {
@@ -65,7 +77,7 @@ export function GroupedIngredients({
   const removeIngredient = (gi: number, ii: number) =>
     patchGroup(gi, { ingredients: groups[gi].ingredients.filter((_, j) => j !== ii) });
 
-  const addSection = () => setGroups([...groups, { name: "", ingredients: [blankIngredient()] }]);
+  const addSection = () => setGroups([...groups, { name: "", optional: false, ingredients: [blankIngredient()] }]);
   const removeSection = (gi: number) => setGroups(groups.filter((_, i) => i !== gi));
 
   return (

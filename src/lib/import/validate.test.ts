@@ -203,3 +203,51 @@ describe("normaliseRecipe — nutrition", () => {
     expect(r.nutrition).toBeNull();
   });
 });
+
+describe("normaliseRecipe — duplicate scope", () => {
+  const line = (text: string, position: number) => ({
+    temporaryId: `x${position}`,
+    position,
+    originalText: text,
+    quantityText: null,
+    quantityValue: null,
+    quantityMin: null,
+    quantityMax: null,
+    unit: null,
+    name: text,
+    preparation: null,
+    optional: false,
+    alternativeGroupId: null,
+  });
+
+  it("keeps the same line when it recurs in a different section", () => {
+    const r = normaliseRecipe(
+      recipe({
+        ingredientGroups: [
+          { temporaryId: "g1", name: "Marinade", position: 0, optional: false, ingredients: [line("1 tsp salt", 0)] },
+          { temporaryId: "g2", name: "Sauce", position: 1, optional: false, ingredients: [line("1 tsp salt", 0)] },
+        ],
+      }),
+    );
+    expect(r.ingredientGroups).toHaveLength(2);
+    expect(r.ingredientGroups[0].ingredients).toHaveLength(1);
+    expect(r.ingredientGroups[1].ingredients).toHaveLength(1);
+  });
+
+  it("still drops an exact duplicate within the same section", () => {
+    const r = normaliseRecipe(
+      recipe({
+        ingredientGroups: [
+          {
+            temporaryId: "g1",
+            name: null,
+            position: 0,
+            optional: false,
+            ingredients: [line("1 tsp salt", 0), line("1 tsp salt", 1)],
+          },
+        ],
+      }),
+    );
+    expect(r.ingredientGroups[0].ingredients).toHaveLength(1);
+  });
+});

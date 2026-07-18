@@ -12,13 +12,32 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
 
-  // A recipe with real sections (an import, or a multi-section recipe) edits in
-  // grouped mode; a plain flat recipe stays on the simple list.
-  const hasSections =
-    recipe.ingredientGroups.length > 1 || Boolean(recipe.ingredientGroups[0]?.name);
+  // A recipe with real sections OR any structured ingredient metadata edits in
+  // grouped mode; only a genuinely plain recipe (unnamed single group, plain
+  // display-text lines) stays on the simple list. Opening a structured recipe
+  // flat would drop its optionals/ranges/preparations/alternatives on the next
+  // save, even if the user only touched the title.
+  const hasStructuredMeta = recipe.ingredientGroups.some(
+    (g) =>
+      g.name ||
+      g.optional ||
+      g.ingredients.some(
+        (i) =>
+          i.optional ||
+          i.quantity_min !== null ||
+          i.quantity_max !== null ||
+          i.quantity_value !== null ||
+          i.preparation ||
+          i.alternative_group ||
+          i.unit ||
+          i.name,
+      ),
+  );
+  const hasSections = recipe.ingredientGroups.length > 1 || hasStructuredMeta;
   const groups = hasSections
     ? recipe.ingredientGroups.map((g) => ({
         name: g.name ?? "",
+        optional: g.optional ?? false,
         ingredients: g.ingredients.map((i) => ({
           display_text: i.display_text,
           optional: i.optional ?? false,
@@ -26,6 +45,10 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
           quantity_max: i.quantity_max ?? null,
           alternative_group: i.alternative_group ?? null,
           preparation: i.preparation ?? null,
+          quantity: i.quantity ?? null,
+          unit: i.unit ?? null,
+          name: i.name ?? null,
+          quantity_value: i.quantity_value ?? null,
         })),
       }))
     : undefined;

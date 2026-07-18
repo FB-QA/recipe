@@ -45,6 +45,16 @@ describe("hasRecipeSignal", () => {
     expect(hasRecipeSignal("")).toBe(false);
     expect(hasRecipeSignal("   ")).toBe(false);
   });
+
+  it("accepts an explicit unmeasured recipe (count-based / to-taste)", () => {
+    const unmeasured =
+      "Ingredients: 2 eggs, 1 onion, salt to taste. Method: chop the onion, whisk the eggs, fry together.";
+    expect(hasRecipeSignal(unmeasured)).toBe(true);
+  });
+
+  it("still rejects a food description that name-drops one section word", () => {
+    expect(hasRecipeSignal("The best ingredients make the most delicious creamy pasta ever.")).toBe(false);
+  });
 });
 
 describe("decideEvidence — §10 acceptance gate", () => {

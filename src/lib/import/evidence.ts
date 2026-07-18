@@ -33,6 +33,12 @@ export function hasRecipeSignal(text: string): boolean {
   // or a strong showing of both other signals.
   if (measurements >= 2 && (verbs >= 1 || header)) return true;
   if (measurements >= 1 && verbs >= 2 && header) return true;
+  // Explicit recipe structure with a real method is sufficient WITHOUT weighed
+  // measurements: count-based and to-taste recipes ("2 eggs", "1 onion", "salt
+  // to taste") are legitimate and common, and the unit whitelist never counts
+  // them. The explicit Ingredients/Method headers are what keep this from
+  // accepting a generic food description.
+  if (header && verbs >= 2) return true;
   return false;
 }
 

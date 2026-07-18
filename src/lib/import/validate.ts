@@ -63,9 +63,12 @@ function normaliseNutrition(n: ExtractedNutrition | null): ExtractedNutrition | 
 
 export function normaliseRecipe(recipe: AiExtractedRecipe): AiExtractedRecipe {
   // Groups: normalise ingredients, drop empties, drop exact duplicates.
-  const seen = new Set<string>();
+  // Dedup is scoped PER SECTION: the same line legitimately recurs across
+  // sections (the same salt in a marinade and a sauce), so a shared set would
+  // wrongly drop the second — and could empty an otherwise valid section.
   const groups: ExtractedIngredientGroup[] = [];
   for (const group of recipe.ingredientGroups) {
+    const seen = new Set<string>();
     const ingredients: ExtractedIngredient[] = [];
     for (const raw of group.ingredients) {
       if (!raw.originalText.trim()) continue;
