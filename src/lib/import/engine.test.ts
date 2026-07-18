@@ -367,6 +367,33 @@ describe("cost & ledger accounting (§23)", () => {
     expect(f.retrieval[0].costMicroUsd).toBe(160);
   });
 
+  it("falls back to the replacement provider on a terminal primary failure (826277)", async () => {
+    const f = fakeStore();
+    const direct = resolverReturning({ evidence: evidence({ retrievalStatus: "complete", caption: igCaption }) }, "instagram_direct");
+    const primary = stubProvider({ ok: false, errorCode: "safety_block", errorMessageSafe: "declined", usage: EMPTY_USAGE });
+    const replacement = stubProvider({ ok: true, recipe: RECIPE, usage: EMPTY_USAGE });
+    const out = await runImportPipeline({ ...req, sourceKind: "instagram_post" }, baseDeps({
+      chain: chainOf([direct]), provider: primary, replacementProvider: replacement, store: f.store,
+    }));
+    expect(out.kind).toBe("ready");
+    expect(replacement.extract as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+    expect(f.ai.map((a) => a.status)).toContain("succeeded"); // fallback attempt recorded
+  });
+
+  it("stops the pipeline when a state transition is lost to a concurrent poll (826276)", async () => {
+    const f = fakeStore();
+    // Simulate a stale-race: the source_retrieved CAS loses (row already failed).
+    const realTransition = f.store.transition.bind(f.store);
+    f.store.transition = async (input) => (input.next === "source_retrieved" ? false : realTransition(input));
+    const direct = resolverReturning({ evidence: evidence({ retrievalStatus: "complete", caption: igCaption }) }, "instagram_direct");
+    const provider = stubProvider({ ok: true, recipe: RECIPE, usage: EMPTY_USAGE });
+    const out = await runImportPipeline({ ...req, sourceKind: "instagram_post" }, baseDeps({ chain: chainOf([direct]), provider, store: f.store }));
+    expect(out).toEqual({ kind: "failed", failureReason: "unknown_error" });
+    // No AI attempt was made against the already-finalized row.
+    expect(f.ai).toHaveLength(0);
+    expect(provider.extract as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+  });
+
   it("carries an earlier rung's cover into a later text-only winner (55374)", async () => {
     const f = fakeStore();
     const partialWithCover = resolverReturning(

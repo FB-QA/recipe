@@ -155,7 +155,15 @@ export const websiteResolver: SourceResolver = {
     if (!res.ok) return unavailable("source_retrieval_failed", res.status);
 
     const html = buf.toString("utf8");
-    const seen = interpretWebsiteHtml(html);
+    // Parsing arbitrary third-party HTML/JSON-LD must never throw out of the
+    // resolver — a malformed or hostile page becomes a classified failure, not a
+    // crashed import request.
+    let seen: ReturnType<typeof interpretWebsiteHtml>;
+    try {
+      seen = interpretWebsiteHtml(html);
+    } catch {
+      return unavailable("source_retrieval_failed", res.status);
+    }
     return {
       evidence: {
         sourceType: "website",

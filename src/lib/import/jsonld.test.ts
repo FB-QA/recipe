@@ -91,6 +91,13 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.nutrition).toEqual({ calories: "480 kcal", protein: "45g", carbs: "30g", fat: null, fibre: "8g", sugar: "12g", perServing: true });
   });
 
+  it("does not blow the stack on a deeply nested @graph (recursion cap)", () => {
+    let node: object = { "@type": "Recipe", name: "x", recipeIngredient: ["1 egg"], recipeInstructions: ["mix"] };
+    for (let i = 0; i < 5000; i++) node = { "@graph": node };
+    const html = withJsonLd(node);
+    expect(() => extractRecipeFromHtml(html)).not.toThrow();
+  });
+
   it("leaves nutrition null when the source omits it", () => {
     expect(extractRecipeFromHtml(withJsonLd(RECIPE))!.nutrition).toBeNull();
   });

@@ -99,6 +99,8 @@ export interface EngineDeps {
   config: ImportAiConfig;
   chain: ResolverChain;
   provider: RecipeExtractionProvider;
+  /** Optional fallback provider (§16): tried once if the primary fails terminally. */
+  replacementProvider?: RecipeExtractionProvider | null;
   store: ImportStore;
   now?: () => number;
   sleepImpl?: (ms: number) => Promise<void>;
@@ -325,10 +327,15 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
     if (priorCreator) acceptedEvidence = { ...acceptedEvidence, creatorName: priorCreator };
   }
 
-  await store.transition({
+  // Gate on the CAS result: if a concurrent poll marked this import stale/failed,
+  // stop here rather than spend paid cover-enrichment/AI attempts against a row
+  // that another invocation already finalized.
+  if (!(await store.transition({
     importId: request.importId, expected: "retrieving_source", next: "source_retrieved",
     evidence: acceptedEvidence, acceptedResolverId, costDeltaMicroUsd: costAccum,
-  });
+  }))) {
+    return { kind: "failed", failureReason: "unknown_error" };
+  }
   costAccum = 0;
 
   // Reel cover enrichment: a direct-fetched Reel cover is a play-button
@@ -375,12 +382,17 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
 
   // Deterministic recipe → no AI. Flush any cover-enrichment cost accrued above.
   if (deterministic) {
-    return finishReady(deterministic, acceptedEvidence, request, "source_retrieved", store, "jsonld", coverOverride, null, costAccum);
+    return finishReady(deterministic, acceptedEvidence, request, "source_retrieved", store, "jsonld", coverOverride, costAccum);
   }
 
-  // AI extraction.
-  await store.transition({ importId: request.importId, expected: "source_retrieved", next: "queued_for_ai" });
-  await store.transition({ importId: request.importId, expected: "queued_for_ai", next: "ai_processing" });
+  // AI extraction. Each transition is CAS-gated — a lost race means a concurrent
+  // invocation/poll owns the row, so we stop rather than double-spend.
+  if (!(await store.transition({ importId: request.importId, expected: "source_retrieved", next: "queued_for_ai" }))) {
+    return { kind: "failed", failureReason: "unknown_error" };
+  }
+  if (!(await store.transition({ importId: request.importId, expected: "queued_for_ai", next: "ai_processing" }))) {
+    return { kind: "failed", failureReason: "unknown_error" };
+  }
 
   const input: NormalizedImportInput = {
     sourceType: acceptedEvidence.sourceType,
@@ -396,17 +408,26 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
     return fail("ai_processing", "ai_provider_error", costAccum);
   }
 
-  const extraction = await runExtractionWithRetry(provider, input, request, deps, () => ++aiN, doSleep, rand);
+  let extraction = await runExtractionWithRetry(provider, input, request, deps, () => ++aiN, doSleep, rand);
+  costAccum += extraction.costMicroUsd; // keep any cover-enrichment cost + this spend
+  // Provider fallback (§16): on a terminal primary failure, retry once against the
+  // configured replacement provider before giving up. Its cost is metered too.
+  if (extraction.outcome.kind === "failed" && deps.replacementProvider?.supports(input)) {
+    const fallback = await runExtractionWithRetry(deps.replacementProvider, input, request, deps, () => ++aiN, doSleep, rand);
+    costAccum += fallback.costMicroUsd;
+    extraction = fallback;
+  }
   if (extraction.outcome.kind === "failed") {
     // A terminal AI failure can still have made paid requests (schema-correction
     // exhaustion, safety/not-recipe after a response) — record that spend.
-    return fail("ai_processing", extraction.outcome.failureReason, costAccum + extraction.costMicroUsd);
+    return fail("ai_processing", extraction.outcome.failureReason, costAccum);
   }
-  costAccum += extraction.costMicroUsd; // keep any cover-enrichment cost
 
-  await store.transition({ importId: request.importId, expected: "ai_processing", next: "validating", costDeltaMicroUsd: costAccum });
+  if (!(await store.transition({ importId: request.importId, expected: "ai_processing", next: "validating", costDeltaMicroUsd: costAccum }))) {
+    return { kind: "failed", failureReason: "unknown_error" };
+  }
   costAccum = 0;
-  return finishReady(extraction.outcome.recipe, acceptedEvidence, request, "validating", store, acceptedResolverId ?? "ai", coverOverride, null, costAccum);
+  return finishReady(extraction.outcome.recipe, acceptedEvidence, request, "validating", store, acceptedResolverId ?? "ai", coverOverride, costAccum);
 }
 
 // ---- retrieval attempt helpers ----
@@ -551,8 +572,7 @@ function aiClose(
 async function finishReady(
   recipe: AiExtractedRecipe, evidence: SourceEvidence, request: ImportRequest,
   fromState: string, store: ImportStore, retrievalMethod: string,
-  coverOverride: string | null = null, handleOverride: string | null = null,
-  costDeltaMicroUsd = 0,
+  coverOverride: string | null = null, costDeltaMicroUsd = 0,
 ): Promise<EngineOutcome> {
   const full: ExtractedRecipe = {
     ...recipe,
@@ -560,7 +580,7 @@ async function finishReady(
       sourceType: evidence.sourceType,
       sourceUrl: evidence.sourceUrl,
       sourceTitle: evidence.title,
-      creatorName: handleOverride ?? evidence.creatorName,
+      creatorName: evidence.creatorName,
       retrievalMethod,
       coverImageUrl: coverOverride ?? evidence.media.find((m) => m.modality === "image")?.sourceUrl ?? null,
     },

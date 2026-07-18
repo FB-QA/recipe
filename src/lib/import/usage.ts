@@ -129,8 +129,10 @@ export function computeUsage(rows: UsageRows, nowMs: number, lifetimeCostMicroUs
     total: costWindow,
   };
 
-  // Resolver route success rates (across all imports with such an attempt).
-  const directAttempts = retrieval.filter((r) => r.resolver_id === "instagram_direct" || r.resolver_id === "website_direct");
+  // Resolver route success rates. Direct-fetch success tracks Instagram direct
+  // retrieval reliability (it feeds IG routing/cost decisions); website_direct is
+  // near-always successful via JSON-LD and would mask a failing instagram_direct.
+  const directAttempts = retrieval.filter((r) => r.resolver_id === "instagram_direct");
   const directSuccessRate = ratio(directAttempts.filter((r) => r.status === "succeeded").length, directAttempts.length);
   const urlContextAttempts = retrieval.filter((r) => r.service_id === "url_context" && r.status !== "unavailable");
   // A URL-context "success" means it produced complete evidence — a "succeeded"

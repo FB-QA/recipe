@@ -93,3 +93,27 @@ export function selectPrimaryProvider(config: ImportAiConfig): RecipeExtractionP
   }
   return createAnthropicProvider({ apiKey: config.anthropicApiKey, model: config.primaryModel });
 }
+
+/** Which provider a model id belongs to, by prefix. */
+function providerForModel(modelId: string): "google" | "anthropic" {
+  return modelId.startsWith("gemini") ? "google" : "anthropic";
+}
+
+/**
+ * The fallback extraction provider (§16, AC?): built from `AI_REPLACEMENT_MODEL`
+ * when `AI_PROVIDER_FALLBACK_ENABLED=true`, so a primary-provider outage or rate
+ * limit can be retried against a second model instead of failing the import.
+ * Null when fallback is off, no replacement model is set, or its key is absent.
+ */
+export function selectReplacementProvider(config: ImportAiConfig): RecipeExtractionProvider | null {
+  if (!config.fallbackEnabled || !config.replacementModel) return null;
+  const provider = providerForModel(config.replacementModel);
+  if (provider === "google") {
+    return config.googleApiKey
+      ? createGeminiProvider({ apiKey: config.googleApiKey, model: config.replacementModel })
+      : null;
+  }
+  return config.anthropicApiKey
+    ? createAnthropicProvider({ apiKey: config.anthropicApiKey, model: config.replacementModel })
+    : null;
+}

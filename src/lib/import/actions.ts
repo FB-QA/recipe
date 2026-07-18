@@ -6,7 +6,7 @@ import { currentUser } from "@/lib/auth/session";
 import { signStoragePaths } from "@/lib/supabase/storage";
 import { importBlocked } from "./limit";
 import { importConfig } from "./config";
-import { buildResolverChain, selectPrimaryProvider } from "./registry";
+import { buildResolverChain, selectPrimaryProvider, selectReplacementProvider } from "./registry";
 import { runImportPipeline, type EngineOutcome } from "./engine";
 import { messageForFailure } from "./messages";
 import {
@@ -87,6 +87,7 @@ async function runPipelineFor(request: ImportRequest): Promise<ImportResult> {
   const prices = await loadPrices();
   const chain = buildResolverChain(request, config);
   const provider = selectPrimaryProvider(config);
+  const replacementProvider = selectReplacementProvider(config);
   const store = createImportStore(prices);
   // Reel cover enrichment (Freddi-approved): a clean Apify displayUrl replaces
   // the play-button composite the direct rung returns. Only wired when Apify is
@@ -94,7 +95,7 @@ async function runPipelineFor(request: ImportRequest): Promise<ImportResult> {
   const coverEnricher = config.apifyToken
     ? (req: ImportRequest) => createApifyResolver().resolve(req, { previousEvidence: [] })
     : undefined;
-  const outcome = await runImportPipeline(request, { config, chain, provider, store, coverEnricher });
+  const outcome = await runImportPipeline(request, { config, chain, provider, replacementProvider, store, coverEnricher });
   return outcomeToResult(request.importId, outcome);
 }
 

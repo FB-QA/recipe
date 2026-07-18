@@ -61,6 +61,9 @@ export function extractedToFormInitial(recipe: ExtractedRecipe, sourceUrl = ""):
     fat: recipe.nutrition?.fat ?? "",
     fibre: recipe.nutrition?.fibre ?? "",
     sugar: recipe.nutrition?.sugar ?? "",
+    // Carry whether the source stated nutrition per serving vs whole recipe, so it
+    // persists (and the detail page can label it correctly) rather than defaulting null.
+    nutrition_per_serving: recipe.nutrition?.perServing ?? null,
     source_url: recipe.source.sourceUrl ?? sourceUrl,
     ingredients: ingredientLines(recipe),
     groups: hasGroups ? editGroups(recipe) : undefined,

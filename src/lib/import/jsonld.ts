@@ -34,13 +34,19 @@ function firstString(v: unknown): string | null {
 
 type JsonLdNode = Record<string, unknown>;
 
-function findRecipeNode(json: unknown): JsonLdNode | null {
+// Depth cap on @graph recursion: a hostile page can nest {"@graph":{"@graph":…}}
+// arbitrarily deep and, unbounded, blow the stack with a RangeError that escapes
+// the resolver's failure envelope. Real recipe graphs are shallow.
+const MAX_GRAPH_DEPTH = 32;
+
+function findRecipeNode(json: unknown, depth = 0): JsonLdNode | null {
+  if (depth > MAX_GRAPH_DEPTH) return null;
   const nodes: unknown[] = Array.isArray(json) ? json : [json];
   for (const node of nodes) {
     if (!node || typeof node !== "object") continue;
     const obj = node as JsonLdNode;
     if (obj["@graph"]) {
-      const nested = findRecipeNode(obj["@graph"]);
+      const nested = findRecipeNode(obj["@graph"], depth + 1);
       if (nested) return nested;
     }
     const type = obj["@type"];

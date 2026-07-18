@@ -29,6 +29,9 @@ export type RecipeFormInitial = {
   fat?: string;
   fibre?: string;
   sugar?: string;
+  /** Whether the nutrition figures are per serving (true), whole recipe (false),
+   *  or unstated (null). Carried through save; drives the detail-page label. */
+  nutrition_per_serving?: boolean | null;
   /** Structured ingredient sections (imports + v2 recipes). When present the
    *  form renders the group-aware editor and submits `ingredientGroups`. */
   groups?: EditGroup[];
@@ -109,6 +112,9 @@ export function RecipeForm({
   const [fat, setFat] = useState(initial.fat ?? "");
   const [fibre, setFibre] = useState(initial.fibre ?? "");
   const [sugar, setSugar] = useState(initial.sugar ?? "");
+  // Not surfaced as a control (it's source-stated metadata); carried so an
+  // imported whole-recipe value persists instead of always saving null.
+  const nutritionPerServing = initial.nutrition_per_serving ?? null;
   const [tips, setTips] = useState<string[]>(initial.tips);
 
   // A remote import cover (e.g. an Instagram thumbnail) is hotlink-blocked in the
@@ -134,6 +140,7 @@ export function RecipeForm({
     fat: fat.trim() || null,
     fibre: fibre.trim() || null,
     sugar: sugar.trim() || null,
+    nutrition_per_serving: nutritionPerServing,
     source_url: source?.url ?? initial.source_url ?? null,
     source_type: source?.type ?? ("manual" as const),
     source_handle: source?.handle ?? null,
