@@ -59,11 +59,28 @@ skipped on that basis.
 
 ---
 
-## Build  (Barry)
+## Build  (Tara, solo — same branch, one PR)
 
-**Branch:** dev/import-admin-usage-v2
+- `/admin/import-usage` (outside the `(app)` group — internal tooling, no bottom
+  nav). Admin-gated by `isAdmin` (`ADMIN_EMAIL`); non-admin → `notFound()` (AC4).
+  The ledger tables grant nothing to `authenticated`, so the data is unreadable
+  via the API regardless — defence in depth.
+- `usage.ts` — `computeUsage` (pure, tested): cost windows (today/7d/30d/
+  lifetime), avg-per-import, per-success, cost-by-category, Instagram funnel
+  panel, resolver rates, success-by-source, quality-by-resolver, no-AI count.
+- `usage-queries.ts` — service-role fetch (date-windowed) + `applyFilters` /
+  `filterOptions` (pure, tested). Filters: window, source, state, failure,
+  resolver, provider, model (AC3).
+- `plan.ts` — free/premium/admin entitlements + `planAllows` hook, disabled by
+  `IMPORT_PLAN_ENFORCEMENT_ENABLED` (AC5 — flip-to-enable, no importer rewrite).
 
-**Status:** pending
+**Test run:**
+```
+Vitest 28 files / 172 tests pass · tsc 0 · eslint clean · next build (/admin/import-usage registered)
+computeUsage / applyFilters / isAdmin unit-tested; unauth route → 307 login, non-admin → 404.
+```
+
+**Status:** done
 
 ---
 
