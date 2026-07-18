@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { highlightStep, ingredientTerms } from "@/lib/recipes/highlight";
+import { highlightStep, ingredientTerms, ingredientsInStep } from "@/lib/recipes/highlight";
 
 describe("highlightStep", () => {
   it("bolds measures, times, and temperatures", () => {
@@ -29,5 +29,27 @@ describe("ingredientTerms", () => {
     ]);
     expect(terms).toContain("breasts");
     expect(terms.some((t) => t.includes("olive oil"))).toBe(true);
+  });
+});
+
+describe("ingredientsInStep", () => {
+  const ingredients = [
+    { id: "a", display_text: "2 cloves garlic", name: null },
+    { id: "b", display_text: "1 tbsp olive oil", name: null },
+    { id: "c", display_text: "200g chicken thighs", name: null },
+  ];
+
+  it("returns only the ingredients a step mentions, in ingredient order", () => {
+    const got = ingredientsInStep("Fry the garlic in the olive oil, then season", ingredients);
+    expect(got.map((i) => i.id)).toEqual(["a", "b"]);
+  });
+
+  it("matches an ingredient by its head noun (chicken thighs → 'thighs')", () => {
+    const got = ingredientsInStep("Sear the thighs skin-side down", ingredients);
+    expect(got.map((i) => i.id)).toEqual(["c"]);
+  });
+
+  it("returns nothing when a step names no ingredient", () => {
+    expect(ingredientsInStep("Simmer for 20 minutes", ingredients)).toHaveLength(0);
   });
 });

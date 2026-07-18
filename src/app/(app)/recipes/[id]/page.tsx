@@ -6,10 +6,11 @@ import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { ShareButton } from "@/components/recipes/share-button";
 import { DeleteButton } from "@/components/recipes/delete-button";
 import { IngredientsSection } from "@/components/recipes/ingredients-section";
+import { MethodSteps } from "@/components/recipes/method-steps";
 import { SavedToast } from "@/components/recipes/saved-toast";
 import { listedIngredientIds } from "@/lib/grocery/queries";
 import { CREATED_PARAM } from "@/lib/recipes/constants";
-import { highlightStep, ingredientTerms } from "@/lib/recipes/highlight";
+import { ingredientsInStep, ingredientTerms } from "@/lib/recipes/highlight";
 import { attributionLabel } from "@/lib/recipes/handle";
 import {
   ChevronLeftIcon,
@@ -135,31 +136,21 @@ export default async function RecipeDetailPage({
       {recipe.steps.length > 0 && (
         <section>
           <SectionHeading>Method</SectionHeading>
-          <ol className="flex flex-col gap-3">
-            {recipe.steps.map((step, i) => (
-              <li key={step.id} className="flex gap-3.5">
-                <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-basil-tint text-[13px] font-bold text-basil">
-                  {i + 1}
-                </span>
-                <div className="pt-1">
-                  {step.title && (
-                    <p className="mb-0.5 text-[14px] font-bold text-ink">{step.title}</p>
-                  )}
-                  <p className="text-[14px] leading-relaxed text-ink-2">
-                    {highlightStep(step.instruction, stepTerms).map((seg, j) =>
-                      seg.bold ? (
-                        <strong key={j} className="font-semibold text-ink">
-                          {seg.text}
-                        </strong>
-                      ) : (
-                        <span key={j}>{seg.text}</span>
-                      ),
-                    )}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <MethodSteps
+            stepTerms={stepTerms}
+            steps={recipe.steps.map((step) => ({
+              id: step.id,
+              title: step.title,
+              instruction: step.instruction,
+              ingredients: ingredientsInStep(step.instruction, recipe.ingredients).map((ing) => ({
+                id: ing.id,
+                display_text: ing.display_text,
+                quantity: ing.quantity,
+                unit: ing.unit,
+                name: ing.name,
+              })),
+            }))}
+          />
         </section>
       )}
 

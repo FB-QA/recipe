@@ -7,7 +7,7 @@ import { createClient, type Client } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/session";
 import { categorize } from "./categorize";
 import { scaleIngredientText } from "@/lib/recipes/scale";
-import { quantityLabel } from "@/lib/recipes/ingredient";
+import { quantityLabel, groceryName } from "@/lib/recipes/ingredient";
 
 async function nextSortOrder(supabase: Client, listId: string): Promise<number> {
   const { data } = await supabase
@@ -184,8 +184,10 @@ export async function addRecipeIngredientsToList(
     (existingItems ?? []).map((r) => r.source_ingredient_id).filter(Boolean),
   );
   const alreadyText = new Set((existingItems ?? []).map((r) => r.display_text));
-  const displayFor = (ing: (typeof ingredients)[number]) =>
-    scaleIngredientText(ing.name ?? ing.display_text, scale);
+  // The grocery line is the shopping item itself — "olive oil", not "1 tbsp
+  // olive oil". groceryName strips the measurement (the extractor often leaves
+  // the whole line in `name`); the quantity lives in its own column below.
+  const displayFor = (ing: (typeof ingredients)[number]) => groceryName(ing);
   const fresh = ingredients.filter(
     (ing) => !alreadyIds.has(ing.id) && !alreadyText.has(displayFor(ing)),
   );
@@ -197,12 +199,12 @@ export async function addRecipeIngredientsToList(
     const qty = quantityLabel(ing);
     return {
       list_id: target!,
-      display_text: scaleIngredientText(ing.name ?? ing.display_text, scale),
+      display_text: groceryName(ing),
       quantity: qty ? scaleIngredientText(qty, scale) : null,
       source_recipe_id: recipeId,
       source_ingredient_id: ing.id,
       sort_order: base + i,
-      category: categorize(ing.name ?? ing.display_text),
+      category: categorize(groceryName(ing)),
     };
   });
   // Upsert with ignoreDuplicates: if a concurrent add already inserted the same

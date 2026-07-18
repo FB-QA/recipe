@@ -8,6 +8,7 @@ import { CloseIcon, PlusIcon } from "@/components/icons";
 import type { RecipeFormState } from "@/lib/recipes/actions";
 import { createdRecipeHref } from "@/lib/recipes/constants";
 import { GroupedIngredients, type EditGroup } from "@/components/recipes/grouped-ingredients";
+import { downscaleImage } from "@/lib/images/downscale";
 
 /** A method step and its optional (import-provided) heading, kept together. */
 type StepEdit = { instruction: string; title: string | null };
@@ -228,12 +229,21 @@ export function RecipeForm({
           name="cover"
           accept="image/*"
           className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              setPreview(URL.createObjectURL(file));
-              setCoverAction("replace");
+          onChange={async (e) => {
+            const input = e.currentTarget;
+            const file = input.files?.[0];
+            if (!file) return;
+            // Shrink big images (e.g. multi-MB PNG screenshots) in the browser and
+            // put the result back on the input, so what uploads stays small enough
+            // to clear the serverless body limit that was rejecting them.
+            const resized = await downscaleImage(file);
+            if (resized !== file) {
+              const dt = new DataTransfer();
+              dt.items.add(resized);
+              input.files = dt.files;
             }
+            setPreview(URL.createObjectURL(resized));
+            setCoverAction("replace");
           }}
         />
       </div>
