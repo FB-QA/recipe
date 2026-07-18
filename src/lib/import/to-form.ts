@@ -52,6 +52,8 @@ export function extractedToFormInitial(recipe: ExtractedRecipe, sourceUrl = ""):
     protein: recipe.nutrition?.protein ?? "",
     carbs: recipe.nutrition?.carbs ?? "",
     fat: recipe.nutrition?.fat ?? "",
+    fibre: recipe.nutrition?.fibre ?? "",
+    sugar: recipe.nutrition?.sugar ?? "",
     source_url: recipe.source.sourceUrl ?? sourceUrl,
     ingredients: ingredientLines(recipe),
     groups: hasGroups ? editGroups(recipe) : undefined,

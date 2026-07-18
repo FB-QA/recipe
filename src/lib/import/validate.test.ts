@@ -194,12 +194,12 @@ describe("qualityScore", () => {
 
 describe("normaliseRecipe — nutrition", () => {
   it("passes stated nutrition through, blank amounts → null", () => {
-    const r = normaliseRecipe(recipe({ nutrition: { calories: "480 kcal", protein: "45g", carbs: "  ", fat: "", perServing: true } }));
-    expect(r.nutrition).toEqual({ calories: "480 kcal", protein: "45g", carbs: null, fat: null, perServing: true });
+    const r = normaliseRecipe(recipe({ nutrition: { calories: "480 kcal", protein: "45g", carbs: "  ", fat: "", fibre: "10g", sugar: null, perServing: true } }));
+    expect(r.nutrition).toEqual({ calories: "480 kcal", protein: "45g", carbs: null, fat: null, fibre: "10g", sugar: null, perServing: true });
   });
 
   it("drops the nutrition block entirely when every macro is empty", () => {
-    const r = normaliseRecipe(recipe({ nutrition: { calories: "", protein: null, carbs: "", fat: null, perServing: null } }));
+    const r = normaliseRecipe(recipe({ nutrition: { calories: "", protein: null, carbs: "", fat: null, fibre: "", sugar: null, perServing: null } }));
     expect(r.nutrition).toBeNull();
   });
 });

@@ -53,9 +53,11 @@ function normaliseNutrition(n: ExtractedNutrition | null): ExtractedNutrition | 
     protein: blankToNull(n.protein),
     carbs: blankToNull(n.carbs),
     fat: blankToNull(n.fat),
+    fibre: blankToNull(n.fibre),
+    sugar: blankToNull(n.sugar),
     perServing: n.perServing,
   };
-  const hasAny = cleaned.calories || cleaned.protein || cleaned.carbs || cleaned.fat;
+  const hasAny = cleaned.calories || cleaned.protein || cleaned.carbs || cleaned.fat || cleaned.fibre || cleaned.sugar;
   return hasAny ? cleaned : null;
 }
 

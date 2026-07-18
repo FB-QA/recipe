@@ -43,6 +43,8 @@ export const recipeInputSchema = z.object({
   protein: optionalText(60),
   carbs: optionalText(60),
   fat: optionalText(60),
+  fibre: optionalText(60),
+  sugar: optionalText(60),
   nutrition_per_serving: z.boolean().nullable().optional(),
   source_url: z
     .string()

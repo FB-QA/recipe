@@ -58,7 +58,7 @@ export async function getRecipe(id: string) {
     .from("recipes")
     .select(
       `id, title, description, servings, prep_time, cook_time, source_url, source_type, source_handle,
-       calories, protein, carbs, fat, nutrition_per_serving,
+       calories, protein, carbs, fat, fibre, sugar, nutrition_per_serving,
        tags, is_favourite, cover_image_path, created_at,
        recipe_ingredient_groups (id, name, position, optional),
        recipe_ingredients (id, display_text, quantity, unit, name, sort_order, group_id, optional, quantity_min, quantity_max, preparation, alternative_group),

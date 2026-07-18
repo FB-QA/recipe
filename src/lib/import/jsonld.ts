@@ -129,8 +129,10 @@ function extractNutrition(raw: unknown): ExtractedNutrition | null {
   const protein = firstString(n.proteinContent);
   const carbs = firstString(n.carbohydrateContent);
   const fat = firstString(n.fatContent);
-  if (!calories && !protein && !carbs && !fat) return null;
-  return { calories, protein, carbs, fat, perServing: true };
+  const fibre = firstString(n.fiberContent);
+  const sugar = firstString(n.sugarContent);
+  if (!calories && !protein && !carbs && !fat && !fibre && !sugar) return null;
+  return { calories, protein, carbs, fat, fibre, sugar, perServing: true };
 }
 
 /**

@@ -86,9 +86,9 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
   it("extracts nutrition from schema.org NutritionInformation", () => {
     const r = extractRecipeFromHtml(withJsonLd({
       ...RECIPE,
-      nutrition: { "@type": "NutritionInformation", calories: "480 kcal", proteinContent: "45g", carbohydrateContent: "30g" },
+      nutrition: { "@type": "NutritionInformation", calories: "480 kcal", proteinContent: "45g", carbohydrateContent: "30g", fiberContent: "8g", sugarContent: "12g" },
     }));
-    expect(r!.nutrition).toEqual({ calories: "480 kcal", protein: "45g", carbs: "30g", fat: null, perServing: true });
+    expect(r!.nutrition).toEqual({ calories: "480 kcal", protein: "45g", carbs: "30g", fat: null, fibre: "8g", sugar: "12g", perServing: true });
   });
 
   it("leaves nutrition null when the source omits it", () => {

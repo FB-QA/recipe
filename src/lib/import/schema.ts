@@ -218,6 +218,8 @@ export const extractedNutritionSchema = z.object({
   protein: z.string().nullable(),
   carbs: z.string().nullable(),
   fat: z.string().nullable(),
+  fibre: z.string().nullable(),
+  sugar: z.string().nullable(),
   perServing: z.boolean().nullable(),
 });
 export type ExtractedNutrition = z.infer<typeof extractedNutritionSchema>;

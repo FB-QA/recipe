@@ -396,12 +396,14 @@ export type Database = {
           created_at: string
           description: string | null
           fat: string | null
+          fibre: string | null
           id: string
           is_favourite: boolean
           nutrition_per_serving: boolean | null
           prep_time: string | null
           protein: string | null
           servings: string | null
+          sugar: string | null
           source_handle: string | null
           source_type: Database["public"]["Enums"]["source_type"]
           source_url: string | null
@@ -418,12 +420,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           fat?: string | null
+          fibre?: string | null
           id?: string
           is_favourite?: boolean
           nutrition_per_serving?: boolean | null
           prep_time?: string | null
           protein?: string | null
           servings?: string | null
+          sugar?: string | null
           source_handle?: string | null
           source_type?: Database["public"]["Enums"]["source_type"]
           source_url?: string | null
@@ -440,12 +444,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           fat?: string | null
+          fibre?: string | null
           id?: string
           is_favourite?: boolean
           nutrition_per_serving?: boolean | null
           prep_time?: string | null
           protein?: string | null
           servings?: string | null
+          sugar?: string | null
           source_handle?: string | null
           source_type?: Database["public"]["Enums"]["source_type"]
           source_url?: string | null

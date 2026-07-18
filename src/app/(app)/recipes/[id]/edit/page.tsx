@@ -47,6 +47,8 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
     protein: recipe.protein ?? "",
     carbs: recipe.carbs ?? "",
     fat: recipe.fat ?? "",
+    fibre: recipe.fibre ?? "",
+    sugar: recipe.sugar ?? "",
   };
 
   const boundUpdate = updateRecipe.bind(null, recipe.id);
