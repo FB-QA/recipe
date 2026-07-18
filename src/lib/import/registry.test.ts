@@ -11,7 +11,7 @@ const baseConfig: ImportAiConfig = {
   anthropicApiKey: "sk-ant-".padEnd(40, "x"),
   googleApiKey: undefined,
   apifyToken: undefined,
-  planEnforcementEnabled: false,
+  planEnforcementEnabled: false, reelCoverEnrich: true,
 };
 
 const req = (over: Partial<ImportRequest>): ImportRequest => ({

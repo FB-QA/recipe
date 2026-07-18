@@ -21,6 +21,7 @@ import {
   type ImportRow,
 } from "./store";
 import { classifyInstagramUrl } from "./resolvers/instagram-direct";
+import { createApifyResolver } from "./resolvers/apify";
 import type { ImportFailureReason, ImportRequest, ImportResult, RecipeImportSourceType } from "./schema";
 
 /**
@@ -87,7 +88,13 @@ async function runPipelineFor(request: ImportRequest): Promise<ImportResult> {
   const chain = buildResolverChain(request, config);
   const provider = selectPrimaryProvider(config);
   const store = createImportStore(prices);
-  const outcome = await runImportPipeline(request, { config, chain, provider, store });
+  // Reel cover enrichment (Freddi-approved): a clean Apify displayUrl replaces
+  // the play-button composite the direct rung returns. Only wired when Apify is
+  // configured; the engine gates it to composite Reel covers.
+  const coverEnricher = config.apifyToken
+    ? (req: ImportRequest) => createApifyResolver().resolve(req, { previousEvidence: [] })
+    : undefined;
+  const outcome = await runImportPipeline(request, { config, chain, provider, store, coverEnricher });
   return outcomeToResult(request.importId, outcome);
 }
 

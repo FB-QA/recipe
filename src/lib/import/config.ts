@@ -14,6 +14,13 @@ export interface ImportAiConfig {
   apifyToken: string | undefined;
   /** §25 — plan framework prepared but disabled. */
   planEnforcementEnabled: boolean;
+  /**
+   * Reel covers fetched directly carry Instagram's play-button composite frame
+   * (`cmp1`, downscaled). When on (default), a Reel whose direct cover is that
+   * composite triggers a targeted Apify call for the clean full-res displayUrl —
+   * a costed attempt (~$2.70/1000). Set IMPORT_REEL_COVER_ENRICH=false to disable.
+   */
+  reelCoverEnrich: boolean;
 }
 
 export function importConfig(env: NodeJS.ProcessEnv = process.env): ImportAiConfig {
@@ -26,5 +33,15 @@ export function importConfig(env: NodeJS.ProcessEnv = process.env): ImportAiConf
     googleApiKey: env.GOOGLE_API_KEY,
     apifyToken: env.APIFY_API_TOKEN,
     planEnforcementEnabled: env.IMPORT_PLAN_ENFORCEMENT_ENABLED === "true",
+    reelCoverEnrich: env.IMPORT_REEL_COVER_ENRICH !== "false",
   };
+}
+
+/**
+ * Instagram's Reel cover composite: the `cmp1` transform burns in the play
+ * triangle and downscales. Detecting it tells us the direct cover is a poor
+ * thumbnail worth replacing with Apify's clean displayUrl.
+ */
+export function isCompositeReelCover(url: string | null | undefined): boolean {
+  return Boolean(url && /[?&]stp=[^&]*cmp1/.test(url));
 }
