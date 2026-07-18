@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { currentUser } from "@/lib/auth/session";
 import { isAdmin } from "@/lib/auth/admin";
-import { fetchUsageRows, applyFilters, filterOptions, serverNowMs, type UsageFilters } from "@/lib/import/usage-queries";
+import { fetchUsageRows, fetchLifetimeCostMicroUsd, applyFilters, filterOptions, serverNowMs, type UsageFilters } from "@/lib/import/usage-queries";
 import { computeUsage, formatMicroUsd } from "@/lib/import/usage";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +36,10 @@ export default async function ImportUsagePage({
     model: sp.model || undefined,
   };
 
-  const raw = await fetchUsageRows(sinceDays);
+  const [raw, lifetimeCost] = await Promise.all([fetchUsageRows(sinceDays), fetchLifetimeCostMicroUsd()]);
   const options = filterOptions(raw);
   const rows = applyFilters(raw, filters);
-  const u = computeUsage(rows, serverNowMs());
+  const u = computeUsage(rows, serverNowMs(), lifetimeCost);
   const pct = (n: number) => `${Math.round(n * 100)}%`;
 
   return (

@@ -20,7 +20,7 @@ interface AiRow { purpose: string; status: string; totalCostMicroUsd: number; mo
 function fakeStore(prices: PriceRow[] = PRICES) {
   const retrieval: RetrievalRow[] = [];
   const ai: AiRow[] = [];
-  const transitions: Array<{ expected: string; next: string; failureReason?: string | null }> = [];
+  const transitions: Array<{ expected: string; next: string; failureReason?: string | null; costDeltaMicroUsd?: number }> = [];
   let state = "created";
 
   const store: ImportStore = {
@@ -48,7 +48,7 @@ function fakeStore(prices: PriceRow[] = PRICES) {
     },
     async transition(input) {
       if (input.expected !== state) return false;
-      transitions.push({ expected: input.expected, next: input.next, failureReason: input.failureReason });
+      transitions.push({ expected: input.expected, next: input.next, failureReason: input.failureReason, costDeltaMicroUsd: input.costDeltaMicroUsd });
       state = input.next;
       return true;
     },
@@ -301,5 +301,83 @@ describe("AC8 — retry transient once-per-rule; correct schema-invalid exactly 
       store: f.store,
     }));
     expect(out).toEqual({ kind: "failed", failureReason: "not_a_recipe" });
+  });
+});
+
+describe("cost & ledger accounting (§23)", () => {
+  const igCaption = "Ingredients: 500g chicken, 250g orzo. Method: brown, simmer 12 min.";
+
+  it("folds a paid-but-failed AI extraction into the failed import total (3973)", async () => {
+    const f = fakeStore();
+    const direct = resolverReturning({ evidence: evidence({ retrievalStatus: "complete", caption: igCaption }) }, "instagram_direct");
+    const notRecipe: AiExtractedRecipe = { ...RECIPE, extractionStatus: "not_recipe" };
+    const provider = stubProvider({ ok: true, recipe: notRecipe, usage: { ...EMPTY_USAGE, inputTextTokens: 100, outputTokensTotal: 0 } });
+    const out = await runImportPipeline({ ...req, sourceKind: "instagram_post" }, baseDeps({ chain: chainOf([direct]), provider, store: f.store }));
+    expect(out.kind).toBe("failed");
+    const failed = f.transitions.find((t) => t.next === "failed");
+    expect(failed?.costDeltaMicroUsd).toBe(100); // 100 input tokens × 1000 nano ÷ 1000
+  });
+
+  it("folds failed paid retrievals into the failed import total (3977)", async () => {
+    const f = fakeStore();
+    // A paid rung returns insufficient evidence; the import fails but its cost counts.
+    const paid: SourceResolver = {
+      resolverId: "apify_instagram", providerId: "apify", serviceId: "instagram_scraper", supports: () => true,
+      resolve: vi.fn(async () => ({ evidence: evidence({ retrievalStatus: "partial", caption: null }), cost: { providerId: "apify", serviceId: "instagram_scraper", unitsUsed: 1, unitType: "result", rawUsage: {} } }) as SourceResolverResult),
+    };
+    const out = await runImportPipeline({ ...req, sourceKind: "instagram_post" }, baseDeps({ chain: chainOf([paid]), store: f.store }));
+    expect(out.kind).toBe("failed");
+    const failed = f.transitions.find((t) => t.next === "failed");
+    expect(failed?.costDeltaMicroUsd).toBe(2_700); // 1 result × 2.7M nano ÷ 1000
+  });
+
+  it("stops the chain on terminal private content — no paid fallback (90880)", async () => {
+    const f = fakeStore();
+    const direct = resolverReturning({ evidence: evidence({ retrievalStatus: "unavailable", evidenceWarnings: ["private_content"] }) }, "instagram_direct");
+    const apify = resolverReturning({ evidence: evidence({ retrievalStatus: "complete", caption: igCaption }) }, "apify_instagram");
+    const out = await runImportPipeline({ ...req, sourceKind: "instagram_post" }, baseDeps({ chain: chainOf([direct, apify]), store: f.store }));
+    expect(out.kind).toBe("failed");
+    expect(apify.resolve as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    expect(f.retrieval.map((r) => r.resolverId)).toEqual(["instagram_direct"]);
+  });
+
+  it("ledgers every transient retry as its own attempt (90873)", async () => {
+    const f = fakeStore();
+    // Always retryable-fails → initial + MAX_TRANSIENT_RETRIES(2) = 3 attempt rows.
+    const flaky: SourceResolver = {
+      resolverId: "instagram_direct", providerId: null, serviceId: null, supports: () => true,
+      resolve: vi.fn(async () => ({ evidence: evidence({ retrievalStatus: "unavailable" }), cost: null, failure: "source_timeout" }) as SourceResolverResult),
+    };
+    await runImportPipeline({ ...req, sourceKind: "instagram_post" }, baseDeps({ chain: chainOf([flaky]), store: f.store }));
+    expect(f.retrieval.filter((r) => r.resolverId === "instagram_direct")).toHaveLength(3);
+    expect((flaky.resolve as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
+  });
+
+  it("prices URL-context by model across input, output and tool-use tokens (3974/55360/90871)", async () => {
+    const f = fakeStore([
+      { provider_id: "google", service_id: "url_context", model_id: "gemini-3.1-flash-lite", unit_type: "input_token", price_per_unit_nano_usd: 100 },
+      { provider_id: "google", service_id: "url_context", model_id: "gemini-3.1-flash-lite", unit_type: "output_token", price_per_unit_nano_usd: 400 },
+    ]);
+    const urlctx: SourceResolver = {
+      resolverId: "gemini_url_context", providerId: "google", serviceId: "url_context", supports: () => true,
+      resolve: vi.fn(async () => ({ evidence: evidence({ retrievalStatus: "complete", caption: igCaption }), cost: { providerId: "google", serviceId: "url_context", modelId: "gemini-3.1-flash-lite", unitsUsed: 1300, unitType: "input_token", tokens: { inputTokens: 200, outputTokens: 100, toolUseTokens: 1000 }, rawUsage: {} } }) as SourceResolverResult),
+    };
+    await runImportPipeline({ ...req, sourceKind: "instagram_post" }, baseDeps({ chain: chainOf([urlctx]), provider: stubProvider({ ok: true, recipe: RECIPE, usage: EMPTY_USAGE }), store: f.store }));
+    // (200 input + 1000 tool-use) × 100 ÷ 1000 = 120; 100 output × 400 ÷ 1000 = 40 → 160
+    expect(f.retrieval[0].costMicroUsd).toBe(160);
+  });
+
+  it("carries an earlier rung's cover into a later text-only winner (55374)", async () => {
+    const f = fakeStore();
+    const partialWithCover = resolverReturning(
+      { evidence: evidence({ retrievalStatus: "partial", caption: "teaser", media: [{ id: "m0", position: 0, modality: "image", sourceUrl: "https://cdn/cover.jpg", mimeType: null, storagePath: null, width: null, height: null, durationSeconds: null }] }) },
+      "instagram_direct",
+    );
+    const textOnly = resolverReturning({ evidence: evidence({ retrievalStatus: "complete", caption: igCaption }) }, "gemini_url_context");
+    const out = await runImportPipeline({ ...req, sourceKind: "instagram_post" }, baseDeps({
+      chain: chainOf([partialWithCover, textOnly]), provider: stubProvider({ ok: true, recipe: RECIPE, usage: EMPTY_USAGE }), store: f.store,
+    }));
+    expect(out.kind).toBe("ready");
+    if (out.kind === "ready") expect(out.recipe.source.coverImageUrl).toBe("https://cdn/cover.jpg");
   });
 });

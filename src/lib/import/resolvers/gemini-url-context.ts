@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { importConfig } from "../config";
 import { classifyInstagramUrl } from "./instagram-direct";
 import type {
@@ -36,14 +37,34 @@ const STAGE1_PROMPT = [
   "}",
 ].join("\n");
 
-interface Stage1Evidence {
-  captionVisible: string | null;
-  creatorName: string | null;
-  postType: "single_image" | "carousel" | "reel" | "unknown";
-  fullRecipeVisible: boolean;
-  recipeInBio: boolean;
-  dependsOnVideoOrAudio: boolean;
-  loginWall: boolean;
+// Validate the model's JSON before touching it: valid-but-wrong-shape output
+// (captionVisible a number, postType an unexpected string) must become a
+// classified retrieval failure, not a `.trim()` crash outside the failure
+// envelope after a paid call. Unknown enums coerce to "unknown"; wrong types are
+// rejected. `.catch`/`.default` keep a near-miss usable rather than failing hard.
+const stage1Schema = z.object({
+  captionVisible: z.string().nullable().catch(null),
+  creatorName: z.string().nullable().catch(null),
+  postType: z.enum(["single_image", "carousel", "reel", "unknown"]).catch("unknown"),
+  fullRecipeVisible: z.boolean().catch(false),
+  recipeInBio: z.boolean().catch(false),
+  dependsOnVideoOrAudio: z.boolean().catch(false),
+  loginWall: z.boolean().catch(false),
+});
+type Stage1Evidence = z.infer<typeof stage1Schema>;
+
+/** URL-context tool retrieval status Gemini reports per fetched URL. */
+const URL_RETRIEVAL_SUCCESS = "URL_RETRIEVAL_STATUS_SUCCESS";
+
+interface UrlContextMetadata {
+  urlMetadata?: Array<{ retrievedUrl?: string; urlRetrievalStatus?: string }>;
+}
+
+/** True only if the tool reports at least one URL actually retrieved successfully. */
+function urlActuallyRetrieved(meta: UrlContextMetadata | undefined): boolean {
+  const list = meta?.urlMetadata;
+  if (!list || list.length === 0) return false;
+  return list.some((m) => m.urlRetrievalStatus === URL_RETRIEVAL_SUCCESS);
 }
 
 const GEMINI_MODEL = "gemini-3.1-flash-lite"; // 2.5-flash-lite is closed to new keys (§3.4)
@@ -114,27 +135,57 @@ export function createGeminiUrlContextResolver(options?: {
         };
       }
 
-      let usage: { promptTokenCount?: number; candidatesTokenCount?: number } = {};
+      let usage: {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        toolUsePromptTokenCount?: number;
+      } = {};
       let stage1: Stage1Evidence | null = null;
+      let retrieved = false;
       try {
         const data = await res.json();
         usage = data.usageMetadata ?? {};
+        // Whether the URL-context tool actually fetched the page (vs the model
+        // answering from prior knowledge / hallucinating).
+        retrieved = urlActuallyRetrieved(data.candidates?.[0]?.urlContextMetadata);
         const text: string = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-        stage1 = JSON.parse(text) as Stage1Evidence;
+        const parsed = stage1Schema.safeParse(JSON.parse(text));
+        stage1 = parsed.success ? parsed.data : null;
       } catch {
         stage1 = null;
       }
 
+      // Gemini reports the tool-fetched page content separately as
+      // toolUsePromptTokenCount; count input + tool-use at the input rate and
+      // candidates at the output rate, priced by model in the engine.
+      const inputTokens = usage.promptTokenCount ?? 0;
+      const outputTokens = usage.candidatesTokenCount ?? 0;
+      const toolUseTokens = usage.toolUsePromptTokenCount ?? 0;
       const cost = {
         providerId: "google",
         serviceId: "url_context",
-        unitsUsed: (usage.promptTokenCount ?? 0) + (usage.candidatesTokenCount ?? 0),
-        unitType: "input_token", // input+output split is priced by the engine from the raw block
+        modelId: GEMINI_MODEL,
+        unitsUsed: inputTokens + outputTokens + toolUseTokens,
+        unitType: "input_token",
+        tokens: { inputTokens, outputTokens, toolUseTokens },
         rawUsage: usage,
       };
 
       if (!stage1) {
         return { evidence: evidence({}), cost, failure: "source_retrieval_failed", responseStatus: res.status };
+      }
+
+      // The model returned JSON, but if the URL-context tool never actually
+      // retrieved the page, its captionVisible/fullRecipeVisible claims are
+      // unverified. Do not promote them to evidence — fall through to the next
+      // rung rather than let a hallucinated caption seed a draft.
+      if (!retrieved) {
+        return {
+          evidence: evidence({ evidenceWarnings: ["unknown_completeness"] }),
+          cost,
+          failure: "source_retrieval_failed",
+          responseStatus: res.status,
+        };
       }
 
       // Stage 2 — normalise into SourceEvidence, trusting nothing implicit.

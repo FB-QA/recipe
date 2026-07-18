@@ -98,12 +98,15 @@ function ratio(n: number, d: number): number {
   return d > 0 ? n / d : 0;
 }
 
-export function computeUsage(rows: UsageRows, nowMs: number): UsageSummary {
+export function computeUsage(rows: UsageRows, nowMs: number, lifetimeCostMicroUsd?: number): UsageSummary {
   const { imports, retrieval, ai } = rows;
 
   // Cost windows use each import's accumulated total (every attempt cost folds
-  // into total_cost_micro_usd via the pipeline's CAS deltas).
-  const costLifetime = imports.reduce((s, i) => s + i.total_cost_micro_usd, 0);
+  // into total_cost_micro_usd via the pipeline's CAS deltas). `costWindow` is the
+  // total over the fetched (filtered/windowed) rows; the Lifetime card takes an
+  // all-time total when supplied, so a short selected window doesn't shrink it.
+  const costWindow = imports.reduce((s, i) => s + i.total_cost_micro_usd, 0);
+  const costLifetime = lifetimeCostMicroUsd ?? costWindow;
   const costToday = imports.filter((i) => withinWindow(i.created_at, nowMs, DAY)).reduce((s, i) => s + i.total_cost_micro_usd, 0);
   const cost7d = imports.filter((i) => withinWindow(i.created_at, nowMs, 7 * DAY)).reduce((s, i) => s + i.total_cost_micro_usd, 0);
   const cost30d = imports.filter((i) => withinWindow(i.created_at, nowMs, 30 * DAY)).reduce((s, i) => s + i.total_cost_micro_usd, 0);
@@ -121,14 +124,22 @@ export function computeUsage(rows: UsageRows, nowMs: number): UsageSummary {
     recipeExtraction: ai.filter((a) => a.purpose === "initial").reduce((s, a) => s + a.total_cost_micro_usd, 0),
     correction: ai.filter((a) => a.purpose === "correction").reduce((s, a) => s + a.total_cost_micro_usd, 0),
     retry: ai.filter((a) => a.purpose === "retry").reduce((s, a) => s + a.total_cost_micro_usd, 0),
-    total: costLifetime,
+    // Category totals are over the windowed rows, so their sum reconciles here —
+    // not against the all-time Lifetime figure.
+    total: costWindow,
   };
 
   // Resolver route success rates (across all imports with such an attempt).
   const directAttempts = retrieval.filter((r) => r.resolver_id === "instagram_direct" || r.resolver_id === "website_direct");
   const directSuccessRate = ratio(directAttempts.filter((r) => r.status === "succeeded").length, directAttempts.length);
   const urlContextAttempts = retrieval.filter((r) => r.service_id === "url_context" && r.status !== "unavailable");
-  const urlContextSuccessRate = ratio(urlContextAttempts.filter((r) => r.status === "succeeded").length, urlContextAttempts.length);
+  // A URL-context "success" means it produced complete evidence — a "succeeded"
+  // attempt whose evidence was only partial still forced a fallthrough, so it
+  // must not count as a success for provider-routing decisions.
+  const urlContextSuccessRate = ratio(
+    urlContextAttempts.filter((r) => r.status === "succeeded" && r.evidence_status === "complete").length,
+    urlContextAttempts.length,
+  );
 
   // Instagram panel.
   const igImports = imports.filter((i) => i.source_kind?.startsWith("instagram"));
@@ -137,20 +148,25 @@ export function computeUsage(rows: UsageRows, nowMs: number): UsageSummary {
   const igDirect = igRetrieval.filter((r) => r.resolver_id === "instagram_direct");
   const igUrlCtx = igRetrieval.filter((r) => r.service_id === "url_context");
   const igApify = igRetrieval.filter((r) => r.provider_id === "apify" && r.status !== "unavailable");
+  // Cover enrichment (`apify_cover`) runs AFTER direct retrieval already accepted
+  // the caption — it is not a source fallback, so it must not inflate the fallback
+  // rate or the "avoided" count. Only source-fallback Apify calls count for those.
+  const igApifySource = igApify.filter((r) => r.resolver_id !== "apify_cover");
+  const igApifySourceImports = new Set(igApifySource.map((r) => r.recipe_import_id)).size;
   const manualFallback = igImports.filter((i) => i.state === "failed").length;
   const instagram: InstagramPanel = {
     attempted: igImports.length,
     directSucceeded: igDirect.filter((r) => r.status === "succeeded" && r.evidence_status === "complete").length,
     directPartial: igDirect.filter((r) => r.evidence_status === "partial").length,
     urlContextAttempted: igUrlCtx.filter((r) => r.status !== "unavailable").length,
-    urlContextSucceeded: igUrlCtx.filter((r) => r.status === "succeeded").length,
+    urlContextSucceeded: igUrlCtx.filter((r) => r.status === "succeeded" && r.evidence_status === "complete").length,
     apifyCalls: igApify.length,
-    apifyAvoided: igImports.length - new Set(igApify.map((r) => r.recipe_import_id)).size,
+    apifyAvoided: igImports.length - igApifySourceImports,
     manualFallback,
     avgTotalCostMicroUsd: Math.round(ratio(igImports.reduce((s, i) => s + i.total_cost_micro_usd, 0), igImports.length)),
   };
 
-  const apifyFallbackRate = ratio(new Set(igApify.map((r) => r.recipe_import_id)).size, igImports.length);
+  const apifyFallbackRate = ratio(igApifySourceImports, igImports.length);
   const userFallbackRate = ratio(manualFallback, igImports.length);
 
   // Success rate by source type.

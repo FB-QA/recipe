@@ -289,6 +289,19 @@ export interface ExternalServiceCost {
   unitType: string;
   /** Raw provider usage block (metadata only — never content, §26). */
   rawUsage?: unknown;
+  /**
+   * Model id for model-specific price rows (e.g. Gemini URL-context). Absent/null
+   * means the price lookup falls back to the `*` wildcard row (Apify, direct).
+   */
+  modelId?: string | null;
+  /**
+   * Token breakdown for token-priced retrieval (Gemini URL-context is a
+   * generateContent call). When present the engine prices input + tool-use tokens
+   * at `input_token` and output tokens at `output_token` by model, instead of the
+   * single-unitType path — otherwise output tokens are charged at the input rate
+   * and the tokens the URL-context tool fetched are not billed at all.
+   */
+  tokens?: { inputTokens: number; outputTokens: number; toolUseTokens: number } | null;
 }
 
 export interface SourceResolverResult {

@@ -16,7 +16,6 @@ import type {
   RecipeExtractionProvider,
   RetrievalStatus,
   SourceEvidence,
-  SourceResolver,
   SourceResolverResult,
 } from "./schema";
 
@@ -126,7 +125,31 @@ function retrievalCost(prices: PriceRow[], result: SourceResolverResult): {
     // Direct retrieval: execution counts and latency still tracked (§23), zero third-party cost.
     return { units: 1, unitType: "request", costMicroUsd: 0, accuracy: "metered" };
   }
-  const price = pickPrice(prices, null, cost.unitType);
+  // Token-priced retrieval (Gemini URL-context): input + tool-use tokens at the
+  // input rate, candidates at the output rate, both by the resolver's model.
+  // A single-unitType lookup would charge output at the input price and never
+  // bill the tokens the URL-context tool fetched.
+  if (cost.tokens) {
+    let micro = 0;
+    let anyUnits = false;
+    let anyPriced = false;
+    let anyCapped = false;
+    const add = (units: number, unitType: string) => {
+      if (units <= 0) return;
+      anyUnits = true;
+      const price = pickPrice(prices, cost.modelId ?? null, unitType);
+      if (!price) return;
+      anyPriced = true;
+      const { costMicroUsd, capped } = unitCostMicroUsd(units, price.price_per_unit_nano_usd);
+      micro += costMicroUsd;
+      anyCapped ||= capped;
+    };
+    add(cost.tokens.inputTokens + cost.tokens.toolUseTokens, "input_token");
+    add(cost.tokens.outputTokens, "output_token");
+    const accuracy = !anyUnits ? "none" : anyPriced ? (anyCapped ? "estimated" : "metered") : "none";
+    return { units: cost.unitsUsed, unitType: cost.unitType, costMicroUsd: micro, accuracy };
+  }
+  const price = pickPrice(prices, cost.modelId ?? null, cost.unitType);
   if (!price) return { units: cost.unitsUsed, unitType: cost.unitType, costMicroUsd: 0, accuracy: "none" };
   const { costMicroUsd, capped } = unitCostMicroUsd(cost.unitsUsed, price.price_per_unit_nano_usd);
   return { units: cost.unitsUsed, unitType: cost.unitType, costMicroUsd, accuracy: capped ? "estimated" : "metered" };
@@ -188,8 +211,17 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
   let aiN = 0;
   let costAccum = 0;
 
-  const fail = async (from: string, reason: ImportFailureReason): Promise<EngineOutcome> => {
-    await store.transition({ importId: request.importId, expected: from, next: "failed", failureReason: reason });
+  const fail = async (
+    from: string,
+    reason: ImportFailureReason,
+    costDeltaMicroUsd = 0,
+  ): Promise<EngineOutcome> => {
+    // Fold any paid-but-failed spend into the import total, so the admin
+    // dashboard doesn't report failed imports as free while the attempt ledgers
+    // show the cost (§23).
+    await store.transition({
+      importId: request.importId, expected: from, next: "failed", failureReason: reason, costDeltaMicroUsd,
+    });
     return { kind: "failed", failureReason: reason };
   };
 
@@ -222,35 +254,39 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
   let deterministic: AiExtractedRecipe | null = null;
   let lastFailure: ImportFailureReason | null = null;
 
+  // Evidence from earlier rungs, carried forward so a later text-only winner
+  // (e.g. URL context supplying the full caption) does not lose the cover/creator
+  // a partial direct fetch already found (§8).
+  const priorEvidence: SourceEvidence[] = [];
+
   for (const resolver of chain.chain) {
-    const result = await runResolverWithRetry(resolver, request, deps, doSleep, rand);
-    const started = now();
-    const id = await store.openRetrievalAttempt({
-      importId: request.importId, userId: request.userId, attemptNumber: ++retrievalN,
-      resolverId: resolver.resolverId, providerId: resolver.providerId, serviceId: resolver.serviceId,
-    });
-    const cost = retrievalCost(store.prices, result);
-    costAccum += cost.costMicroUsd;
+    let result: SourceResolverResult | null = null;
+    let attempt = 1;
+    // Write-ahead ledger: the 'started' attempt row is inserted BEFORE each
+    // physical (possibly paid) resolver call, and every transient retry is its
+    // own ledgered attempt — so a crash mid-call still leaves a record and no
+    // paid retry is invisible to usage accounting.
+    for (;;) {
+      const started = now();
+      const id = await store.openRetrievalAttempt({
+        importId: request.importId, userId: request.userId, attemptNumber: ++retrievalN,
+        resolverId: resolver.resolverId, providerId: resolver.providerId, serviceId: resolver.serviceId,
+      });
+      result = await resolver.resolve(request, { previousEvidence: priorEvidence, fetchImpl: undefined });
+      const cost = retrievalCost(store.prices, result);
+      costAccum += cost.costMicroUsd;
+      await store.closeRetrievalAttempt(id, retrievalClose(result, cost, now() - started));
+
+      if (result.failure && retrievalFailureRetryable(result.failure) && attempt <= MAX_TRANSIENT_RETRIES) {
+        await doSleep(backoffMs(attempt, rand));
+        attempt++;
+        continue;
+      }
+      break;
+    }
+
     const ev = result.evidence;
-    await store.closeRetrievalAttempt(id, {
-      status: result.failure ? "failed" : ev.retrievalStatus === "unavailable" ? "unavailable" : "succeeded",
-      failureReason: result.failure ?? null,
-      responseStatus: result.responseStatus ?? null,
-      contentType: result.contentType ?? null,
-      contentBytes: result.contentBytes ?? null,
-      captionRetrieved: Boolean(ev.caption),
-      mediaCount: ev.media.length,
-      postType: ev.postType ?? null,
-      evidenceStatus: ev.retrievalStatus,
-      providerRequestId: null,
-      externalRunId: result.externalRunId ?? null,
-      unitsUsed: cost.units,
-      unitType: cost.unitType,
-      costMicroUsd: cost.costMicroUsd,
-      costAccuracy: cost.accuracy,
-      rawUsage: result.cost?.rawUsage ?? null,
-      latencyMs: Math.max(0, now() - started),
-    });
+    priorEvidence.push(ev);
 
     // Deterministic zero-AI path (website JSON-LD, AC1).
     if (result.deterministicRecipe && minimumUsable(result.deterministicRecipe)) {
@@ -268,10 +304,25 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
     }
     // Remember why this rung fell short, for the terminal message if the chain runs out.
     lastFailure = result.failure ?? evidenceToFailure(ev, decision.reason);
+    // Private/deleted/restricted content is terminal for every remaining rung —
+    // stop rather than spend on paid fallbacks (URL context, Apify) that will
+    // fail for the same reason the free direct fetch already established.
+    if (isTerminalContentFailure(ev)) break;
   }
 
   if (!acceptedEvidence) {
-    return fail("retrieving_source", lastFailure ?? "source_retrieval_failed");
+    return fail("retrieving_source", lastFailure ?? "source_retrieval_failed", costAccum);
+  }
+
+  // Backfill cover/creator the accepted (often text-only) winner lacks from an
+  // earlier rung, so the review keeps its thumbnail and cover enrichment can run.
+  if (!acceptedEvidence.media.some((m) => m.modality === "image")) {
+    const priorImage = priorEvidence.flatMap((e) => e.media).find((m) => m.modality === "image");
+    if (priorImage) acceptedEvidence = { ...acceptedEvidence, media: [...acceptedEvidence.media, priorImage] };
+  }
+  if (!acceptedEvidence.creatorName) {
+    const priorCreator = priorEvidence.map((e) => e.creatorName).find((n): n is string => Boolean(n));
+    if (priorCreator) acceptedEvidence = { ...acceptedEvidence, creatorName: priorCreator };
   }
 
   await store.transition({
@@ -322,9 +373,9 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
     if (cleanImage && !isCompositeReelCover(cleanImage)) coverOverride = cleanImage;
   }
 
-  // Deterministic recipe → no AI.
+  // Deterministic recipe → no AI. Flush any cover-enrichment cost accrued above.
   if (deterministic) {
-    return finishReady(deterministic, acceptedEvidence, request, "source_retrieved", store, "jsonld", coverOverride);
+    return finishReady(deterministic, acceptedEvidence, request, "source_retrieved", store, "jsonld", coverOverride, null, costAccum);
   }
 
   // AI extraction.
@@ -342,33 +393,58 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
   };
 
   if (!provider.supports(input)) {
-    return fail("ai_processing", "ai_provider_error");
+    return fail("ai_processing", "ai_provider_error", costAccum);
   }
 
   const extraction = await runExtractionWithRetry(provider, input, request, deps, () => ++aiN, doSleep, rand);
   if (extraction.outcome.kind === "failed") {
-    return fail("ai_processing", extraction.outcome.failureReason);
+    // A terminal AI failure can still have made paid requests (schema-correction
+    // exhaustion, safety/not-recipe after a response) — record that spend.
+    return fail("ai_processing", extraction.outcome.failureReason, costAccum + extraction.costMicroUsd);
   }
   costAccum += extraction.costMicroUsd; // keep any cover-enrichment cost
 
   await store.transition({ importId: request.importId, expected: "ai_processing", next: "validating", costDeltaMicroUsd: costAccum });
-  return finishReady(extraction.outcome.recipe, acceptedEvidence, request, "validating", store, acceptedResolverId ?? "ai", coverOverride);
+  costAccum = 0;
+  return finishReady(extraction.outcome.recipe, acceptedEvidence, request, "validating", store, acceptedResolverId ?? "ai", coverOverride, null, costAccum);
 }
 
-// ---- resolver retry (transient retrieval failures only) ----
+// ---- retrieval attempt helpers ----
 
-async function runResolverWithRetry(
-  resolver: SourceResolver, request: ImportRequest, deps: EngineDeps,
-  doSleep: (ms: number) => Promise<void>, rand: () => number,
-): Promise<SourceResolverResult> {
-  let last = await resolver.resolve(request, { previousEvidence: [], fetchImpl: undefined });
-  let attempt = 1;
-  while (last.failure && retrievalFailureRetryable(last.failure) && attempt <= MAX_TRANSIENT_RETRIES) {
-    await doSleep(backoffMs(attempt, rand));
-    last = await resolver.resolve(request, { previousEvidence: [], fetchImpl: undefined });
-    attempt++;
-  }
-  return last;
+/** Build the ledger close-patch for one physical resolver call. */
+function retrievalClose(
+  result: SourceResolverResult,
+  cost: { units: number | null; unitType: string | null; costMicroUsd: number; accuracy: "metered" | "estimated" | "none" },
+  latencyMs: number,
+): RetrievalAttemptClose {
+  const ev = result.evidence;
+  return {
+    status: result.failure ? "failed" : ev.retrievalStatus === "unavailable" ? "unavailable" : "succeeded",
+    failureReason: result.failure ?? null,
+    responseStatus: result.responseStatus ?? null,
+    contentType: result.contentType ?? null,
+    contentBytes: result.contentBytes ?? null,
+    captionRetrieved: Boolean(ev.caption),
+    mediaCount: ev.media.length,
+    postType: ev.postType ?? null,
+    evidenceStatus: ev.retrievalStatus,
+    providerRequestId: null,
+    externalRunId: result.externalRunId ?? null,
+    unitsUsed: cost.units,
+    unitType: cost.unitType,
+    costMicroUsd: cost.costMicroUsd,
+    costAccuracy: cost.accuracy,
+    rawUsage: result.cost?.rawUsage ?? null,
+    latencyMs: Math.max(0, latencyMs),
+  };
+}
+
+/** Content that no later rung can recover (unlike a login wall, which a paid
+ *  rung might bypass) — so the chain should stop rather than pay to re-confirm. */
+function isTerminalContentFailure(ev: SourceEvidence): boolean {
+  return ev.evidenceWarnings.some(
+    (w) => w === "private_content" || w === "deleted_content" || w === "restricted_content",
+  );
 }
 
 // ---- AI extraction retry / correction (§20) ----
@@ -476,6 +552,7 @@ async function finishReady(
   recipe: AiExtractedRecipe, evidence: SourceEvidence, request: ImportRequest,
   fromState: string, store: ImportStore, retrievalMethod: string,
   coverOverride: string | null = null, handleOverride: string | null = null,
+  costDeltaMicroUsd = 0,
 ): Promise<EngineOutcome> {
   const full: ExtractedRecipe = {
     ...recipe,
@@ -491,7 +568,7 @@ async function finishReady(
   const score = qualityScore(recipe);
   const ok = await store.transition({
     importId: request.importId, expected: fromState, next: "ready_for_review",
-    qualityScore: score, extracted: full,
+    qualityScore: score, extracted: full, costDeltaMicroUsd,
   });
   if (!ok) return { kind: "failed", failureReason: "unknown_error" };
   return { kind: "ready", recipe: full, qualityScore: score, warnings: recipe.warnings };

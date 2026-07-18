@@ -36,6 +36,12 @@ describe("computeUsage — cost windows and totals (AC1)", () => {
     expect(u.cost30d).toBe(8739);          // p1 (40d) excluded
     expect(u.costLifetime).toBe(14778);    // + p1
   });
+  it("uses the all-time lifetime override for the Lifetime card, leaving windows windowed", () => {
+    const withLifetime = computeUsage(rows, NOW, 999_999);
+    expect(withLifetime.costLifetime).toBe(999_999); // all-time total, not the windowed sum
+    expect(withLifetime.cost7d).toBe(8739);          // window figures unchanged
+    expect(withLifetime.categories.total).toBe(14778); // category total reconciles to the window
+  });
   it("counts imports and successes and derives averages", () => {
     expect(u.importCount).toBe(4);
     expect(u.successCount).toBe(3);        // w1, i1, p1 (i2 failed)
@@ -57,8 +63,11 @@ describe("computeUsage — Instagram panel (AC2)", () => {
     expect(u.instagram.attempted).toBe(2);           // i1, i2
     expect(u.instagram.directPartial).toBe(2);        // both direct partial
     expect(u.instagram.urlContextAttempted).toBe(0);  // gemini was unavailable
-    expect(u.instagram.apifyCalls).toBe(1);           // i1 cover enrichment
-    expect(u.instagram.apifyAvoided).toBe(1);         // i2 never called apify
+    expect(u.instagram.apifyCalls).toBe(1);           // i1 cover enrichment call was made
+    // i1's only Apify attempt is cover enrichment (not a source fallback) and i2
+    // never called Apify — so BOTH avoided source fallback, and the fallback rate is 0.
+    expect(u.instagram.apifyAvoided).toBe(2);
+    expect(u.apifyFallbackRate).toBe(0);
     expect(u.instagram.manualFallback).toBe(1);       // i2 failed
   });
 });
