@@ -3,7 +3,7 @@ slug: import-engine-v2
 project: recipe
 type: user-story
 created: 2026-07-17
-status: ready-for-build
+status: ready-for-qa
 shape: compute
 architecture: three new cost/attempt tables, recipe_imports state machine + idempotency, and a recipe schema extension for ingredient groups/ranges/alternatives/step titles
 links: [spec/import-v2.md]
@@ -136,11 +136,99 @@ column drops, `state` backfill) is flagged for approval, not performed.
 
 ---
 
-## Build  (Barry)
+## Build  (Barry → finished solo by Tara after a usage-credit cutoff)
 
 **Branch:** dev/import-engine-v2
 
-**Status:** pending
+Barry built every leaf module (schema, config, evidence gate, validation/quality,
+pricing, messages, retry, both provider adapters, both Instagram resolvers,
+migration) then died mid-build on a usage-credit cutoff with the work uncommitted.
+Tara recovered it (commit `wip(...)`) and finished the integration spine solo:
+the remaining resolvers, the registry, the orchestrator engine, the persistence
+store, the actions rewrite, the UI wiring, and v1 retirement.
+
+**File map:**
+- `src/lib/import/schema.ts` — the one type home (§6–§10, §15, §18, §21) + `ImportResult` envelope
+- `src/lib/import/config.ts` — provider config; model IDs live here + adapters only (AC9)
+- `src/lib/import/evidence.ts` — §10 acceptance gate (recipe-in-bio never sufficient)
+- `src/lib/import/validate.ts` — normalise (drop, never invent), minimumUsable, Cookdex quality score
+- `src/lib/import/pricing.ts` — integer nano-USD → micro-USD, round-half-up, overflow guard
+- `src/lib/import/messages.ts` — failure-reason → user copy + fallback (retrieval ≠ AI error)
+- `src/lib/import/retry.ts` — §20 classification + backoff
+- `src/lib/import/providers/anthropic.ts` — live Claude adapter (structured output)
+- `src/lib/import/providers/gemini.ts` — config-gated Gemini adapter (built, unregistered w/o key)
+- `src/lib/import/resolvers/instagram-direct.ts` — §9.1 direct fetch; login-shell detection (fixture 9)
+- `src/lib/import/resolvers/gemini-url-context.ts` — §9.2 two-stage, config-gated
+- `src/lib/import/resolvers/apify.ts` — §9.3 wraps the v1 leaf; discards non-recipe fields
+- `src/lib/import/resolvers/website.ts` — §11 JSON-LD skip-AI + page-text-for-AI (pure `interpretWebsiteHtml`)
+- `src/lib/import/resolvers/pasted-text.ts` — §12
+- `src/lib/import/registry.ts` — ordered chain per source; config-gated rungs surfaced, not dropped (AC9)
+- `src/lib/import/engine.ts` — orchestrator: retrieval/AI separation, gate, deterministic path, retry/correct, per-attempt cost, CAS transitions
+- `src/lib/import/store.ts` — service-role W1–W4/R1–R7 + R6 prices; untyped DB boundary isolated here
+- `src/lib/import/to-form.ts` — flatten v2 recipe → existing review form (groups persist next story)
+- `src/lib/import/actions.ts` — `submitUrlImport`/`submitPasteImport`/`getImportStatus` → one envelope
+- `src/components/import/import-flow.tsx`, `paste-flow.tsx`, `import-failure.tsx` — UI on the envelope
+- `supabase/migrations/20260717150000_import_engine_v2.sql` — Archie's ledgers + CAS fn + seeds (applied clean to local stack)
+- removed: v1 `pipeline.ts`, `ai.ts`, `types.ts`, `pipeline.test.ts`
+
+**AC coverage:**
+- AC1 — website JSON-LD path returns `deterministicRecipe`, engine records zero AI attempts — `engine.ts::runImportPipeline` (deterministic branch), `resolvers/website.ts::interpretWebsiteHtml`
+- AC2 — verbatim wording, groups, ranges, optionals, alternatives — `validate.ts::normaliseRecipe`, `providers/anthropic.ts` schema
+- AC3 — direct-first, Apify only on insufficiency, every attempt recorded — `engine.ts` chain loop + W3
+- AC4 — recipe-in-bio / teaser never accepted; retrieval framed as retrieval — `evidence.ts::decideEvidence`, `messages.ts`
+- AC5 — paste preserves wording/order/structure, absent stays empty — `resolvers/pasted-text.ts` + provider prompt §17
+- AC6 — double-submit does the paid work once — `store.ts::claimImport` (W1) + unique index; `actions.ts` race re-read
+- AC7 — every retrieval + AI attempt costed in micro-USD; import carries state + failure reason — `engine.ts` W3/W4 + `store.ts`
+- AC8 — transient retry ≤2, content failures no retry, schema-invalid one correction — `engine.ts::runExtractionWithRetry`, `retry.ts`
+- AC9 — provider/model switch is config-only; gated rungs report unavailable — `registry.ts`, `engine.ts` gated-rung recording
+
+**AC routing:**
+- AC1 — unit: `engine.test.ts` "AC1 — deterministic JSON-LD spends no AI" + `resolvers/website.test.ts`
+- AC2 — unit: `validate.test.ts`, `resolvers/website.test.ts`; live: `scripts/verify-import-live.mts` (real Claude output)
+- AC3 — unit: `engine.test.ts` "AC3 — Apify runs only after cheaper rungs fall short"
+- AC4 — unit: `engine.test.ts` "AC4 — retrieval failures never yield an accepted recipe"
+- AC5 — unit: `resolvers/pasted-text.test.ts`, `to-form.test.ts`; live e2e: `scripts/verify-import-e2e.mts`
+- AC6 — integration: `scripts/verify-import-e2e.mts` (duplicate claim `raced=true` against the real unique index)
+- AC7 — unit: `engine.test.ts` "AC7 …"; integration: e2e ledger rows (cost 6039 micro-USD reconciled)
+- AC8 — unit: `engine.test.ts` "AC8 — retry transient once-per-rule; correct schema-invalid exactly once"
+- AC9 — unit: `registry.test.ts`, `engine.test.ts` "AC9 — gated rungs are recorded"
+
+**Integration tests:** the persistence contract (W1–W4, R1–R7, CAS RPC, cost) is exercised end-to-end
+against the local Supabase stack by `scripts/verify-import-e2e.mts` — the migration applied clean, a real
+Claude extraction persisted `state=ready_for_review`, and the attempt ledgers + `total_cost_micro_usd`
+reconciled to the nano-USD price book. A committed Vitest integration suite against a throwaway PG schema
+is a follow-up for Priya (named as residual, below) — the harness proves the contract now.
+
+**Test run:**
+```
+# Unit + component (Vitest)
+Test Files  22 passed (22)
+      Tests  138 passed (138)
+# tsc --noEmit: 0 errors    # eslint src/lib/import src/components/import --max-warnings=0: clean
+# next build: 20/20 routes compiled
+
+# Live external (scripts/verify-import-live.mts)
+1. RecipeTin Eats bolognese → JSON-LD: 16 ingredients, 10 steps, verbatim "1 1/2 tbsp olive oil" → ZERO AI (AC1)
+2. Claude haiku-4-5 extraction → schema-valid, quality 90/100:
+   groups "For the base"/"For the topping"; range "1-2 tbsp" → min1 max2;
+   alternative "pecans OR digestive biscuit"; optional honey; titles "Roast…"/"Make…"/"Combine…"
+
+# Full e2e vs local Supabase (scripts/verify-import-e2e.mts)
+W1 claim ✓  AC6 duplicate claim raced=true ✓  pipeline → ready quality=90
+recipe_imports: state=ready_for_review, total_cost_micro_usd=6039, extracted persisted with named groups
+ai_extraction_attempts: 1× initial/succeeded, 6039 micro-USD (1929 in ×1000 + 822 out ×5000 ÷1000) ✓ exact
+source_retrieval_attempts: 1× pasted_text/succeeded, unit_type=request, cost 0 metered
+```
+
+**Status:** done
+
+**Residual for Priya:**
+- Instagram live path is unverified by design (spec §0.4 — 100-post PoC deferred; needs real post URLs + Freddi).
+  Direct-fetch login wall is confirmed and handled; Apify token present but the resolver→ledger path is
+  unit-tested, not live-run against a real scrape.
+- A committed Vitest integration suite (throwaway PG) mirroring `verify-import-e2e.mts` would replace the
+  script as the permanent record.
+- Video/screenshot paths are out of scope (spec §0.2, story `import-capture-review-v2`).
 
 ---
 

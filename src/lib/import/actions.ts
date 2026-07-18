@@ -2,151 +2,188 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
+import { currentUser } from "@/lib/auth/session";
 import { signStoragePaths } from "@/lib/supabase/storage";
-import { importFromUrl, isInstagramUrl } from "./pipeline";
-import { extractWithAi, aiToExtracted } from "./ai";
-import { hasCookableContent, type ExtractedRecipe, type ImportOutcome } from "./types";
 import { importBlocked } from "./limit";
+import { importConfig } from "./config";
+import { buildResolverChain, selectPrimaryProvider } from "./registry";
+import { runImportPipeline, type EngineOutcome } from "./engine";
+import { messageForFailure } from "./messages";
+import {
+  claimImport,
+  createImportStore,
+  failStale,
+  isStale,
+  loadPrices,
+  readByIdempotencyKey,
+  readById,
+  readCachedByUrl,
+  type ImportRow,
+} from "./store";
+import { classifyInstagramUrl } from "./resolvers/instagram-direct";
+import type { ImportFailureReason, ImportRequest, ImportResult, RecipeImportSourceType } from "./schema";
 
-export type PasteState =
-  | { phase: "idle" }
-  | { phase: "error"; error: string }
-  | { phase: "done"; recipe: ExtractedRecipe };
+/**
+ * The server-action surface (api.md). Auth → policy → idempotency claim →
+ * pipeline → one `ImportResult` envelope. Domain failures never throw; only the
+ * signed-out path uses the existing throw convention. The client generates the
+ * idempotency key (§22 / AC6) — a double submit re-sends it and the second
+ * request returns the first's result or in-flight status.
+ */
 
-/** Extract a recipe from raw pasted text (e.g. from ChatGPT or a blog). Same AI
- *  path as caption/website import — no particular format required. */
-export async function extractPasted(
-  _prev: PasteState | undefined,
-  formData: FormData,
-): Promise<PasteState> {
-  const text = String(formData.get("text") ?? "").trim();
-  if (text.length < 20) {
-    return { phase: "error", error: "Paste a bit more — I need the full recipe text." };
-  }
+const uuid = z.string().uuid();
 
-  const supabase = await createClient();
-  const user = await currentUser();
-  if (!user) return { phase: "error", error: SIGNED_OUT_ERROR };
-
-  if (await importBlocked(supabase, user.id)) {
+function outcomeToResult(importId: string, outcome: EngineOutcome): ImportResult {
+  if (outcome.kind === "ready") {
     return {
-      phase: "error",
-      error: "You've reached today's import limit. Try again tomorrow, or type it in manually.",
+      phase: "ready",
+      importId,
+      recipe: outcome.recipe,
+      qualityScore: outcome.qualityScore,
+      warnings: outcome.warnings,
     };
   }
-
-  const ai = await extractWithAi(text);
-  const recipe = ai ? aiToExtracted(ai.recipe, null) : null;
-  const ok = recipe !== null && hasCookableContent(recipe);
-
-  await supabase.from("recipe_imports").insert({
-    user_id: user.id,
-    source_url: null,
-    source_type: "manual",
-    status: ok ? "success" : "no_recipe",
-    method: "ai_text",
-    estimated_cost_cents: Number((ai?.costCents ?? 0).toFixed(4)),
-    extracted: ok ? recipe : null,
-  });
-
-  if (!ok || !recipe) {
-    return {
-      phase: "error",
-      error:
-        "I couldn't pull a full recipe from that. Make sure the ingredients and steps are in the text, or type it in manually.",
-    };
-  }
-  return { phase: "done", recipe };
+  const { message, fallback } = messageForFailure(outcome.failureReason);
+  return { phase: "failed", importId, failureReason: outcome.failureReason, message, fallback };
 }
 
-export type ImportState =
-  | { phase: "idle" }
-  | { phase: "error"; error: string }
-  | { phase: "exists"; recipeId: string; title: string; coverUrl: string | null }
-  | ({ phase: "done"; sourceUrl: string } & ImportOutcome);
-
-export async function runImport(
-  _prev: ImportState | undefined,
-  formData: FormData,
-): Promise<ImportState> {
-  const parsed = z
-    .string()
-    .url()
-    .safeParse(String(formData.get("url") ?? "").trim());
-  if (!parsed.success) {
-    return { phase: "error", error: "Paste a valid recipe link to import." };
+/** Map a persisted import row (idempotency hit / status poll) to the envelope. */
+function rowToResult(row: ImportRow): ImportResult {
+  if ((row.state === "ready_for_review" || row.state === "saved") && row.extracted) {
+    return {
+      phase: "ready",
+      importId: row.id,
+      recipe: row.extracted,
+      qualityScore: row.quality_score ?? 0,
+      warnings: row.extracted.warnings ?? [],
+    };
   }
-  const url = parsed.data;
+  if (row.state === "failed") {
+    const reason = row.failure_reason ?? "unknown_error";
+    const { message, fallback } = messageForFailure(reason);
+    return { phase: "failed", importId: row.id, failureReason: reason, message, fallback };
+  }
+  return { phase: "processing", importId: row.id, state: row.state ?? "created" };
+}
 
-  const supabase = await createClient();
+function failed(reason: ImportFailureReason, importId: string | null = null): ImportResult {
+  const { message, fallback } = messageForFailure(reason);
+  return { phase: "failed", importId, failureReason: reason, message, fallback };
+}
+
+async function resolveIdempotencyHit(userId: string, key: string): Promise<ImportResult | null> {
+  const existing = await readByIdempotencyKey(userId, key);
+  if (!existing) return null;
+  if (isStale(existing)) {
+    await failStale(existing);
+    return failed("unknown_error", existing.id);
+  }
+  return rowToResult(existing);
+}
+
+async function runPipelineFor(request: ImportRequest): Promise<ImportResult> {
+  const config = importConfig();
+  const prices = await loadPrices();
+  const chain = buildResolverChain(request, config);
+  const provider = selectPrimaryProvider(config);
+  const store = createImportStore(prices);
+  const outcome = await runImportPipeline(request, { config, chain, provider, store });
+  return outcomeToResult(request.importId, outcome);
+}
+
+// ------------------------------------------------------------------
+// submitUrlImport — website + Instagram
+// ------------------------------------------------------------------
+
+export async function submitUrlImport(_prev: ImportResult | undefined, formData: FormData): Promise<ImportResult> {
+  const url = z.string().url().safeParse(String(formData.get("url") ?? "").trim());
+  const key = uuid.safeParse(String(formData.get("idempotencyKey") ?? ""));
+  if (!url.success || !key.success) return failed("invalid_input");
+
   const user = await currentUser();
-  if (!user) return { phase: "error", error: SIGNED_OUT_ERROR };
+  if (!user) return failed("unauthenticated");
+  const supabase = await createClient();
 
-  // Already saved this URL? Send them straight to it instead of re-importing.
-  const { data: existing } = await supabase
+  // Idempotency (R1) — a re-submit returns the first attempt's outcome.
+  const hit = await resolveIdempotencyHit(user.id, key.data);
+  if (hit) return hit;
+
+  // Already saved this URL? Send them to it (existing behaviour).
+  const { data: existingRecipe } = await supabase
     .from("recipes")
     .select("id, title, cover_image_path")
-    .eq("source_url", url)
+    .eq("source_url", url.data)
     .limit(1)
     .maybeSingle();
-  if (existing) {
-    const covers = await signStoragePaths(supabase, [existing.cover_image_path]);
+  if (existingRecipe) {
+    const covers = await signStoragePaths(supabase, [existingRecipe.cover_image_path]);
     return {
       phase: "exists",
-      recipeId: existing.id,
-      title: existing.title,
-      coverUrl: existing.cover_image_path ? (covers[existing.cover_image_path] ?? null) : null,
+      recipeId: existingRecipe.id,
+      title: existingRecipe.title,
+      coverUrl: existingRecipe.cover_image_path ? (covers[existingRecipe.cover_image_path] ?? null) : null,
     };
   }
 
-  // Per-user rate limit (rolling 24h).
-  if (await importBlocked(supabase, user.id)) {
-    return {
-      phase: "error",
-      error: "You've reached today's import limit. It resets in 24 hours — or add a recipe manually.",
-    };
+  // Cache (R3) — a previously accepted extraction of this URL is reused free.
+  const cached = await readCachedByUrl(user.id, url.data);
+  if (cached?.extracted) return rowToResult(cached);
+
+  // Policy (R4).
+  if (await importBlocked(supabase, user.id)) return failed("plan_restricted");
+
+  const sourceKind: RecipeImportSourceType = classifyInstagramUrl(url.data) ?? "website";
+
+  // Claim (W1). Race-loss → return the winner.
+  const claim = await claimImport({ userId: user.id, idempotencyKey: key.data, sourceKind, sourceUrl: url.data });
+  if (claim.raced) {
+    return (await resolveIdempotencyHit(user.id, key.data)) ?? failed("unknown_error");
   }
 
-  // Cache: a previous successful import of the same URL is reused for free.
-  const { data: cached } = await supabase
-    .from("recipe_imports")
-    .select("extracted, media_url, source_type")
-    .eq("source_url", url)
-    .eq("status", "success")
-    .not("extracted", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  return runPipelineFor({ sourceKind, url: url.data, text: null, userId: user.id, importId: claim.importId });
+}
 
-  if (cached?.extracted) {
-    return {
-      phase: "done",
-      status: "success",
-      sourceType: cached.source_type === "instagram" ? "instagram" : "website",
-      method: "cache",
-      costCents: 0,
-      recipe: cached.extracted as unknown as ExtractedRecipe,
-      mediaUrl: cached.media_url,
-      sourceUrl: url,
-    };
+// ------------------------------------------------------------------
+// submitPasteImport — pasted text (§12)
+// ------------------------------------------------------------------
+
+export async function submitPasteImport(_prev: ImportResult | undefined, formData: FormData): Promise<ImportResult> {
+  const text = String(formData.get("text") ?? "").trim();
+  const key = uuid.safeParse(String(formData.get("idempotencyKey") ?? ""));
+  if (!key.success) return failed("invalid_input");
+  if (text.length < 20) return failed("invalid_input");
+
+  const user = await currentUser();
+  if (!user) return failed("unauthenticated");
+  const supabase = await createClient();
+
+  const hit = await resolveIdempotencyHit(user.id, key.data);
+  if (hit) return hit;
+
+  if (await importBlocked(supabase, user.id)) return failed("plan_restricted");
+
+  const claim = await claimImport({ userId: user.id, idempotencyKey: key.data, sourceKind: "pasted_text", sourceUrl: null });
+  if (claim.raced) {
+    return (await resolveIdempotencyHit(user.id, key.data)) ?? failed("unknown_error");
   }
 
-  const outcome = await importFromUrl(url);
+  return runPipelineFor({ sourceKind: "pasted_text", url: null, text, userId: user.id, importId: claim.importId });
+}
 
-  await supabase.from("recipe_imports").insert({
-    user_id: user.id,
-    source_url: url,
-    source_type:
-      outcome.status === "failed" ? (isInstagramUrl(url) ? "instagram" : "website") : outcome.sourceType,
-    status: outcome.status,
-    method: "method" in outcome ? outcome.method : null,
-    estimated_cost_cents: Number(outcome.costCents.toFixed(4)),
-    extracted: outcome.status === "success" ? outcome.recipe : null,
-    media_url: "mediaUrl" in outcome ? (outcome.mediaUrl ?? null) : null,
-    error: outcome.status === "failed" ? outcome.error : null,
-  });
+// ------------------------------------------------------------------
+// getImportStatus — poll an in-flight import (R2)
+// ------------------------------------------------------------------
 
-  if (outcome.status === "failed") return { phase: "error", error: outcome.error };
-  return { phase: "done", sourceUrl: url, ...outcome };
+export async function getImportStatus(importId: string): Promise<ImportResult> {
+  if (!uuid.safeParse(importId).success) return failed("invalid_input");
+  const user = await currentUser();
+  if (!user) return failed("unauthenticated");
+
+  const row = await readById(user.id, importId);
+  if (!row) return failed("invalid_input");
+  if (isStale(row)) {
+    await failStale(row);
+    return failed("unknown_error", row.id);
+  }
+  return rowToResult(row);
 }

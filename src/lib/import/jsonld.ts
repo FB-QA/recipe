@@ -1,14 +1,18 @@
-import type { ExtractedRecipe } from "./types";
+import type { AiExtractedRecipe, ExtractedIngredient, ExtractedRecipeStep } from "./schema";
 
-/** "PT1H30M" / "PT20M" → "1 hr 30 min". Returns null for unparseable input. */
-export function humaniseDuration(iso: string | null | undefined): string | null {
+/**
+ * schema.org/Recipe JSON-LD parser — the deterministic, zero-cost rung of the
+ * website flow (§11, AC1). v1 asset extended to produce the v2 §18 shape:
+ * verbatim ingredient wording, one unnamed group for sectionless recipes,
+ * ordered steps, nulls for absent data — never invented values.
+ */
+
+/** "PT1H30M" / "PT20M" → minutes. Null for unparseable input. */
+export function durationToMinutes(iso: string | null | undefined): number | null {
   if (!iso || typeof iso !== "string") return null;
   const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?/);
   if (!m || (!m[1] && !m[2])) return null;
-  const parts: string[] = [];
-  if (m[1]) parts.push(`${m[1]} hr`);
-  if (m[2]) parts.push(`${m[2]} min`);
-  return parts.join(" ");
+  return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0);
 }
 
 function asArray<T>(v: T | T[] | undefined | null): T[] {
@@ -69,16 +73,51 @@ function mapInstructions(raw: unknown): string[] {
   return out;
 }
 
-/** Parse schema.org/Recipe JSON-LD out of a page's HTML. No AI, no cost. */
-export function extractRecipeFromHtml(html: string): ExtractedRecipe | null {
-  const scripts = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+function jsonLdScripts(html: string): unknown[] {
+  const out: unknown[] = [];
+  const scripts = [
+    ...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi),
+  ];
   for (const match of scripts) {
-    let json: unknown;
     try {
-      json = JSON.parse(match[1].trim());
+      out.push(JSON.parse(match[1].trim()));
     } catch {
       continue;
     }
+  }
+  return out;
+}
+
+/** First number in a yield string ("2 servings" → 2); null when absent. */
+function yieldValue(text: string | null): number | null {
+  const m = text?.match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
+
+function toIngredient(displayText: string, position: number): ExtractedIngredient {
+  return {
+    temporaryId: `jsonld-i${position}`,
+    position,
+    originalText: displayText, // verbatim wording — the fidelity contract
+    quantityText: null,
+    quantityValue: null,
+    quantityMin: null,
+    quantityMax: null,
+    unit: null,
+    name: displayText,
+    preparation: null,
+    optional: false,
+    alternativeGroupId: null,
+  };
+}
+
+/**
+ * Parse schema.org/Recipe JSON-LD out of a page's HTML into the v2 shape.
+ * Null unless the recipe is usable (non-empty title, ≥1 ingredient, ≥1 step) —
+ * the §11 "skip AI entirely" bar; missing servings/times never force an AI call.
+ */
+export function extractRecipeFromHtml(html: string): AiExtractedRecipe | null {
+  for (const json of jsonLdScripts(html)) {
     const node = findRecipeNode(json);
     if (!node) continue;
 
@@ -86,22 +125,50 @@ export function extractRecipeFromHtml(html: string): ExtractedRecipe | null {
     const ingredients = asArray(node.recipeIngredient)
       .map((i) => (typeof i === "string" ? i.trim() : ""))
       .filter(Boolean);
-    const steps = mapInstructions(node.recipeInstructions);
+    const instructions = mapInstructions(node.recipeInstructions);
 
-    if (!title || ingredients.length === 0 || steps.length === 0) continue;
+    if (!title || ingredients.length === 0 || instructions.length === 0) continue;
+
+    const servingsText = firstString(node.recipeYield);
+    const steps: ExtractedRecipeStep[] = instructions.map((instruction, position) => ({
+      position,
+      title: null,
+      instruction,
+      ingredientGroupReferences: [],
+    }));
 
     return {
+      extractionStatus: "recipe",
       title,
       description: firstString(node.description),
-      servings: firstString(node.recipeYield),
-      prep_time: humaniseDuration(firstString(node.prepTime)),
-      cook_time: humaniseDuration(firstString(node.cookTime)),
-      ingredients: ingredients.map((display_text) => ({ display_text })),
+      servings: { value: yieldValue(servingsText), originalText: servingsText },
+      prepTimeMinutes: durationToMinutes(firstString(node.prepTime)),
+      cookTimeMinutes: durationToMinutes(firstString(node.cookTime)),
+      totalTimeMinutes: durationToMinutes(firstString(node.totalTime)),
+      ingredientGroups: [
+        {
+          temporaryId: "jsonld-g0",
+          name: null, // single unnamed group: renders no heading (§18)
+          position: 0,
+          optional: false,
+          ingredients: ingredients.map(toIngredient),
+        },
+      ],
       steps,
       tips: [],
-      imageUrl: firstString(node.image),
-      sourceHandle: null,
+      servingSuggestions: [],
+      warnings: [],
+      missingFields: [],
     };
+  }
+  return null;
+}
+
+/** The recipe's image URL, when the JSON-LD carries one (cover use, next story). */
+export function jsonLdImageUrl(html: string): string | null {
+  for (const json of jsonLdScripts(html)) {
+    const node = findRecipeNode(json);
+    if (node) return firstString(node.image);
   }
   return null;
 }
