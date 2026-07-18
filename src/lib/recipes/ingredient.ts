@@ -24,23 +24,59 @@ export function quantityLabel(ing: { quantity?: string | null; unit?: string | n
 }
 
 const LEADING_QTY = /^[\d\s.,/×x¼½¾⅓⅔⅛⅜⅝⅞+-]+/i;
+// Cooking MEASURES only — the "small quantity" units to drop for shopping.
+// Discrete purchasable units (can, tin, jar, pack, bottle, bunch, head) are
+// deliberately NOT here: you shop by them, so they pass through as counts.
 const LEADING_UNIT =
-  /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|cans?|tins?|sticks?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|bunch(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|pounds?|grams?|kilograms?|millilitres?)\b\.?\s*/i;
+  /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|splash(?:es)?|drizzles?|g|kg|ml|l|litres?|oz|lb|lbs|pounds?|grams?|kilograms?|millilitres?)\b\.?\s*/i;
 const TRAILING_PARENS = /\s*\([^)]*\)\s*$/;
 
+/** Is `unit` a cooking measure (dropped for shopping) vs a countable ("can")? */
+export function isMeasureUnit(unit: string | null | undefined): boolean {
+  return Boolean(unit && LEADING_UNIT.test(unit.trim()));
+}
+
 /**
- * The clean grocery-list name for an ingredient: the item you'd shop for, with
- * the measurement stripped off — "1 tbsp olive oil" → "olive oil", "Tsp salt" →
- * "salt", "½ tsp chilli flakes (optional)" → "chilli flakes". The extractor
- * often leaves the whole line in `name` with quantity/unit null, so we can't
- * trust those fields — derive from the text instead. Falls back to the original
- * when stripping would leave nothing (e.g. the name was already clean).
+ * The grocery-list line for an ingredient — what you'd actually write on a
+ * shopping list. A cooking MEASURE is dropped ("1 tbsp olive oil" → "olive oil",
+ * "Tsp salt" → "salt", "2 cloves garlic" → "garlic") because you don't shop by
+ * the teaspoon; a bare COUNT is kept ("3 lemons" → "3 lemons", "2 eggs" → "2
+ * eggs") because the number is the thing you're buying. The extractor often
+ * leaves the whole line in `name` with quantity/unit null, so we derive from the
+ * text; when structured fields are clean, `name` is already the bare noun and the
+ * count comes from groceryQuantity instead.
  */
 export function groceryName(ing: { display_text: string; name?: string | null }): string {
   const original = (ing.name ?? ing.display_text).trim();
-  let s = original.replace(TRAILING_PARENS, "").trim();
-  s = s.replace(LEADING_QTY, ""); // strip a leading quantity / fraction / range
-  s = s.replace(LEADING_UNIT, ""); // then a unit word, if one follows
-  s = s.replace(/\s+/g, " ").trim();
-  return s || original.replace(TRAILING_PARENS, "").trim() || original;
+  const s = original.replace(TRAILING_PARENS, "").trim();
+
+  const qtyMatch = s.match(LEADING_QTY);
+  const leadingQty = qtyMatch ? qtyMatch[0].trim() : "";
+  const rest = qtyMatch ? s.slice(qtyMatch[0].length) : s;
+
+  // A unit right after the (optional) number → measured quantity: drop both.
+  const unitMatch = rest.match(LEADING_UNIT);
+  if (unitMatch) {
+    const item = rest.slice(unitMatch[0].length).replace(/\s+/g, " ").trim();
+    return item || rest.replace(/\s+/g, " ").trim() || original;
+  }
+
+  // No unit. Keep a real leading count with the item ("3 lemons"); otherwise the name.
+  const item = rest.replace(/\s+/g, " ").trim();
+  const hasNumber = /[\d¼½¾⅓⅔⅛⅜⅝⅞]/.test(leadingQty);
+  if (hasNumber && item) return `${leadingQty} ${item}`.replace(/\s+/g, " ").trim();
+  return item || original;
+}
+
+/**
+ * The grocery quantity for an ingredient, from its STRUCTURED fields only — used
+ * when the extractor separated quantity/unit cleanly. A cooking measure is
+ * dropped (returns null); a bare count or a countable unit (a "can") is kept.
+ * When structured fields are absent the count is already inline in groceryName,
+ * so this returns null to avoid doubling it.
+ */
+export function groceryQuantity(ing: { quantity?: string | null; unit?: string | null }): string | null {
+  if (!ing.quantity && !ing.unit) return null;
+  if (isMeasureUnit(ing.unit)) return null;
+  return quantityLabel(ing);
 }

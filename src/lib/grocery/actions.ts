@@ -7,7 +7,7 @@ import { createClient, type Client } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/session";
 import { categorize } from "./categorize";
 import { scaleIngredientText } from "@/lib/recipes/scale";
-import { quantityLabel, groceryName } from "@/lib/recipes/ingredient";
+import { groceryName, groceryQuantity } from "@/lib/recipes/ingredient";
 
 async function nextSortOrder(supabase: Client, listId: string): Promise<number> {
   const { data } = await supabase
@@ -196,7 +196,9 @@ export async function addRecipeIngredientsToList(
 
   const base = await nextSortOrder(supabase, target);
   const rows = fresh.map((ing, i) => {
-    const qty = quantityLabel(ing);
+    // Grocery quantity from structured fields only, cooking measures dropped;
+    // for legacy rows the count (if any) is already inline in groceryName.
+    const qty = groceryQuantity(ing);
     return {
       list_id: target!,
       display_text: groceryName(ing),
