@@ -91,11 +91,20 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.nutrition).toEqual({ calories: "480 kcal", protein: "45g", carbs: "30g", fat: null, fibre: "8g", sugar: "12g", perServing: true });
   });
 
-  it("does not blow the stack on a deeply nested @graph (recursion cap)", () => {
-    let node: object = { "@type": "Recipe", name: "x", recipeIngredient: ["1 egg"], recipeInstructions: ["mix"] };
-    for (let i = 0; i < 5000; i++) node = { "@graph": node };
-    const html = withJsonLd(node);
-    expect(() => extractRecipeFromHtml(html)).not.toThrow();
+  it("stops @graph traversal past the recursion cap (no unbounded recursion)", () => {
+    // A valid recipe buried deeper than the @graph depth cap (32) is not reached:
+    // the cap is what stops findRecipeNode recursing unbounded on a hostile deeply
+    // nested payload. Depth 40 is past the cap but shallow enough that building and
+    // parsing the JSON is itself safe — without the cap this would resolve the recipe.
+    let node: object = { "@type": "Recipe", name: "Deep", recipeIngredient: ["1 egg"], recipeInstructions: ["mix"] };
+    for (let i = 0; i < 40; i++) node = { "@graph": node };
+    expect(extractRecipeFromHtml(withJsonLd(node))).toBeNull();
+  });
+
+  it("resolves a recipe nested within the @graph depth cap", () => {
+    let node: object = { "@type": "Recipe", name: "Shallow", recipeIngredient: ["1 egg"], recipeInstructions: ["mix"] };
+    for (let i = 0; i < 3; i++) node = { "@graph": node };
+    expect(extractRecipeFromHtml(withJsonLd(node))?.title).toBe("Shallow");
   });
 
   it("leaves nutrition null when the source omits it", () => {
