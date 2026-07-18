@@ -30,6 +30,10 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
   if (search) query = query.ilike("title", `%${search}%`);
 
   const { data, error } = await query;
+  // A query error here renders as an empty shelf, indistinguishable from "no
+  // recipes yet". Log it so a genuine failure is diagnosable rather than a silent
+  // blank — the UI still degrades to empty rather than throwing.
+  if (error) console.error("listRecipes query failed:", error.message);
   if (error || !data) return [];
 
   const covers = await signStoragePaths(
@@ -58,9 +62,11 @@ export async function getRecipe(id: string) {
     .from("recipes")
     .select(
       `id, title, description, servings, prep_time, cook_time, source_url, source_type, source_handle,
+       calories, protein, carbs, fat, fibre, sugar, nutrition_per_serving,
        tags, is_favourite, cover_image_path, created_at,
-       recipe_ingredients (id, display_text, quantity, unit, name, sort_order),
-       recipe_steps (id, instruction, image_path, sort_order),
+       recipe_ingredient_groups (id, name, position, optional),
+       recipe_ingredients (id, display_text, quantity, unit, name, sort_order, group_id, optional, quantity_value, quantity_min, quantity_max, preparation, alternative_group),
+       recipe_steps (id, instruction, image_path, sort_order, title),
        recipe_tips (id, text, sort_order)`,
     )
     .eq("id", id)
@@ -75,10 +81,29 @@ export async function getRecipe(id: string) {
     ),
   );
 
+  const ingredients = [...data.recipe_ingredients].sort((a, b) => a.sort_order - b.sort_order);
+
+  // Build the display sections: declared groups in order, each with its
+  // ingredients; ingredients with no group (legacy/manual) fall into a single
+  // unnamed trailing group so nothing is ever lost.
+  const groupsSorted = [...data.recipe_ingredient_groups].sort((a, b) => a.position - b.position);
+  const grouped = groupsSorted.map((g) => ({
+    id: g.id,
+    name: g.name,
+    optional: g.optional,
+    ingredients: ingredients.filter((i) => i.group_id === g.id),
+  }));
+  const orphans = ingredients.filter((i) => !i.group_id);
+  const ingredientGroups =
+    orphans.length > 0
+      ? [...grouped, { id: "ungrouped", name: null, optional: false, ingredients: orphans }]
+      : grouped;
+
   return {
     ...data,
     coverUrl: data.cover_image_path ? (covers[data.cover_image_path] ?? null) : null,
-    ingredients: [...data.recipe_ingredients].sort((a, b) => a.sort_order - b.sort_order),
+    ingredients,
+    ingredientGroups: ingredientGroups.filter((g) => g.ingredients.length > 0),
     steps: [...data.recipe_steps]
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((s) => ({ ...s, imageUrl: s.image_path ? (covers[s.image_path] ?? null) : null })),

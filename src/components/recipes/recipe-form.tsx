@@ -7,6 +7,10 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { CloseIcon, PlusIcon } from "@/components/icons";
 import type { RecipeFormState } from "@/lib/recipes/actions";
 import { createdRecipeHref } from "@/lib/recipes/constants";
+import { GroupedIngredients, type EditGroup } from "@/components/recipes/grouped-ingredients";
+
+/** A method step and its optional (import-provided) heading, kept together. */
+type StepEdit = { instruction: string; title: string | null };
 
 export type RecipeFormInitial = {
   title: string;
@@ -19,6 +23,20 @@ export type RecipeFormInitial = {
   steps: string[];
   tips: string[];
   coverUrl: string | null;
+  calories?: string;
+  protein?: string;
+  carbs?: string;
+  fat?: string;
+  fibre?: string;
+  sugar?: string;
+  /** Whether the nutrition figures are per serving (true), whole recipe (false),
+   *  or unstated (null). Carried through save; drives the detail-page label. */
+  nutrition_per_serving?: boolean | null;
+  /** Structured ingredient sections (imports + v2 recipes). When present the
+   *  form renders the group-aware editor and submits `ingredientGroups`. */
+  groups?: EditGroup[];
+  /** Step titles parallel to `steps`, when the source gave meaningful ones. */
+  stepTitles?: (string | null)[];
 };
 
 const EMPTY: RecipeFormInitial = {
@@ -40,6 +58,7 @@ export function RecipeForm({
   submitLabel,
   source,
   importCoverUrl,
+  importId,
   isNew,
   onSaved,
 }: {
@@ -48,6 +67,8 @@ export function RecipeForm({
   submitLabel: string;
   source?: { type: "instagram" | "website"; url: string | null; handle?: string | null };
   importCoverUrl?: string | null;
+  /** When confirming an import draft: links the saved recipe back to its import row. */
+  importId?: string;
   /** Newly-created recipe (adds ?created=1 so the detail page toasts "Saved"). */
   isNew?: boolean;
   /** Host handles navigation on save (e.g. a drawer closes then routes). When
@@ -77,7 +98,26 @@ export function RecipeForm({
   const [ingredients, setIngredients] = useState<string[]>(
     initial.ingredients.length ? initial.ingredients : [""],
   );
-  const [steps, setSteps] = useState<string[]>(initial.steps.length ? initial.steps : [""]);
+  // Grouped mode: present only when the recipe carries sections.
+  const grouped = Boolean(initial.groups && initial.groups.length > 0);
+  const [groups, setGroups] = useState<EditGroup[]>(initial.groups ?? []);
+  // Steps carry their (import-provided) title bound to the instruction, so
+  // inserting or deleting a step before saving can't shift titles onto the wrong
+  // step the way a parallel-by-index array did.
+  const [steps, setSteps] = useState<StepEdit[]>(
+    initial.steps.length
+      ? initial.steps.map((instruction, i) => ({ instruction, title: initial.stepTitles?.[i] ?? null }))
+      : [{ instruction: "", title: null }],
+  );
+  const [calories, setCalories] = useState(initial.calories ?? "");
+  const [protein, setProtein] = useState(initial.protein ?? "");
+  const [carbs, setCarbs] = useState(initial.carbs ?? "");
+  const [fat, setFat] = useState(initial.fat ?? "");
+  const [fibre, setFibre] = useState(initial.fibre ?? "");
+  const [sugar, setSugar] = useState(initial.sugar ?? "");
+  // Not surfaced as a control (it's source-stated metadata); carried so an
+  // imported whole-recipe value persists instead of always saving null.
+  const nutritionPerServing = initial.nutrition_per_serving ?? null;
   const [tips, setTips] = useState<string[]>(initial.tips);
 
   // A remote import cover (e.g. an Instagram thumbnail) is hotlink-blocked in the
@@ -97,12 +137,42 @@ export function RecipeForm({
     servings: servings.trim() || null,
     prep_time: prep.trim() || null,
     cook_time: cook.trim() || null,
+    calories: calories.trim() || null,
+    protein: protein.trim() || null,
+    carbs: carbs.trim() || null,
+    fat: fat.trim() || null,
+    fibre: fibre.trim() || null,
+    sugar: sugar.trim() || null,
+    nutrition_per_serving: nutritionPerServing,
     source_url: source?.url ?? initial.source_url ?? null,
     source_type: source?.type ?? ("manual" as const),
     source_handle: source?.handle ?? null,
     tags: [] as string[],
-    ingredients: ingredients.filter((x) => x.trim()).map((t) => ({ display_text: t.trim() })),
-    steps: steps.filter((x) => x.trim()).map((t) => ({ instruction: t.trim() })),
+    // Flat ingredients still submitted in non-grouped mode (manual/legacy).
+    ingredients: grouped ? [] : ingredients.filter((x) => x.trim()).map((t) => ({ display_text: t.trim() })),
+    ingredientGroups: grouped
+      ? groups.map((g) => ({
+          name: g.name.trim() || null,
+          optional: g.optional,
+          ingredients: g.ingredients
+            .filter((i) => i.display_text.trim())
+            .map((i) => ({
+              display_text: i.display_text.trim(),
+              quantity: i.quantity,
+              unit: i.unit,
+              name: i.name,
+              quantity_value: i.quantity_value,
+              quantity_min: i.quantity_min,
+              quantity_max: i.quantity_max,
+              preparation: i.preparation,
+              optional: i.optional,
+              alternative_group: i.alternative_group,
+            })),
+        }))
+      : undefined,
+    steps: steps
+      .map((s) => ({ instruction: s.instruction.trim(), title: s.title?.trim() || null }))
+      .filter((s) => s.instruction),
     tips: tips.filter((x) => x.trim()).map((t) => t.trim()),
   };
 
@@ -110,6 +180,7 @@ export function RecipeForm({
     <form action={formAction} className="flex flex-col gap-5 pb-4">
       <input type="hidden" name="payload" value={JSON.stringify(payload)} />
       <input type="hidden" name="coverAction" value={coverAction} />
+      {importId && <input type="hidden" name="importId" value={importId} />}
       {/* When importing, the untouched cover is a remote thumbnail the server
           fetches + optimises. A chosen file or a removal overrides it. */}
       <input
@@ -193,23 +264,28 @@ export function RecipeForm({
         <TextField label="Cook" value={cook} onChange={(e) => setCook(e.target.value)} placeholder="20 min" />
       </div>
 
-      <DynamicList
-        label="Ingredients"
-        items={ingredients}
-        setItems={setIngredients}
-        placeholder="2 chicken breasts"
-        addLabel="Add ingredient"
-      />
+      <div className="grid grid-cols-3 gap-2.5">
+        <TextField label="Calories" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="480 kcal" />
+        <TextField label="Protein" value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="45g" />
+        <TextField label="Carbs" value={carbs} onChange={(e) => setCarbs(e.target.value)} placeholder="" />
+        <TextField label="Fat" value={fat} onChange={(e) => setFat(e.target.value)} placeholder="" />
+        <TextField label="Fibre" value={fibre} onChange={(e) => setFibre(e.target.value)} placeholder="10g" />
+        <TextField label="Sugar" value={sugar} onChange={(e) => setSugar(e.target.value)} placeholder="" />
+      </div>
 
-      <DynamicList
-        label="Method"
-        items={steps}
-        setItems={setSteps}
-        placeholder="Describe this step…"
-        addLabel="Add step"
-        numbered
-        multiline
-      />
+      {grouped ? (
+        <GroupedIngredients groups={groups} setGroups={setGroups} />
+      ) : (
+        <DynamicList
+          label="Ingredients"
+          items={ingredients}
+          setItems={setIngredients}
+          placeholder="2 chicken breasts"
+          addLabel="Add ingredient"
+        />
+      )}
+
+      <MethodEditor steps={steps} setSteps={setSteps} />
 
       <DynamicList
         label="Tips"
@@ -235,6 +311,72 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">
       {children}
+    </div>
+  );
+}
+
+/**
+ * The method editor. Mirrors DynamicList's numbered/multiline look but operates
+ * on {instruction, title} pairs so a step's imported heading stays attached to
+ * it through inserts, deletes and reorders. Titles aren't directly editable
+ * (they come from imports); editing an instruction never detaches its title.
+ */
+function MethodEditor({
+  steps,
+  setSteps,
+}: {
+  steps: StepEdit[];
+  setSteps: (next: StepEdit[]) => void;
+}) {
+  const list = steps.length === 0 ? [{ instruction: "", title: null }] : steps;
+  const update = (i: number, instruction: string) =>
+    setSteps(list.map((s, idx) => (idx === i ? { ...s, instruction } : s)));
+  const remove = (i: number) => {
+    const next = list.filter((_, idx) => idx !== i);
+    setSteps(next.length === 0 ? [{ instruction: "", title: null }] : next);
+  };
+  const add = () => setSteps([...list, { instruction: "", title: null }]);
+
+  return (
+    <div>
+      <FieldLabel>Method</FieldLabel>
+      <div className="flex flex-col gap-2">
+        {list.map((step, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="mt-2.5 grid h-6 w-6 flex-none place-items-center rounded-full bg-basil-tint text-[12px] font-bold text-basil">
+              {i + 1}
+            </span>
+            <div className="flex w-full flex-col gap-1">
+              {step.title && (
+                <span className="text-[12px] font-semibold text-ink-2">{step.title}</span>
+              )}
+              <textarea
+                value={step.instruction}
+                aria-label={`Method ${i + 1}`}
+                onChange={(e) => update(i, e.target.value)}
+                placeholder="Describe this step…"
+                rows={2}
+                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+              />
+            </div>
+            <button
+              type="button"
+              aria-label={`Remove Method ${i + 1}`}
+              onClick={() => remove(i)}
+              className="mt-1.5 grid h-8 w-8 flex-none place-items-center rounded-full text-ink-3 hover:text-danger"
+            >
+              <CloseIcon size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={add}
+        className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-basil"
+      >
+        <PlusIcon size={16} /> Add step
+      </button>
     </div>
   );
 }

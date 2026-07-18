@@ -174,19 +174,28 @@ body {
   --dur-base: 280ms;
 }
 
-@keyframes fade-up {
-  from {
+/* Staggered list-item entrance; the per-item delay is set inline. The global
+   reduced-motion rule above neutralises this automatically.
+
+   This is a `@starting-style` transition, NOT an `animation`. The distinction is
+   load-bearing: the resting state below is opacity:1 (visible), and the invisible
+   opacity:0 exists ONLY as the transition's starting point. So if the entrance
+   never runs — a soft back-navigation restoring the page from the Router Cache,
+   an interrupted paint, a browser without @starting-style — the card falls back to
+   its resting, VISIBLE state. The previous `animation: fade-up ... both` stranded
+   cards at opacity:0 in exactly those cases, because `both`'s backwards fill made
+   the applied resting state invisible during the per-item delay. That was the
+   "shelf goes blank when you leave and come back" bug. */
+.reveal-item {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+@starting-style {
+  .reveal-item {
     opacity: 0;
     transform: translateY(10px);
   }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Staggered list-item entrance; the per-item delay is set inline. The global
-   reduced-motion rule above neutralises this automatically. */
-.reveal-item {
-  animation: fade-up var(--dur-base) var(--ease-out) both;
 }

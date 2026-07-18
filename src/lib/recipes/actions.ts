@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient, type Client } from "@/lib/supabase/server";
 import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
 import { parseRecipePayload, type RecipeInput } from "./schema";
+import { resolveGroups, flattenIngredients } from "./groups";
+import { markImportSaved } from "@/lib/import/store";
 import { optimizeCover, optimizeFromUrl } from "@/lib/images/optimize";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
 
@@ -46,22 +48,61 @@ async function removeRecipeFolder(supabase: Client, userId: string, recipeId: st
   }
 }
 
-/** Replace a recipe's children. Returns false if any delete/insert errored, so
- *  the caller can surface the failure rather than redirect as if it succeeded. */
+/** Replace a recipe's children — groups, ingredients, steps, tips — in one
+ *  wholesale replace (W6). Returns false if any delete/insert errored, so the
+ *  caller can surface the failure rather than redirect as if it succeeded.
+ *  Ingredient sections, ranges, optionals, alternatives and step titles all
+ *  round-trip faithfully; a flat manual recipe becomes one unnamed group. */
 async function replaceChildren(supabase: Client, recipeId: string, input: RecipeInput): Promise<boolean> {
+  // Deleting the groups cascades their ingredients (FK ON DELETE CASCADE);
+  // deleting recipe_ingredients by recipe_id also clears any groupless rows.
   const deletes = await Promise.all([
+    supabase.from("recipe_ingredient_groups").delete().eq("recipe_id", recipeId),
     supabase.from("recipe_ingredients").delete().eq("recipe_id", recipeId),
     supabase.from("recipe_steps").delete().eq("recipe_id", recipeId),
     supabase.from("recipe_tips").delete().eq("recipe_id", recipeId),
   ]);
   if (deletes.some((r) => r.error)) return false;
 
-  const ingredients = input.ingredients.map((ing, i) => ({ recipe_id: recipeId, ...ing, sort_order: i }));
-  const steps = input.steps.map((s, i) => ({ recipe_id: recipeId, instruction: s.instruction, sort_order: i }));
+  const groups = resolveGroups(input);
+
+  // Insert groups first to obtain their ids, then map each ingredient to its
+  // group by position. Groups keep their declared order.
+  let groupIds: string[] = [];
+  if (groups.length > 0) {
+    const { data, error } = await supabase
+      .from("recipe_ingredient_groups")
+      .insert(groups.map((g, i) => ({ recipe_id: recipeId, name: g.name, optional: g.optional, position: i })))
+      .select("id");
+    if (error || !data) return false;
+    groupIds = data.map((g) => g.id);
+  }
+
+  const ingredientRows = flattenIngredients(groups).map((r) => ({
+    recipe_id: recipeId,
+    group_id: groupIds[r.groupIndex] ?? null,
+    display_text: r.display_text,
+    quantity: r.quantity,
+    unit: r.unit,
+    name: r.name,
+    quantity_value: r.quantity_value,
+    quantity_min: r.quantity_min,
+    quantity_max: r.quantity_max,
+    preparation: r.preparation,
+    optional: r.optional,
+    alternative_group: r.alternative_group,
+    sort_order: r.sort_order,
+  }));
+  const steps = input.steps.map((s, i) => ({
+    recipe_id: recipeId,
+    instruction: s.instruction,
+    title: s.title ?? null,
+    sort_order: i,
+  }));
   const tips = input.tips.map((t, i) => ({ recipe_id: recipeId, text: t, sort_order: i }));
 
   const inserts = await Promise.all([
-    ingredients.length ? supabase.from("recipe_ingredients").insert(ingredients) : null,
+    ingredientRows.length ? supabase.from("recipe_ingredients").insert(ingredientRows) : null,
     steps.length ? supabase.from("recipe_steps").insert(steps) : null,
     tips.length ? supabase.from("recipe_tips").insert(tips) : null,
   ]);
@@ -102,6 +143,13 @@ export async function createRecipe(
       servings: input.servings,
       prep_time: input.prep_time,
       cook_time: input.cook_time,
+      calories: input.calories,
+      protein: input.protein,
+      carbs: input.carbs,
+      fat: input.fat,
+      fibre: input.fibre,
+      sugar: input.sugar,
+      nutrition_per_serving: input.nutrition_per_serving ?? null,
       source_url: input.source_url,
       source_type: input.source_type,
       source_handle: input.source_handle,
@@ -127,6 +175,17 @@ export async function createRecipe(
 
   const saved = await replaceChildren(supabase, recipe.id, input);
   if (!saved) return { error: "Couldn't save all of the recipe — open it and try again." };
+
+  // If this recipe came from confirming an import draft, link it back and move
+  // the import row to `saved` (audit trail + accurate dashboard state). Best-effort.
+  const importId = String(formData.get("importId") ?? "").trim();
+  if (importId) {
+    try {
+      await markImportSaved(importId, recipe.id, user.id);
+    } catch {
+      // Non-fatal: the recipe is saved; only the import→recipe link didn't stick.
+    }
+  }
 
   revalidatePath("/");
   // Return the id (not redirect) so the client can toast, animate the drawer
@@ -155,6 +214,13 @@ export async function updateRecipe(
       servings: input.servings,
       prep_time: input.prep_time,
       cook_time: input.cook_time,
+      calories: input.calories,
+      protein: input.protein,
+      carbs: input.carbs,
+      fat: input.fat,
+      fibre: input.fibre,
+      sugar: input.sugar,
+      nutrition_per_serving: input.nutrition_per_serving ?? null,
       source_url: input.source_url,
       tags: input.tags,
     })

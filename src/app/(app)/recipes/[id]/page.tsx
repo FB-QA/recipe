@@ -10,6 +10,7 @@ import { SavedToast } from "@/components/recipes/saved-toast";
 import { listedIngredientIds } from "@/lib/grocery/queries";
 import { CREATED_PARAM } from "@/lib/recipes/constants";
 import { highlightStep, ingredientTerms } from "@/lib/recipes/highlight";
+import { attributionLabel } from "@/lib/recipes/handle";
 import {
   ChevronLeftIcon,
   PencilIcon,
@@ -67,7 +68,9 @@ export default async function RecipeDetailPage({
       </CoverImage>
 
       {recipe.source_handle && (
-        <p className="mt-3 text-[13px] font-semibold text-basil">via @{recipe.source_handle}</p>
+        <p className="mt-3 text-[13px] font-semibold text-basil">
+          via {attributionLabel(recipe.source_handle, { at: recipe.source_type === "instagram" })}
+        </p>
       )}
 
       {recipe.description && (
@@ -85,10 +88,45 @@ export default async function RecipeDetailPage({
         </div>
       )}
 
+      {(() => {
+        const nutrients = [
+          { l: "Calories", v: recipe.calories },
+          { l: "Protein", v: recipe.protein },
+          { l: "Carbs", v: recipe.carbs },
+          { l: "Fat", v: recipe.fat },
+          { l: "Fibre", v: recipe.fibre },
+          { l: "Sugar", v: recipe.sugar },
+        ].filter((n) => n.v);
+        if (nutrients.length === 0) return null;
+        // Respect how the source stated it: `false` means the figures are for the
+        // whole recipe, not one serving. Null/true keep the per-serving default.
+        const nutritionLabel =
+          recipe.nutrition_per_serving === false ? "Nutrition (whole recipe)" : "Nutrition per serving";
+        return (
+          <div className="mt-3">
+            <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.04em] text-ink-3">
+              {nutritionLabel}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {nutrients.map((n) => (
+                <div
+                  key={n.l}
+                  className="rounded-[14px] border border-line bg-surface px-2 py-3 text-center"
+                >
+                  <div className="text-[15px] font-bold">{n.v}</div>
+                  <div className="mt-0.5 text-[10.5px] uppercase tracking-[0.05em] text-ink-3">{n.l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {recipe.ingredients.length > 0 && (
         <IngredientsSection
           recipeId={recipe.id}
           ingredients={recipe.ingredients}
+          groups={recipe.ingredientGroups}
           servingsText={recipe.servings}
           addedIngredientIds={addedIngredientIds}
         />
@@ -103,17 +141,22 @@ export default async function RecipeDetailPage({
                 <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-basil-tint text-[13px] font-bold text-basil">
                   {i + 1}
                 </span>
-                <p className="pt-1 text-[14px] leading-relaxed text-ink-2">
-                  {highlightStep(step.instruction, stepTerms).map((seg, j) =>
-                    seg.bold ? (
-                      <strong key={j} className="font-semibold text-ink">
-                        {seg.text}
-                      </strong>
-                    ) : (
-                      <span key={j}>{seg.text}</span>
-                    ),
+                <div className="pt-1">
+                  {step.title && (
+                    <p className="mb-0.5 text-[14px] font-bold text-ink">{step.title}</p>
                   )}
-                </p>
+                  <p className="text-[14px] leading-relaxed text-ink-2">
+                    {highlightStep(step.instruction, stepTerms).map((seg, j) =>
+                      seg.bold ? (
+                        <strong key={j} className="font-semibold text-ink">
+                          {seg.text}
+                        </strong>
+                      ) : (
+                        <span key={j}>{seg.text}</span>
+                      ),
+                    )}
+                  </p>
+                </div>
               </li>
             ))}
           </ol>

@@ -1,52 +1,26 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { runImport, type ImportState } from "@/lib/import/actions";
+import { submitUrlImport } from "@/lib/import/actions";
 import { createRecipe } from "@/lib/recipes/actions";
-import { RecipeForm, type RecipeFormInitial } from "@/components/recipes/recipe-form";
+import { RecipeForm } from "@/components/recipes/recipe-form";
 import { CoverImage } from "@/components/recipes/cover-image";
 import { Button } from "@/components/ui/button";
 import { LoadingLabel } from "@/components/ui/spinner";
 import { SkeletonLines } from "@/components/ui/skeleton";
 import { ImportNote } from "@/components/import/import-note";
-import { InstagramIcon, GlobeIcon, PlayIcon, CheckIcon } from "@/components/icons";
-import { ingredientLine } from "@/lib/recipes/ingredient";
-import type { ExtractedRecipe } from "@/lib/import/types";
+import { ImportFailure } from "@/components/import/import-failure";
+import { InstagramIcon, GlobeIcon, CheckIcon } from "@/components/icons";
+import { extractedToFormInitial } from "@/lib/import/to-form";
+import { useImportPolling } from "@/components/import/use-import-polling";
+import { attributionLabel } from "@/lib/recipes/handle";
+import type { ImportResult, ExtractedRecipe } from "@/lib/import/schema";
 
-const EXTRACTING_STEPS = [
-  "Reading the recipe…",
-  "Pulling out ingredients & steps…",
-  "Tidying it up…",
-];
+const EXTRACTING_STEPS = ["Reading the recipe…", "Pulling out ingredients & steps…", "Tidying it up…"];
 const STEP_INTERVAL_MS = 1200;
 
-/** An internal link that, inside a drawer, closes-then-navigates via the host
- * (onNavigate); on a standalone page it's a plain Link. */
-function LeaveLink({
-  href,
-  onNavigate,
-  className,
-  children,
-}: {
-  href: string;
-  onNavigate?: (href: string) => void;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  if (onNavigate) {
-    return (
-      <button type="button" onClick={() => onNavigate(href)} className={className}>
-        {children}
-      </button>
-    );
-  }
-  return (
-    <Link href={href} className={className}>
-      {children}
-    </Link>
-  );
-}
+const IDLE: ImportResult = { phase: "processing", importId: "", state: "created" };
 
 export function ImportFlow({
   source,
@@ -55,62 +29,54 @@ export function ImportFlow({
 }: {
   source: "instagram" | "web";
   onSaved?: (id: string) => void;
-  /** In a drawer, internal links close-then-navigate through the host. */
   onNavigate?: (href: string) => void;
 }) {
-  const [state, action, pending] = useActionState<ImportState, FormData>(runImport, {
-    phase: "idle",
-  });
+  const keyRef = useRef<string>(crypto.randomUUID());
+  const [state, action, pending] = useActionState<ImportResult, FormData>(submitUrlImport, IDLE);
+  // A resolved poll overrides the action state: when a duplicate submit or claim
+  // race returns an in-flight `processing` row, we poll it here to its terminal
+  // envelope instead of dropping the user back to the input form.
+  const [polled, setPolled] = useState<ImportResult | null>(null);
+  const effective = polled ?? state;
+  const inFlightId = effective.phase === "processing" && effective.importId ? effective.importId : null;
+  useImportPolling(inFlightId, setPolled);
 
-  if (pending) return <Extracting />;
-  if (state.phase === "exists") {
-    return (
-      <AlreadyImported
-        recipeId={state.recipeId}
-        title={state.title}
-        coverUrl={state.coverUrl}
-        onNavigate={onNavigate}
-      />
-    );
+  if (pending || inFlightId) return <Extracting />;
+
+  if (effective.phase === "exists") {
+    return <AlreadyImported recipeId={effective.recipeId} title={effective.title} coverUrl={effective.coverUrl} onNavigate={onNavigate} />;
   }
-  if (state.phase === "done" && state.status === "success") {
-    return (
-      <Review
-        recipe={state.recipe}
-        sourceType={state.sourceType}
-        sourceUrl={state.sourceUrl}
-        method={state.method}
-        onSaved={onSaved}
-      />
-    );
+  if (effective.phase === "ready") {
+    return <Review recipe={effective.recipe} importId={effective.importId} source={source} onSaved={onSaved} />;
   }
-  if (state.phase === "done" && state.status === "no_recipe") {
-    return (
-      <TeaserFallback
-        message={state.message}
-        mediaUrl={state.mediaUrl}
-        sourceUrl={state.sourceUrl}
-        onNavigate={onNavigate}
-      />
-    );
+  if (effective.phase === "failed") {
+    return <ImportFailure message={effective.message} fallback={effective.fallback} onNavigate={onNavigate} />;
   }
+
   return (
     <PasteForm
-      action={action}
+      action={(fd) => {
+        setPolled(null);
+        fd.set("idempotencyKey", keyRef.current);
+        action(fd);
+      }}
+      onEdit={() => {
+        setPolled(null);
+        keyRef.current = crypto.randomUUID();
+      }}
       source={source}
-      error={state.phase === "error" ? state.error : undefined}
     />
   );
 }
 
 function PasteForm({
   action,
+  onEdit,
   source,
-  error,
 }: {
   action: (fd: FormData) => void;
+  onEdit: () => void;
   source: "instagram" | "web";
-  error?: string;
 }) {
   const isInsta = source === "instagram";
   return (
@@ -129,15 +95,11 @@ function PasteForm({
           autoFocus
           required
           aria-label="Recipe link"
+          onChange={onEdit}
           placeholder={isInsta ? "Paste a Reel or post link" : "Paste a recipe URL"}
           className="w-full rounded-sm border border-line bg-surface-2 px-4 py-3.5 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
         />
       </div>
-      {error && (
-        <p role="alert" className="text-sm font-medium text-danger">
-          {error}
-        </p>
-      )}
       <Button type="submit" fullWidth>
         Get the recipe
       </Button>
@@ -151,18 +113,13 @@ function PasteForm({
 function Extracting() {
   const [i, setI] = useState(0);
   useEffect(() => {
-    const t = setInterval(
-      () => setI((n) => Math.min(n + 1, EXTRACTING_STEPS.length - 1)),
-      STEP_INTERVAL_MS,
-    );
+    const t = setInterval(() => setI((n) => Math.min(n + 1, EXTRACTING_STEPS.length - 1)), STEP_INTERVAL_MS);
     return () => clearInterval(t);
   }, []);
 
   return (
     <div className="flex flex-col gap-4">
       <LoadingLabel>{EXTRACTING_STEPS[i]}</LoadingLabel>
-
-      {/* A full-page shell of the review that's coming. */}
       <div className="skeleton h-[190px] rounded-card" />
       <div className="skeleton h-6 w-40 rounded-full" />
       <div className="flex flex-col gap-2">
@@ -183,94 +140,42 @@ function Extracting() {
   );
 }
 
-function extractedToInitial(recipe: ExtractedRecipe, sourceUrl: string): RecipeFormInitial {
-  return {
-    title: recipe.title,
-    description: recipe.description ?? "",
-    servings: recipe.servings ?? "",
-    prep_time: recipe.prep_time ?? "",
-    cook_time: recipe.cook_time ?? "",
-    source_url: sourceUrl,
-    ingredients: recipe.ingredients.map(ingredientLine),
-    steps: recipe.steps,
-    tips: recipe.tips,
-    coverUrl: null,
-  };
-}
-
 function Review({
   recipe,
-  sourceType,
-  sourceUrl,
-  method,
+  importId,
+  source,
   onSaved,
 }: {
   recipe: ExtractedRecipe;
-  sourceType: "instagram" | "website";
-  sourceUrl: string;
-  method: string;
+  importId: string;
+  source: "instagram" | "web";
   onSaved?: (id: string) => void;
 }) {
+  const sourceType = recipe.source.sourceType.startsWith("instagram") ? "instagram" : "website";
+  const cached = recipe.source.retrievalMethod === "cache";
+  const creatorLabel = attributionLabel(recipe.source.creatorName, { at: sourceType === "instagram" }) ?? "Imported";
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-basil-tint px-3 py-1.5 text-[12px] font-semibold text-basil">
-          {sourceType === "instagram" ? <InstagramIcon size={14} /> : <GlobeIcon size={14} />}
-          {recipe.sourceHandle ? `@${recipe.sourceHandle}` : "Imported"}
-          {method === "cache" ? " · from your history" : ""}
+          {source === "instagram" ? <InstagramIcon size={14} /> : <GlobeIcon size={14} />}
+          {creatorLabel}
+          {cached ? " · from your history" : ""}
         </span>
       </div>
       <ImportNote>
-        I filled in everything the source gave me. Nothing invented — anything missing is yours to
-        add or leave.
+        I filled in everything the source gave me. Nothing invented — anything missing is yours to add or leave.
       </ImportNote>
       <RecipeForm
         action={createRecipe}
-        initial={extractedToInitial(recipe, sourceUrl)}
-        source={{ type: sourceType, url: sourceUrl, handle: recipe.sourceHandle }}
-        importCoverUrl={recipe.imageUrl}
+        initial={extractedToFormInitial(recipe)}
+        source={{ type: sourceType, url: recipe.source.sourceUrl ?? "", handle: recipe.source.creatorName }}
+        importCoverUrl={recipe.source.coverImageUrl}
+        importId={importId}
         submitLabel="Save to shelf"
         isNew
         onSaved={onSaved}
       />
-    </div>
-  );
-}
-
-function TeaserFallback({
-  message,
-  mediaUrl,
-  sourceUrl,
-  onNavigate,
-}: {
-  message: string;
-  mediaUrl: string | null;
-  sourceUrl: string;
-  onNavigate?: (href: string) => void;
-}) {
-  return (
-    <div className="mt-2 rounded-card border border-line bg-surface p-6 text-center">
-      <div aria-hidden className="mx-auto mb-4 grid h-[70px] w-[70px] place-items-center rounded-[22px] bg-basil-tint text-basil">
-        <PlayIcon size={30} />
-      </div>
-      <h2 className="text-[17px] font-bold text-ink">The recipe&apos;s in the video</h2>
-      <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed text-ink-2">{message}</p>
-      <div className="mt-5 flex flex-col gap-2.5">
-        <a href={mediaUrl ?? sourceUrl} target="_blank" rel="noopener noreferrer">
-          <Button variant="ghost" fullWidth>
-            Open the video
-          </Button>
-        </a>
-        {onNavigate ? (
-          <Button fullWidth onClick={() => onNavigate("/recipes/new")}>
-            Add it manually
-          </Button>
-        ) : (
-          <Link href="/recipes/new">
-            <Button fullWidth>Add it manually</Button>
-          </Link>
-        )}
-      </div>
     </div>
   );
 }
@@ -286,26 +191,31 @@ function AlreadyImported({
   coverUrl: string | null;
   onNavigate?: (href: string) => void;
 }) {
+  const inner = (
+    <>
+      <CoverImage url={coverUrl} title={title} className="h-[56px] w-[56px] flex-none rounded-xl" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-bold text-ink">{title}</span>
+        <span className="block text-[12.5px] font-semibold text-basil">Open it</span>
+      </span>
+    </>
+  );
+  const className =
+    "flex items-center gap-3.5 rounded-card border border-line bg-surface p-3 text-left transition-colors hover:border-basil hover:bg-basil-tint";
   return (
     <div className="flex flex-col gap-3.5 pb-1">
       <p className="flex items-center gap-2 rounded-sm bg-basil-tint px-4 py-3 text-[13.5px] font-medium text-basil">
         <CheckIcon size={16} /> You&apos;ve already imported this recipe.
       </p>
-      <LeaveLink
-        href={`/recipes/${recipeId}`}
-        onNavigate={onNavigate}
-        className="flex items-center gap-3.5 rounded-card border border-line bg-surface p-3 text-left transition-colors hover:border-basil hover:bg-basil-tint"
-      >
-        <CoverImage
-          url={coverUrl}
-          title={title}
-          className="h-[56px] w-[56px] flex-none rounded-xl"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-bold text-ink">{title}</span>
-          <span className="block text-[12.5px] font-semibold text-basil">Open it</span>
-        </span>
-      </LeaveLink>
+      {onNavigate ? (
+        <button type="button" onClick={() => onNavigate(`/recipes/${recipeId}`)} className={className}>
+          {inner}
+        </button>
+      ) : (
+        <Link href={`/recipes/${recipeId}`} className={className}>
+          {inner}
+        </Link>
+      )}
     </div>
   );
 }
