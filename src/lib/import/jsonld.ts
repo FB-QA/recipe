@@ -88,6 +88,16 @@ function jsonLdScripts(html: string): unknown[] {
   return out;
 }
 
+/**
+ * recipeYield to a display string. Schema.org allows a number (`2`), a string
+ * ("Serves 4"), or an array (["4", "4 servings"]) — a bare number is common and
+ * was previously dropped. Returns null only when genuinely absent.
+ */
+function yieldText(raw: unknown): string | null {
+  if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
+  return firstString(raw);
+}
+
 /** First number in a yield string ("2 servings" → 2); null when absent. */
 function yieldValue(text: string | null): number | null {
   const m = text?.match(/\d+/);
@@ -129,7 +139,7 @@ export function extractRecipeFromHtml(html: string): AiExtractedRecipe | null {
 
     if (!title || ingredients.length === 0 || instructions.length === 0) continue;
 
-    const servingsText = firstString(node.recipeYield);
+    const servingsText = yieldText(node.recipeYield);
     const steps: ExtractedRecipeStep[] = instructions.map((instruction, position) => ({
       position,
       title: null,

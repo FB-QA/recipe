@@ -83,6 +83,17 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.steps[0].instruction).toBe("Whisk everything.");
   });
 
+  it("reads a numeric recipeYield (schema.org allows a bare number)", () => {
+    const r = extractRecipeFromHtml(withJsonLd({ ...RECIPE, recipeYield: 4 }));
+    expect(r!.servings.value).toBe(4);
+    expect(r!.servings.originalText).toBe("4");
+  });
+
+  it("reads an array recipeYield", () => {
+    const r = extractRecipeFromHtml(withJsonLd({ ...RECIPE, recipeYield: ["6", "6 servings"] }));
+    expect(r!.servings.value).toBe(6);
+  });
+
   it("leaves absent fields null rather than inventing (AC5)", () => {
     const sparse = { ...RECIPE, description: undefined, prepTime: undefined, recipeYield: undefined };
     const r = extractRecipeFromHtml(withJsonLd(sparse));
