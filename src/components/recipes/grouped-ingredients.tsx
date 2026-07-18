@@ -35,7 +35,8 @@ export const blankIngredient = (): EditIngredient => ({
 });
 
 function RangeBadge({ min, max }: { min: number | null; max: number | null }) {
-  if (min === null || max === null) return null;
+  // Only a genuine range (min < max). "160–160" is not a range — don't show it.
+  if (min === null || max === null || min >= max) return null;
   return (
     <span className="rounded-full bg-basil-tint px-2 py-0.5 text-[10.5px] font-semibold text-basil" title="Quantity range preserved from the source">
       {min}–{max}
@@ -110,14 +111,9 @@ export function GroupedIngredients({
                     or
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => patchIngredient(gi, ii, { optional: !ing.optional })}
-                  className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${ing.optional ? "bg-basil-tint text-basil" : "bg-surface-2 text-ink-3"}`}
-                  title="Mark as optional"
-                >
-                  opt
-                </button>
+                {ing.optional && (
+                  <span className="rounded-full bg-basil-tint px-2 py-0.5 text-[10.5px] font-semibold text-basil">optional</span>
+                )}
                 <button type="button" onClick={() => removeIngredient(gi, ii)} aria-label="Remove ingredient" className="text-ink-3 hover:text-danger">
                   <CloseIcon size={15} />
                 </button>

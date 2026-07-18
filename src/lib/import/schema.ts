@@ -207,6 +207,21 @@ export type ExtractedRecipeStep = z.infer<typeof extractedRecipeStepSchema>;
 export const extractionStatusSchema = z.enum(["recipe", "not_recipe", "insufficient_content"]);
 export type ExtractionStatus = z.infer<typeof extractionStatusSchema>;
 
+/**
+ * Nutrition as stated by the source (§ new — captions/JSON-LD). Verbatim
+ * amounts (e.g. "480 kcal", "45g"), never calculated or invented; null per
+ * macro when the source omits it. `perServing` records whether the figures are
+ * per portion (the common Instagram case) or for the whole recipe.
+ */
+export const extractedNutritionSchema = z.object({
+  calories: z.string().nullable(),
+  protein: z.string().nullable(),
+  carbs: z.string().nullable(),
+  fat: z.string().nullable(),
+  perServing: z.boolean().nullable(),
+});
+export type ExtractedNutrition = z.infer<typeof extractedNutritionSchema>;
+
 export const extractedRecipeSchema = z.object({
   extractionStatus: extractionStatusSchema,
   title: z.string().nullable(),
@@ -215,6 +230,7 @@ export const extractedRecipeSchema = z.object({
     value: z.number().nullable(),
     originalText: z.string().nullable(),
   }),
+  nutrition: extractedNutritionSchema.nullable(),
   prepTimeMinutes: z.number().nullable(),
   cookTimeMinutes: z.number().nullable(),
   totalTimeMinutes: z.number().nullable(),

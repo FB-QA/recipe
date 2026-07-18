@@ -8,6 +8,7 @@ function recipe(overrides: Partial<AiExtractedRecipe> = {}): AiExtractedRecipe {
     title: "Chicken orzo",
     description: null,
     servings: { value: 4, originalText: "Serves 4" },
+    nutrition: null,
     prepTimeMinutes: 10,
     cookTimeMinutes: 25,
     totalTimeMinutes: null,
@@ -162,6 +163,7 @@ describe("minimumUsable — §19 minimum usable recipe", () => {
     const sparse = normaliseRecipe(
       recipe({
         servings: { value: null, originalText: null },
+        nutrition: null,
         prepTimeMinutes: null,
         cookTimeMinutes: null,
       }),
@@ -177,6 +179,7 @@ describe("qualityScore", () => {
       normaliseRecipe(
         recipe({
           servings: { value: null, originalText: null },
+          nutrition: null,
           prepTimeMinutes: null,
           cookTimeMinutes: null,
           description: null,
@@ -186,5 +189,17 @@ describe("qualityScore", () => {
     expect(full).toBeGreaterThan(sparse);
     expect(full).toBeLessThanOrEqual(100);
     expect(sparse).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("normaliseRecipe — nutrition", () => {
+  it("passes stated nutrition through, blank amounts → null", () => {
+    const r = normaliseRecipe(recipe({ nutrition: { calories: "480 kcal", protein: "45g", carbs: "  ", fat: "", perServing: true } }));
+    expect(r.nutrition).toEqual({ calories: "480 kcal", protein: "45g", carbs: null, fat: null, perServing: true });
+  });
+
+  it("drops the nutrition block entirely when every macro is empty", () => {
+    const r = normaliseRecipe(recipe({ nutrition: { calories: "", protein: null, carbs: "", fat: null, perServing: null } }));
+    expect(r.nutrition).toBeNull();
   });
 });

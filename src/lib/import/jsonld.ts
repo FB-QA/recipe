@@ -1,4 +1,4 @@
-import type { AiExtractedRecipe, ExtractedIngredient, ExtractedRecipeStep } from "./schema";
+import type { AiExtractedRecipe, ExtractedIngredient, ExtractedNutrition, ExtractedRecipeStep } from "./schema";
 
 /**
  * schema.org/Recipe JSON-LD parser — the deterministic, zero-cost rung of the
@@ -121,6 +121,18 @@ function toIngredient(displayText: string, position: number): ExtractedIngredien
   };
 }
 
+/** schema.org NutritionInformation → our nutrition shape; null when absent. */
+function extractNutrition(raw: unknown): ExtractedNutrition | null {
+  if (!raw || typeof raw !== "object") return null;
+  const n = raw as JsonLdNode;
+  const calories = firstString(n.calories);
+  const protein = firstString(n.proteinContent);
+  const carbs = firstString(n.carbohydrateContent);
+  const fat = firstString(n.fatContent);
+  if (!calories && !protein && !carbs && !fat) return null;
+  return { calories, protein, carbs, fat, perServing: true };
+}
+
 /**
  * Parse schema.org/Recipe JSON-LD out of a page's HTML into the v2 shape.
  * Null unless the recipe is usable (non-empty title, ≥1 ingredient, ≥1 step) —
@@ -140,6 +152,7 @@ export function extractRecipeFromHtml(html: string): AiExtractedRecipe | null {
     if (!title || ingredients.length === 0 || instructions.length === 0) continue;
 
     const servingsText = yieldText(node.recipeYield);
+    const nutrition = extractNutrition(node.nutrition);
     const steps: ExtractedRecipeStep[] = instructions.map((instruction, position) => ({
       position,
       title: null,
@@ -152,6 +165,7 @@ export function extractRecipeFromHtml(html: string): AiExtractedRecipe | null {
       title,
       description: firstString(node.description),
       servings: { value: yieldValue(servingsText), originalText: servingsText },
+      nutrition,
       prepTimeMinutes: durationToMinutes(firstString(node.prepTime)),
       cookTimeMinutes: durationToMinutes(firstString(node.cookTime)),
       totalTimeMinutes: durationToMinutes(firstString(node.totalTime)),

@@ -389,13 +389,18 @@ export type Database = {
       }
       recipes: {
         Row: {
+          calories: string | null
+          carbs: string | null
           cook_time: string | null
           cover_image_path: string | null
           created_at: string
           description: string | null
+          fat: string | null
           id: string
           is_favourite: boolean
+          nutrition_per_serving: boolean | null
           prep_time: string | null
+          protein: string | null
           servings: string | null
           source_handle: string | null
           source_type: Database["public"]["Enums"]["source_type"]
@@ -406,13 +411,18 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          calories?: string | null
+          carbs?: string | null
           cook_time?: string | null
           cover_image_path?: string | null
           created_at?: string
           description?: string | null
+          fat?: string | null
           id?: string
           is_favourite?: boolean
+          nutrition_per_serving?: boolean | null
           prep_time?: string | null
+          protein?: string | null
           servings?: string | null
           source_handle?: string | null
           source_type?: Database["public"]["Enums"]["source_type"]
@@ -423,13 +433,18 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          calories?: string | null
+          carbs?: string | null
           cook_time?: string | null
           cover_image_path?: string | null
           created_at?: string
           description?: string | null
+          fat?: string | null
           id?: string
           is_favourite?: boolean
+          nutrition_per_serving?: boolean | null
           prep_time?: string | null
+          protein?: string | null
           servings?: string | null
           source_handle?: string | null
           source_type?: Database["public"]["Enums"]["source_type"]

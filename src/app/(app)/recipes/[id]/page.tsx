@@ -88,6 +88,18 @@ export default async function RecipeDetailPage({
         </div>
       )}
 
+      {(recipe.calories || recipe.protein || recipe.carbs || recipe.fat) && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-card border border-line bg-surface px-4 py-2.5 text-[13px]">
+          <span className="text-[10.5px] font-bold uppercase tracking-[0.04em] text-ink-3">
+            Per serving
+          </span>
+          {recipe.calories && <NutrientChip label="Calories" value={recipe.calories} />}
+          {recipe.protein && <NutrientChip label="Protein" value={recipe.protein} />}
+          {recipe.carbs && <NutrientChip label="Carbs" value={recipe.carbs} />}
+          {recipe.fat && <NutrientChip label="Fat" value={recipe.fat} />}
+        </div>
+      )}
+
       {recipe.ingredients.length > 0 && (
         <IngredientsSection
           recipeId={recipe.id}
@@ -163,6 +175,14 @@ export default async function RecipeDetailPage({
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="mb-3 mt-5 text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">{children}</h2>
+  );
+}
+
+function NutrientChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="text-ink-2">
+      <span className="font-semibold text-ink">{value}</span> {label.toLowerCase()}
+    </span>
   );
 }
 

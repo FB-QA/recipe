@@ -39,6 +39,18 @@ const RESPONSE_SCHEMA = {
       properties: { value: nul("NUMBER"), originalText: nul("STRING") },
       required: ["value", "originalText"],
     },
+    nutrition: {
+      type: "OBJECT",
+      nullable: true,
+      properties: {
+        calories: nul("STRING"),
+        protein: nul("STRING"),
+        carbs: nul("STRING"),
+        fat: nul("STRING"),
+        perServing: nul("BOOLEAN"),
+      },
+      required: ["calories", "protein", "carbs", "fat", "perServing"],
+    },
     prepTimeMinutes: nul("NUMBER"),
     cookTimeMinutes: nul("NUMBER"),
     totalTimeMinutes: nul("NUMBER"),
@@ -101,7 +113,7 @@ const RESPONSE_SCHEMA = {
     missingFields: { type: "ARRAY", items: { type: "STRING" } },
   },
   required: [
-    "extractionStatus", "title", "description", "servings", "prepTimeMinutes",
+    "extractionStatus", "title", "description", "servings", "nutrition", "prepTimeMinutes",
     "cookTimeMinutes", "totalTimeMinutes", "ingredientGroups", "steps", "tips",
     "servingSuggestions", "warnings", "missingFields",
   ],

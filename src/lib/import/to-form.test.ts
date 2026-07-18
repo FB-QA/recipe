@@ -7,6 +7,7 @@ const recipe: ExtractedRecipe = {
   title: "One-Pan Orzo",
   description: "Weeknight dinner",
   servings: { value: 4, originalText: "Serves 4" },
+  nutrition: null,
   prepTimeMinutes: 10,
   cookTimeMinutes: 90,
   totalTimeMinutes: null,

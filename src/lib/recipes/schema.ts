@@ -38,6 +38,12 @@ export const recipeInputSchema = z.object({
   servings: optionalText(200),
   prep_time: optionalText(200),
   cook_time: optionalText(200),
+  // Nutrition, verbatim from the source (e.g. "480 kcal", "45g").
+  calories: optionalText(60),
+  protein: optionalText(60),
+  carbs: optionalText(60),
+  fat: optionalText(60),
+  nutrition_per_serving: z.boolean().nullable().optional(),
   source_url: z
     .string()
     .trim()

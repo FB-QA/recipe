@@ -20,6 +20,10 @@ export type RecipeFormInitial = {
   steps: string[];
   tips: string[];
   coverUrl: string | null;
+  calories?: string;
+  protein?: string;
+  carbs?: string;
+  fat?: string;
   /** Structured ingredient sections (imports + v2 recipes). When present the
    *  form renders the group-aware editor and submits `ingredientGroups`. */
   groups?: EditGroup[];
@@ -88,6 +92,10 @@ export function RecipeForm({
   const [groups, setGroups] = useState<EditGroup[]>(initial.groups ?? []);
   const [steps, setSteps] = useState<string[]>(initial.steps.length ? initial.steps : [""]);
   const stepTitles = initial.stepTitles ?? [];
+  const [calories, setCalories] = useState(initial.calories ?? "");
+  const [protein, setProtein] = useState(initial.protein ?? "");
+  const [carbs, setCarbs] = useState(initial.carbs ?? "");
+  const [fat, setFat] = useState(initial.fat ?? "");
   const [tips, setTips] = useState<string[]>(initial.tips);
 
   // A remote import cover (e.g. an Instagram thumbnail) is hotlink-blocked in the
@@ -107,6 +115,10 @@ export function RecipeForm({
     servings: servings.trim() || null,
     prep_time: prep.trim() || null,
     cook_time: cook.trim() || null,
+    calories: calories.trim() || null,
+    protein: protein.trim() || null,
+    carbs: carbs.trim() || null,
+    fat: fat.trim() || null,
     source_url: source?.url ?? initial.source_url ?? null,
     source_type: source?.type ?? ("manual" as const),
     source_handle: source?.handle ?? null,
@@ -220,6 +232,13 @@ export function RecipeForm({
         <TextField label="Serves" value={servings} onChange={(e) => setServings(e.target.value)} placeholder="2" />
         <TextField label="Prep" value={prep} onChange={(e) => setPrep(e.target.value)} placeholder="10 min" />
         <TextField label="Cook" value={cook} onChange={(e) => setCook(e.target.value)} placeholder="20 min" />
+      </div>
+
+      <div className="grid grid-cols-4 gap-2.5">
+        <TextField label="Calories" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="480 kcal" />
+        <TextField label="Protein" value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="45g" />
+        <TextField label="Carbs" value={carbs} onChange={(e) => setCarbs(e.target.value)} placeholder="" />
+        <TextField label="Fat" value={fat} onChange={(e) => setFat(e.target.value)} placeholder="" />
       </div>
 
       {grouped ? (

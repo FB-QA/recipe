@@ -1,4 +1,4 @@
-import type { AiExtractedRecipe, ExtractedIngredient, ExtractedIngredientGroup } from "./schema";
+import type { AiExtractedRecipe, ExtractedIngredient, ExtractedIngredientGroup, ExtractedNutrition } from "./schema";
 
 /**
  * §19 — validation & quality scoring. Runs after every extraction:
@@ -43,6 +43,20 @@ function normaliseIngredient(ing: ExtractedIngredient, position: number): Extrac
     preparation: blankToNull(ing.preparation),
     alternativeGroupId: blankToNull(ing.alternativeGroupId),
   };
+}
+
+/** Clean nutrition: blank amounts → null; drop the block entirely if empty. */
+function normaliseNutrition(n: ExtractedNutrition | null): ExtractedNutrition | null {
+  if (!n) return null;
+  const cleaned: ExtractedNutrition = {
+    calories: blankToNull(n.calories),
+    protein: blankToNull(n.protein),
+    carbs: blankToNull(n.carbs),
+    fat: blankToNull(n.fat),
+    perServing: n.perServing,
+  };
+  const hasAny = cleaned.calories || cleaned.protein || cleaned.carbs || cleaned.fat;
+  return hasAny ? cleaned : null;
 }
 
 export function normaliseRecipe(recipe: AiExtractedRecipe): AiExtractedRecipe {
@@ -94,6 +108,7 @@ export function normaliseRecipe(recipe: AiExtractedRecipe): AiExtractedRecipe {
       value: positiveOrNull(recipe.servings.value),
       originalText: blankToNull(recipe.servings.originalText),
     },
+    nutrition: normaliseNutrition(recipe.nutrition),
     prepTimeMinutes: positiveOrNull(recipe.prepTimeMinutes),
     cookTimeMinutes: positiveOrNull(recipe.cookTimeMinutes),
     totalTimeMinutes: positiveOrNull(recipe.totalTimeMinutes),

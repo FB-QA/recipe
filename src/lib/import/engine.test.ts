@@ -83,7 +83,7 @@ function evidence(over: Partial<SourceResolverResult["evidence"]>): SourceResolv
 
 const RECIPE: AiExtractedRecipe = {
   extractionStatus: "recipe", title: "Orzo", description: null,
-  servings: { value: 4, originalText: "4" }, prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: null,
+  servings: { value: 4, originalText: "4" }, nutrition: null, prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: null,
   ingredientGroups: [{ temporaryId: "g0", name: null, position: 0, optional: false, ingredients: [
     { temporaryId: "i0", position: 0, originalText: "500g chicken", quantityText: "500g", quantityValue: 500, quantityMin: null, quantityMax: null, unit: "g", name: "chicken", preparation: null, optional: false, alternativeGroupId: null },
   ] }],

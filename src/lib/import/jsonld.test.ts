@@ -83,6 +83,18 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.steps[0].instruction).toBe("Whisk everything.");
   });
 
+  it("extracts nutrition from schema.org NutritionInformation", () => {
+    const r = extractRecipeFromHtml(withJsonLd({
+      ...RECIPE,
+      nutrition: { "@type": "NutritionInformation", calories: "480 kcal", proteinContent: "45g", carbohydrateContent: "30g" },
+    }));
+    expect(r!.nutrition).toEqual({ calories: "480 kcal", protein: "45g", carbs: "30g", fat: null, perServing: true });
+  });
+
+  it("leaves nutrition null when the source omits it", () => {
+    expect(extractRecipeFromHtml(withJsonLd(RECIPE))!.nutrition).toBeNull();
+  });
+
   it("reads a numeric recipeYield (schema.org allows a bare number)", () => {
     const r = extractRecipeFromHtml(withJsonLd({ ...RECIPE, recipeYield: 4 }));
     expect(r!.servings.value).toBe(4);
