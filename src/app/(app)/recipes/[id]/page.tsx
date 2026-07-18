@@ -98,10 +98,14 @@ export default async function RecipeDetailPage({
           { l: "Sugar", v: recipe.sugar },
         ].filter((n) => n.v);
         if (nutrients.length === 0) return null;
+        // Respect how the source stated it: `false` means the figures are for the
+        // whole recipe, not one serving. Null/true keep the per-serving default.
+        const nutritionLabel =
+          recipe.nutrition_per_serving === false ? "Nutrition (whole recipe)" : "Nutrition per serving";
         return (
           <div className="mt-3">
             <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.04em] text-ink-3">
-              Nutrition per serving
+              {nutritionLabel}
             </p>
             <div className="grid grid-cols-3 gap-2">
               {nutrients.map((n) => (

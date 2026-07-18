@@ -23,10 +23,21 @@ export interface ImportAiConfig {
   reelCoverEnrich: boolean;
 }
 
+// Per-provider default model, used when AI_PRIMARY_MODEL is unset. Switching
+// AI_PRIMARY_PROVIDER=google must not require a second env var: without this,
+// the default fell through to the Anthropic model id and the Gemini adapter was
+// handed `claude-haiku-4-5`, failing every extraction as a provider error.
+const DEFAULT_PRIMARY_MODEL: Record<string, string> = {
+  anthropic: "claude-haiku-4-5",
+  google: "gemini-3.1-flash-lite",
+};
+
 export function importConfig(env: NodeJS.ProcessEnv = process.env): ImportAiConfig {
+  const primaryProvider = env.AI_PRIMARY_PROVIDER || "anthropic";
   return {
-    primaryProvider: env.AI_PRIMARY_PROVIDER || "anthropic",
-    primaryModel: env.AI_PRIMARY_MODEL || "claude-haiku-4-5",
+    primaryProvider,
+    primaryModel:
+      env.AI_PRIMARY_MODEL || DEFAULT_PRIMARY_MODEL[primaryProvider] || "claude-haiku-4-5",
     replacementModel: env.AI_REPLACEMENT_MODEL || null,
     fallbackEnabled: env.AI_PROVIDER_FALLBACK_ENABLED === "true",
     anthropicApiKey: env.ANTHROPIC_API_KEY,

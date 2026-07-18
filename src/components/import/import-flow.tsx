@@ -13,6 +13,7 @@ import { ImportNote } from "@/components/import/import-note";
 import { ImportFailure } from "@/components/import/import-failure";
 import { InstagramIcon, GlobeIcon, CheckIcon } from "@/components/icons";
 import { extractedToFormInitial } from "@/lib/import/to-form";
+import { useImportPolling } from "@/components/import/use-import-polling";
 import { attributionLabel } from "@/lib/recipes/handle";
 import type { ImportResult, ExtractedRecipe } from "@/lib/import/schema";
 
@@ -32,26 +33,37 @@ export function ImportFlow({
 }) {
   const keyRef = useRef<string>(crypto.randomUUID());
   const [state, action, pending] = useActionState<ImportResult, FormData>(submitUrlImport, IDLE);
+  // A resolved poll overrides the action state: when a duplicate submit or claim
+  // race returns an in-flight `processing` row, we poll it here to its terminal
+  // envelope instead of dropping the user back to the input form.
+  const [polled, setPolled] = useState<ImportResult | null>(null);
+  const effective = polled ?? state;
+  const inFlightId = effective.phase === "processing" && effective.importId ? effective.importId : null;
+  useImportPolling(inFlightId, setPolled);
 
-  if (pending) return <Extracting />;
+  if (pending || inFlightId) return <Extracting />;
 
-  if (state.phase === "exists") {
-    return <AlreadyImported recipeId={state.recipeId} title={state.title} coverUrl={state.coverUrl} onNavigate={onNavigate} />;
+  if (effective.phase === "exists") {
+    return <AlreadyImported recipeId={effective.recipeId} title={effective.title} coverUrl={effective.coverUrl} onNavigate={onNavigate} />;
   }
-  if (state.phase === "ready") {
-    return <Review recipe={state.recipe} source={source} onSaved={onSaved} />;
+  if (effective.phase === "ready") {
+    return <Review recipe={effective.recipe} source={source} onSaved={onSaved} />;
   }
-  if (state.phase === "failed") {
-    return <ImportFailure message={state.message} fallback={state.fallback} onNavigate={onNavigate} />;
+  if (effective.phase === "failed") {
+    return <ImportFailure message={effective.message} fallback={effective.fallback} onNavigate={onNavigate} />;
   }
 
   return (
     <PasteForm
       action={(fd) => {
+        setPolled(null);
         fd.set("idempotencyKey", keyRef.current);
         action(fd);
       }}
-      onEdit={() => (keyRef.current = crypto.randomUUID())}
+      onEdit={() => {
+        setPolled(null);
+        keyRef.current = crypto.randomUUID();
+      }}
       source={source}
     />
   );

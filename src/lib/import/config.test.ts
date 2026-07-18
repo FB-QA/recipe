@@ -22,4 +22,16 @@ describe("importConfig", () => {
   it("honours IMPORT_REEL_COVER_ENRICH=false", () => {
     expect(importConfig({ IMPORT_REEL_COVER_ENRICH: "false" } as unknown as NodeJS.ProcessEnv).reelCoverEnrich).toBe(false);
   });
+  it("defaults the primary model to a Gemini model when the provider is google", () => {
+    // Switching provider alone must not feed an Anthropic model id into Gemini.
+    const c = importConfig({ AI_PRIMARY_PROVIDER: "google" } as unknown as NodeJS.ProcessEnv);
+    expect(c.primaryModel).toBe("gemini-3.1-flash-lite");
+  });
+  it("still honours an explicit AI_PRIMARY_MODEL under google", () => {
+    const c = importConfig({
+      AI_PRIMARY_PROVIDER: "google",
+      AI_PRIMARY_MODEL: "gemini-2.5-flash",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(c.primaryModel).toBe("gemini-2.5-flash");
+  });
 });
