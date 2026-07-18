@@ -68,7 +68,7 @@ export function RecipeShelf({ recipes }: { recipes: RecipeListItem[] }) {
   return (
     <div className={SHELF_GRID}>
       {recipes.map((r, i) => (
-        <div key={r.id} className="reveal-item" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}>
+        <div key={r.id} className="reveal-item" style={{ transitionDelay: `${Math.min(i, 12) * 40}ms` }}>
           <RecipeCard recipe={r} />
         </div>
       ))}

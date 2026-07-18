@@ -30,6 +30,10 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
   if (search) query = query.ilike("title", `%${search}%`);
 
   const { data, error } = await query;
+  // A query error here renders as an empty shelf, indistinguishable from "no
+  // recipes yet". Log it so a genuine failure is diagnosable rather than a silent
+  // blank — the UI still degrades to empty rather than throwing.
+  if (error) console.error("listRecipes query failed:", error.message);
   if (error || !data) return [];
 
   const covers = await signStoragePaths(
