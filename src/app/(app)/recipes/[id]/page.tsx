@@ -68,7 +68,9 @@ export default async function RecipeDetailPage({
       </CoverImage>
 
       {recipe.source_handle && (
-        <p className="mt-3 text-[13px] font-semibold text-basil">via {attributionLabel(recipe.source_handle)}</p>
+        <p className="mt-3 text-[13px] font-semibold text-basil">
+          via {attributionLabel(recipe.source_handle, { at: recipe.source_type === "instagram" })}
+        </p>
       )}
 
       {recipe.description && (

@@ -139,7 +139,7 @@ function Review({
 }) {
   const sourceType = recipe.source.sourceType.startsWith("instagram") ? "instagram" : "website";
   const cached = recipe.source.retrievalMethod === "cache";
-  const creatorLabel = attributionLabel(recipe.source.creatorName) ?? "Imported";
+  const creatorLabel = attributionLabel(recipe.source.creatorName, { at: sourceType === "instagram" }) ?? "Imported";
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">

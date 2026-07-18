@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { BROWSER_USER_AGENT } from "@/lib/http";
 import { safeFetchDetailed, readCapped } from "@/lib/safe-fetch";
-import { extractRecipeFromHtml } from "../jsonld";
+import { extractRecipeFromHtml, jsonLdImageUrl } from "../jsonld";
 import { minimumUsable } from "../validate";
 import type {
   ImportRequest,
@@ -34,6 +34,30 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
+/** The recipe's cover image: JSON-LD image first, then og:image. */
+export function websiteImageUrl(html: string): string | null {
+  const jsonld = jsonLdImageUrl(html);
+  if (jsonld) return jsonld;
+  const og =
+    html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  return og?.[1] ?? null;
+}
+
+/** Site name from the URL host: "www.bbcgoodfood.com" → "bbcgoodfood". */
+export function siteNameFromUrl(url: string): string | null {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    const parts = host.split(".");
+    // Drop the public suffix — one label (.com) or two (.co.uk).
+    const twoLevelTld = parts.length >= 3 && ["co", "com", "org", "net", "gov", "ac"].includes(parts[parts.length - 2]);
+    const idx = twoLevelTld ? parts.length - 3 : parts.length - 2;
+    return parts[idx] || host || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Map a defensive-fetch outcome to a failure reason (pure, unit-tested). */
 export function websiteFailureFor(kind: "timeout" | "too_large" | "unsafe" | "network"): SourceResolverResult["failure"] {
   return kind === "timeout"
@@ -49,6 +73,7 @@ export interface WebsiteInterpretation {
   deterministicRecipe: ReturnType<typeof extractRecipeFromHtml>;
   caption: string | null;
   title: string | null;
+  imageUrl: string | null;
   retrievalStatus: "complete" | "partial" | "unavailable";
   warnings: SourceResolverResult["evidence"]["evidenceWarnings"];
   failure: SourceResolverResult["failure"];
@@ -60,12 +85,14 @@ export interface WebsiteInterpretation {
  * without DNS: JSON-LD first (AC1), else readable page text for the AI rung.
  */
 export function interpretWebsiteHtml(html: string): WebsiteInterpretation {
+  const imageUrl = websiteImageUrl(html);
   const jsonld = extractRecipeFromHtml(html);
   if (jsonld && minimumUsable(jsonld)) {
     return {
       deterministicRecipe: jsonld,
       caption: null, // AI skipped; no text to carry
       title: jsonld.title,
+      imageUrl,
       retrievalStatus: "complete",
       warnings: [],
       failure: null,
@@ -77,6 +104,7 @@ export function interpretWebsiteHtml(html: string): WebsiteInterpretation {
     deterministicRecipe: null,
     caption: text.length > 0 ? text : null,
     title: null,
+    imageUrl,
     retrievalStatus: text.length > 0 ? "partial" : "unavailable",
     warnings: text.length > 0 ? ["unknown_completeness"] : [],
     failure: text.length > 0 ? null : "source_retrieval_failed",
@@ -137,8 +165,10 @@ export const websiteResolver: SourceResolver = {
         resolverAttemptId: "",
         caption: seen.caption,
         title: seen.title,
-        creatorName: null,
-        media: [],
+        creatorName: siteNameFromUrl(request.url!),
+        media: seen.imageUrl
+          ? [{ id: "web-image-0", position: 0, modality: "image", mimeType: null, sourceUrl: seen.imageUrl, storagePath: null, width: null, height: null, durationSeconds: null }]
+          : [],
         evidenceWarnings: seen.warnings,
         contentFingerprint: seen.fingerprint || null,
         retrievedAt: new Date().toISOString(),

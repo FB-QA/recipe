@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { htmlToText, interpretWebsiteHtml, websiteFailureFor } from "./website";
+import { htmlToText, interpretWebsiteHtml, websiteFailureFor, siteNameFromUrl, websiteImageUrl } from "./website";
 
 function jsonLdPage(extra = ""): string {
   const ld = {
@@ -57,6 +57,25 @@ describe("websiteFailureFor — fetch-outcome mapping", () => {
     expect(websiteFailureFor("too_large")).toBe("source_too_large");
     expect(websiteFailureFor("unsafe")).toBe("unsupported_source");
     expect(websiteFailureFor("network")).toBe("source_retrieval_failed");
+  });
+});
+
+describe("siteNameFromUrl — the domain label for attribution", () => {
+  it("derives the site name from the host, dropping www + TLD", () => {
+    expect(siteNameFromUrl("https://www.bbcgoodfood.com/recipes/x")).toBe("bbcgoodfood");
+    expect(siteNameFromUrl("https://cooking.nytimes.com/recipes/y")).toBe("nytimes");
+    expect(siteNameFromUrl("https://www.bbc.co.uk/food/z")).toBe("bbc");
+  });
+});
+
+describe("websiteImageUrl — cover from JSON-LD then og:image", () => {
+  it("prefers the JSON-LD recipe image", () => {
+    const html = `<script type="application/ld+json">${JSON.stringify({ "@type": "Recipe", name: "X", recipeIngredient: ["a"], recipeInstructions: ["b"], image: "https://img.test/dish.jpg" })}</script>`;
+    expect(websiteImageUrl(html)).toBe("https://img.test/dish.jpg");
+    expect(interpretWebsiteHtml(html).imageUrl).toBe("https://img.test/dish.jpg");
+  });
+  it("falls back to og:image", () => {
+    expect(websiteImageUrl(`<meta property="og:image" content="https://img.test/og.jpg" />`)).toBe("https://img.test/og.jpg");
   });
 });
 
