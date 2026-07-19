@@ -31,13 +31,21 @@ export async function downscaleImage(file: File, maxDim = 1600, quality = 0.85):
     if (!ctx) return file;
     ctx.drawImage(bitmap, 0, 0, w, h);
 
+    // Keep an alpha-capable format for sources that can carry transparency
+    // (PNG/WebP) — re-encoding those to JPEG would composite transparent regions
+    // onto black. JPEG stays the target for opaque photos (smaller for the same
+    // quality). If the browser can't encode WebP, toBlob returns null and we fall
+    // back to the original file below.
+    const alphaCapable = /png|webp/i.test(file.type);
+    const outType = alphaCapable ? "image/webp" : "image/jpeg";
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", quality),
+      canvas.toBlob(resolve, outType, quality),
     );
     if (!blob || blob.size >= file.size) return file; // no win → keep the original
 
     const base = file.name.replace(/\.[^.]+$/, "") || "cover";
-    return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
+    const ext = outType === "image/webp" ? "webp" : "jpg";
+    return new File([blob], `${base}.${ext}`, { type: outType });
   } finally {
     bitmap.close?.();
   }

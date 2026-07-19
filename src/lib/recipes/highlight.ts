@@ -1,9 +1,11 @@
 export type Segment = { text: string; bold: boolean };
 
+// Prep words (chopped/sliced/diced) are deliberately NOT stopwords: they
+// distinguish variants like "chopped tomatoes" vs "diced tomatoes", which would
+// otherwise both collapse to "tomatoes" and cross-match in the step drawer.
 const STOPWORDS = new Set([
   "the", "and", "with", "for", "into", "from", "your", "this", "that", "some", "each", "then",
-  "until", "about", "over", "onto", "plus", "large", "small", "fresh", "and", "chopped", "sliced",
-  "diced", "to", "of", "a", "an", "or", "in", "on",
+  "until", "about", "over", "onto", "plus", "large", "small", "fresh", "to", "of", "a", "an", "or", "in", "on",
 ]);
 
 // Numbers with optional cooking units / times / temperatures.
