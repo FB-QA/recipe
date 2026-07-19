@@ -183,20 +183,21 @@ export async function addRecipeIngredientsToList(
   const alreadyIds = new Set(
     (existingItems ?? []).map((r) => r.source_ingredient_id).filter(Boolean),
   );
-  // Dedup on the normalised item name, scale-independent. Existing rows added
-  // before this shipped hold the old un-stripped text ("1 tbsp olive oil"), so
-  // normalise those through groceryName too — otherwise re-adding an edited
-  // recipe (whose provenance FK was nulled) would duplicate instead of dedupe.
-  const alreadyText = new Set(
-    (existingItems ?? []).map((r) => groceryName({ display_text: r.display_text })),
-  );
+  // The exact line we would store for an ingredient (measurement stripped, then
+  // scaled), and the normalised key we dedup on. Keying on `groceryName(storedLine)`
+  // makes dedup scale-CONSISTENT: a legacy "2 eggs" added at ×2 stores "4 eggs" and
+  // re-adds at ×2 as the same "4 eggs", so a provenance-broken re-add skips instead
+  // of duplicating. Existing rows are run through the same key, so old un-stripped
+  // text ("1 tbsp olive oil") still normalises to match.
+  const storedLine = (ing: (typeof ingredients)[number]) => scaleIngredientText(groceryName(ing), scale);
+  const keyOf = (text: string) => groceryName({ display_text: text });
+  const alreadyText = new Set((existingItems ?? []).map((r) => keyOf(r.display_text)));
   // Dedup against rows already on the list AND within this batch — two ingredients
-  // that normalise to the same shopping item ("1 tbsp olive oil" + "2 tbsp olive
-  // oil" → "olive oil") collapse to one line rather than two identical rows.
+  // that normalise to the same shopping item collapse to one line.
   const seenInBatch = new Set<string>();
   const fresh = ingredients.filter((ing) => {
     if (alreadyIds.has(ing.id)) return false;
-    const key = groceryName(ing);
+    const key = keyOf(storedLine(ing));
     if (alreadyText.has(key) || seenInBatch.has(key)) return false;
     seenInBatch.add(key);
     return true;
@@ -207,12 +208,11 @@ export async function addRecipeIngredientsToList(
   const base = await nextSortOrder(supabase, target);
   const rows = fresh.map((ing, i) => {
     // Grocery quantity from structured fields only, cooking measures dropped;
-    // for legacy rows the count (if any) is inline in groceryName. Scale the
-    // stored line so doubling a "3 lemons" recipe lists "6 lemons".
+    // for legacy rows the count (if any) is inline in groceryName.
     const qty = groceryQuantity(ing);
     return {
       list_id: target!,
-      display_text: scaleIngredientText(groceryName(ing), scale),
+      display_text: storedLine(ing),
       quantity: qty ? scaleIngredientText(qty, scale) : null,
       source_recipe_id: recipeId,
       source_ingredient_id: ing.id,
