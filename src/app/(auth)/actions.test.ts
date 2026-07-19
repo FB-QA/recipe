@@ -33,7 +33,7 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Map([["origin", "http://localhost:3000"]])),
 }));
 
-import { signIn, signUp, updatePassword } from "./actions";
+import { signIn, signUp, updatePassword, signOut } from "./actions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -103,5 +103,17 @@ describe("updatePassword — invalidates the router cache before redirecting", (
     expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
     expect(redirect).toHaveBeenCalledWith("/");
     expect(order).toEqual([`revalidate:${JSON.stringify(["/", "layout"])}`, "redirect:/"]);
+  });
+});
+
+describe("signOut — invalidates the router cache before redirecting to login", () => {
+  it("revalidates then redirects, so the signed-out tree can't flash to the next viewer", async () => {
+    auth.signOut.mockResolvedValue({ error: null });
+
+    await signOut();
+
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+    expect(redirect).toHaveBeenCalledWith("/login");
+    expect(order).toEqual([`revalidate:${JSON.stringify(["/", "layout"])}`, "redirect:/login"]);
   });
 });

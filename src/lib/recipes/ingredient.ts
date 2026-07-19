@@ -49,18 +49,37 @@ const PREP_WORD =
 // A trailing run of one or more prep words, optionally chained with "and"/"&"
 // ("peeled and diced"). Anchored to the end so only trailing prep is removed.
 const TRAILING_PREP = new RegExp(`(?:\\s+(?:and\\s+|&\\s+)?(?:${PREP_WORD}))+\\s*$`, "i");
+// A clause that is ENTIRELY preparation (one or more prep words, chained with
+// "and"/"&"). Used to tell a prep descriptor apart from a product variant: the
+// suffix of "onion, finely chopped" matches, but "smoked" (bacon) and "red"
+// (pepper) do not — so those commas survive.
+const PREP_CLAUSE = new RegExp(`^(?:${PREP_WORD})(?:\\s+(?:and\\s+|&\\s+)?(?:${PREP_WORD}))*$`, "i");
+const isPrepClause = (s: string): boolean => PREP_CLAUSE.test(s.trim());
 
 /**
  * Drop a trailing preparation clause from an ingredient's noun phrase: a
  * comma-delimited descriptor ("tuna in olive oil, drained" → "tuna in olive
  * oil") and/or a bare trailing prep run ("small onion finely chopped" → "small
- * onion"). Leading prep is never touched, and the strip never empties the name —
- * "chopped" on its own is returned intact.
+ * onion"). Leading prep is never touched; a comma clause is dropped only when it
+ * is purely preparation, so product variants survive ("bacon, smoked", "1
+ * pepper, red"); and the strip never empties the name or leaves a dangling prep
+ * word — a noun-less "finely chopped" is returned intact.
  */
 function stripTrailingPrep(text: string): string {
-  const head = text.split(",")[0]; // "..., drained" → the part before the comma
-  const stripped = head.replace(TRAILING_PREP, "").trim();
-  return (stripped || head.trim()).replace(/\s+/g, " ").trim();
+  let s = text.trim();
+
+  const comma = s.indexOf(",");
+  if (comma !== -1) {
+    const head = s.slice(0, comma).trim();
+    const suffix = s.slice(comma + 1).trim();
+    if (head && isPrepClause(suffix)) s = head;
+  }
+
+  const stripped = s.replace(TRAILING_PREP, "").trim();
+  // If stripping would empty the name or leave only a dangling prep word (a
+  // noun-less line like "finely chopped"), keep the un-stripped text.
+  const kept = !stripped || isPrepClause(stripped) ? s : stripped;
+  return kept.replace(/\s+/g, " ").trim();
 }
 
 /** Is `unit` a cooking measure (dropped for shopping) vs a countable ("can")? */

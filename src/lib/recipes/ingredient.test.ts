@@ -60,8 +60,14 @@ describe("groceryName — trailing prep clauses dropped, leading prep kept", () 
     ["2 tbsp chopped parsley", "chopped parsley"],
     ["2x 400g chopped tomatoes", "chopped tomatoes"],
     ["500g minced beef", "minced beef"],
-    // A comma-cut / prep strip must never eat the whole name.
+    // A comma clause that is NOT preparation is a product variant — keep it.
+    ["bacon, smoked", "bacon, smoked"],
+    ["1 pepper, red", "1 pepper, red"],
+    ["tomatoes, on the vine", "tomatoes, on the vine"],
+    // A comma-cut / prep strip must never eat the whole name or leave a dangling
+    // prep word — a noun-less "finely chopped" is returned intact.
     ["chopped", "chopped"],
+    ["finely chopped", "finely chopped"],
     // Non-prep trailing words are left alone.
     ["salt and pepper", "salt and pepper"],
     ["1 onion", "1 onion"],
