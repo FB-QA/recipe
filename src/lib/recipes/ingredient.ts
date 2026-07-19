@@ -68,11 +68,14 @@ const isPrepClause = (s: string): boolean => PREP_CLAUSE.test(s.trim());
 function stripTrailingPrep(text: string): string {
   let s = text.trim();
 
-  const comma = s.indexOf(",");
-  if (comma !== -1) {
+  // Peel trailing comma-delimited descriptors from the right, but only while each
+  // is purely preparation: "1 red pepper, deseeded, sliced" → "1 red pepper",
+  // while "bacon, smoked" and "1 pepper, red" keep their (non-prep) variant.
+  for (let comma = s.lastIndexOf(","); comma !== -1; comma = s.lastIndexOf(",")) {
     const head = s.slice(0, comma).trim();
     const suffix = s.slice(comma + 1).trim();
-    if (head && isPrepClause(suffix)) s = head;
+    if (!head || !isPrepClause(suffix)) break;
+    s = head;
   }
 
   const stripped = s.replace(TRAILING_PREP, "").trim();

@@ -54,6 +54,8 @@ describe("groceryName — trailing prep clauses dropped, leading prep kept", () 
     ["1 small onion, finely chopped", "1 small onion"],
     ["400g potatoes, peeled and diced", "potatoes"],
     ["1 lemon, zested and juiced", "1 lemon"],
+    // Multiple comma clauses, each purely prep, all peeled off from the right.
+    ["1 red pepper, deseeded, sliced", "1 red pepper"],
     // Multi-word adverbial prep runs.
     ["1 carrot very finely diced", "1 carrot"],
     // LEADING prep is part of the product name — it must survive (existing behaviour).
