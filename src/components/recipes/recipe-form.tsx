@@ -8,6 +8,7 @@ import { CloseIcon, PlusIcon } from "@/components/icons";
 import type { RecipeFormState } from "@/lib/recipes/actions";
 import { createdRecipeHref } from "@/lib/recipes/constants";
 import { GroupedIngredients, type EditGroup } from "@/components/recipes/grouped-ingredients";
+import { downscaleImage } from "@/lib/images/downscale";
 
 /** A method step and its optional (import-provided) heading, kept together. */
 type StepEdit = { instruction: string; title: string | null };
@@ -130,6 +131,11 @@ export function RecipeForm({
   const [preview, setPreview] = useState<string | null>(importPreviewSrc ?? initial.coverUrl);
   const [coverAction, setCoverAction] = useState<"keep" | "replace" | "remove">("keep");
   const fileRef = useRef<HTMLInputElement>(null);
+  // Cover downscale is async: a monotonic token identifies the latest selection so
+  // a slower earlier conversion can't overwrite a newer one, and `converting`
+  // blocks Save until the resized file is actually installed on the input.
+  const coverSelection = useRef(0);
+  const [converting, setConverting] = useState(false);
 
   const payload = {
     title: title.trim(),
@@ -211,6 +217,8 @@ export function RecipeForm({
               <button
                 type="button"
                 onClick={() => {
+                  coverSelection.current++; // discard any in-flight conversion
+                  setConverting(false);
                   setPreview(null);
                   setCoverAction("remove");
                   if (fileRef.current) fileRef.current.value = "";
@@ -228,12 +236,26 @@ export function RecipeForm({
           name="cover"
           accept="image/*"
           className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              setPreview(URL.createObjectURL(file));
-              setCoverAction("replace");
+          onChange={async (e) => {
+            const input = e.currentTarget;
+            const file = input.files?.[0];
+            if (!file) return;
+            // Shrink big images (e.g. multi-MB PNG screenshots) in the browser and
+            // put the result back on the input, so what uploads stays small enough
+            // to clear the serverless body limit that was rejecting them.
+            const token = ++coverSelection.current;
+            setConverting(true);
+            const resized = await downscaleImage(file);
+            // A newer selection or a Remove happened while converting → discard this.
+            if (token !== coverSelection.current) return;
+            if (resized !== file) {
+              const dt = new DataTransfer();
+              dt.items.add(resized);
+              input.files = dt.files;
             }
+            setPreview(URL.createObjectURL(resized));
+            setCoverAction("replace");
+            setConverting(false);
           }}
         />
       </div>
@@ -302,7 +324,9 @@ export function RecipeForm({
         </p>
       )}
 
-      <SubmitButton fullWidth>{submitLabel}</SubmitButton>
+      <SubmitButton fullWidth disabled={converting}>
+        {converting ? "Preparing image…" : submitLabel}
+      </SubmitButton>
     </form>
   );
 }

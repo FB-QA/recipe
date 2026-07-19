@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { signStoragePaths } from "@/lib/supabase/storage";
-import { scaleIngredientText } from "@/lib/recipes/scale";
+import { groceryName } from "@/lib/recipes/ingredient";
 import { ALL_LISTS } from "./constants";
 
 /** A list chip in the grocery filter bar. Recipe lists carry a cover (or a
@@ -42,14 +42,17 @@ export async function listedIngredientIds(recipeId: string): Promise<string[]> {
     .eq("list_id", list.id)
     .eq("source_recipe_id", recipeId);
   const byProvenance = new Set((items ?? []).map((r) => r.source_ingredient_id).filter(Boolean));
-  const byText = new Set((items ?? []).map((r) => r.display_text));
+  // Normalise the text fallback through groceryName — the SAME key the add path
+  // dedups on — so an "olive oil" row and a recreated "1 tbsp olive oil" ingredient
+  // report as already-added and the sheet doesn't offer it again.
+  const byText = new Set((items ?? []).map((r) => groceryName({ display_text: r.display_text })));
 
   const { data: ings } = await supabase
     .from("recipe_ingredients")
     .select("id, name, display_text")
     .eq("recipe_id", recipeId);
   return (ings ?? [])
-    .filter((i) => byProvenance.has(i.id) || byText.has(scaleIngredientText(i.name ?? i.display_text, 1)))
+    .filter((i) => byProvenance.has(i.id) || byText.has(groceryName(i)))
     .map((i) => i.id);
 }
 
