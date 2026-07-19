@@ -45,6 +45,31 @@ test.describe("M3 — grocery lists", () => {
     await expect(page.getByText(/Completed ·/)).toBeHidden();
   });
 
+  test("a trailing prep clause is dropped from the grocery line", async ({ page }) => {
+    await signUp(page);
+
+    // Two ingredients carrying preparation instructions — one bare-trailing, one
+    // comma-delimited. Mirrors the BBC air-fryer-tuna-pasta-bake lines.
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title").fill("Tuna bake");
+    await page.getByRole("textbox", { name: "Ingredients 1" }).fill("1 small onion finely chopped");
+    await page.getByRole("button", { name: "Add ingredient" }).click();
+    await page.getByRole("textbox", { name: "Ingredients 2" }).fill("can tuna in olive oil, drained");
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page.getByRole("heading", { name: "Tuna bake" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Add to grocery list" }).click();
+    await page.getByRole("button", { name: /Add 2 items/i }).click();
+    await page.getByRole("button", { name: /view list/i }).click();
+    await expect(page).toHaveURL(/\/list/);
+
+    // The shopping line is the thing you buy — no "finely chopped", no ", drained".
+    await expect(page.getByText("1 small onion", { exact: true })).toBeVisible();
+    await expect(page.getByText("can tuna in olive oil", { exact: true })).toBeVisible();
+    await expect(page.getByText(/finely chopped/i)).toHaveCount(0);
+    await expect(page.getByText(/drained/i)).toHaveCount(0);
+  });
+
   test("the drawer adds only the selected ingredients", async ({ page }) => {
     await signUp(page);
     await page.goto("/recipes/new");

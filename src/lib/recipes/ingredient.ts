@@ -35,6 +35,34 @@ const LEADING_UNIT =
   /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|splash(?:es)?|drizzles?|g|kg|ml|l|litres?|oz|lb|lbs|pounds?|grams?|kilograms?|millilitres?)\b\.?\s*/i;
 const TRAILING_PARENS = /\s*\([^)]*\)\s*$/;
 
+// Preparation words — how an ingredient is cut or readied, not what you buy.
+// Stripped only when they TRAIL the head noun ("onion, finely chopped" → "onion");
+// a LEADING prep word is part of the product name and stays ("chopped tomatoes",
+// "minced beef"). Adverbs ("finely") and participles ("chopped") both appear.
+const PREP_WORD =
+  "finely|roughly|coarsely|thinly|thickly|freshly|very|lightly|" +
+  "chopped|diced|sliced|minced|grated|crushed|drained|rinsed|peeled|deseeded|" +
+  "seeded|trimmed|halved|quartered|cubed|shredded|beaten|melted|softened|" +
+  "crumbled|torn|mashed|whisked|sifted|zested|juiced|cored|stoned|pitted|" +
+  "skinned|boned|deboned|shelled|podded|segmented|destemmed|stemmed|flaked|" +
+  "separated|toasted|roasted";
+// A trailing run of one or more prep words, optionally chained with "and"/"&"
+// ("peeled and diced"). Anchored to the end so only trailing prep is removed.
+const TRAILING_PREP = new RegExp(`(?:\\s+(?:and\\s+|&\\s+)?(?:${PREP_WORD}))+\\s*$`, "i");
+
+/**
+ * Drop a trailing preparation clause from an ingredient's noun phrase: a
+ * comma-delimited descriptor ("tuna in olive oil, drained" → "tuna in olive
+ * oil") and/or a bare trailing prep run ("small onion finely chopped" → "small
+ * onion"). Leading prep is never touched, and the strip never empties the name —
+ * "chopped" on its own is returned intact.
+ */
+function stripTrailingPrep(text: string): string {
+  const head = text.split(",")[0]; // "..., drained" → the part before the comma
+  const stripped = head.replace(TRAILING_PREP, "").trim();
+  return (stripped || head.trim()).replace(/\s+/g, " ").trim();
+}
+
 /** Is `unit` a cooking measure (dropped for shopping) vs a countable ("can")? */
 export function isMeasureUnit(unit: string | null | undefined): boolean {
   return Boolean(unit && LEADING_UNIT.test(unit.trim()));
@@ -61,12 +89,12 @@ export function groceryName(ing: { display_text: string; name?: string | null })
   // A unit right after the (optional) number → measured quantity: drop both.
   const unitMatch = rest.match(LEADING_UNIT);
   if (unitMatch) {
-    const item = rest.slice(unitMatch[0].length).replace(/\s+/g, " ").trim();
+    const item = stripTrailingPrep(rest.slice(unitMatch[0].length));
     return item || rest.replace(/\s+/g, " ").trim() || original;
   }
 
   // No unit. Keep a real leading count with the item ("3 lemons"); otherwise the name.
-  const item = rest.replace(/\s+/g, " ").trim();
+  const item = stripTrailingPrep(rest);
   const hasNumber = /[\d¼½¾⅓⅔⅛⅜⅝⅞]/.test(leadingQty);
   if (hasNumber && item) return `${leadingQty} ${item}`.replace(/\s+/g, " ").trim();
   return item || original;

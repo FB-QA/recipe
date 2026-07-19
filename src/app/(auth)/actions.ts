@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -35,6 +36,10 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
     return { error: "That email and password don't match. Try again." };
   }
 
+  // Signing in mutates the most fundamental state there is — who you are. Without
+  // this, the client Router Cache (staleTimes.dynamic) can serve the signed-out
+  // "/" it fetched before login, so the shelf lands empty until a hard refresh.
+  revalidatePath("/", "layout");
   redirect(safeRelativePath(formData.get("next")));
 }
 
@@ -67,6 +72,7 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
 
   // Local dev auto-confirms → a session exists immediately.
   if (data.session) {
+    revalidatePath("/", "layout"); // discard any signed-out tree before landing on the shelf
     redirect("/");
   }
   // Production with email confirmation on → ask them to verify.
@@ -107,11 +113,13 @@ export async function updatePassword(
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: password.data });
   if (error) return { error: error.message };
+  revalidatePath("/", "layout"); // the session was just re-issued; land on a fresh authed tree
   redirect("/");
 }
 
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  revalidatePath("/", "layout"); // drop the authed tree so it can't flash to the next viewer
   redirect("/login");
 }
