@@ -20,6 +20,9 @@ export type MethodStep = {
   title: string | null;
   instruction: string;
   ingredients: StepIngredient[];
+  /** Bold terms for THIS step — derived from its own matched ingredients, so the
+   *  bolded words always agree with what the drawer shows (and its tappability). */
+  terms: string[];
 };
 
 /**
@@ -30,11 +33,9 @@ export type MethodStep = {
  */
 export function MethodSteps({
   steps,
-  stepTerms,
   scale = 1,
 }: {
   steps: MethodStep[];
-  stepTerms: string[];
   /** Serving scale, shared with the ingredient list so drawer amounts agree. */
   scale?: number;
 }) {
@@ -54,7 +55,7 @@ export function MethodSteps({
               <div className="min-w-0 flex-1 pt-0.5">
                 {step.title && <p className="mb-0.5 text-[16px] font-bold text-ink">{step.title}</p>}
                 <p className="text-[16px] leading-relaxed text-ink-2">
-                  {highlightStep(step.instruction, stepTerms).map((seg, j) =>
+                  {highlightStep(step.instruction, step.terms).map((seg, j) =>
                     seg.bold ? (
                       <strong key={j} className="font-semibold text-ink">
                         {seg.text}

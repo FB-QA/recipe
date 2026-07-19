@@ -57,15 +57,30 @@ export function ingredientsInStep<T extends { display_text: string; name: string
     const head = w[w.length - 1];
     if (head) headCounts.set(head, (headCounts.get(head) ?? 0) + 1);
   }
-  return ingredients.filter((_, i) => {
+
+  const matched: number[] = [];
+  ingredients.forEach((_, i) => {
     const w = wordsFor[i];
-    if (w.length === 0) return false;
+    if (w.length === 0) return;
     const phrase = w[0];
     const head = w[w.length - 1];
-    if (wordRe(phrase).test(text)) return true;
+    if (wordRe(phrase).test(text)) matched.push(i);
     // Head-noun-only match only when that noun isn't shared with another ingredient.
-    return phrase !== head && (headCounts.get(head) ?? 0) === 1 && wordRe(head).test(text);
+    else if (phrase !== head && (headCounts.get(head) ?? 0) === 1 && wordRe(head).test(text)) matched.push(i);
   });
+
+  // Drop a match whose phrase words are a strict subset of another match's — so
+  // "chili flakes" in a step doesn't also surface a standalone "chili".
+  const phraseWords = matched.map((i) => new Set(wordsFor[i][0].split(" ")));
+  const kept = matched.filter((_, a) =>
+    !matched.some(
+      (__, b) =>
+        a !== b &&
+        phraseWords[a].size < phraseWords[b].size &&
+        [...phraseWords[a]].every((word) => phraseWords[b].has(word)),
+    ),
+  );
+  return kept.map((i) => ingredients[i]);
 }
 
 /** Split a step into segments, marking measures and ingredient terms as bold. */

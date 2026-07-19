@@ -190,9 +190,17 @@ export async function addRecipeIngredientsToList(
   const alreadyText = new Set(
     (existingItems ?? []).map((r) => groceryName({ display_text: r.display_text })),
   );
-  const fresh = ingredients.filter(
-    (ing) => !alreadyIds.has(ing.id) && !alreadyText.has(groceryName(ing)),
-  );
+  // Dedup against rows already on the list AND within this batch — two ingredients
+  // that normalise to the same shopping item ("1 tbsp olive oil" + "2 tbsp olive
+  // oil" → "olive oil") collapse to one line rather than two identical rows.
+  const seenInBatch = new Set<string>();
+  const fresh = ingredients.filter((ing) => {
+    if (alreadyIds.has(ing.id)) return false;
+    const key = groceryName(ing);
+    if (alreadyText.has(key) || seenInBatch.has(key)) return false;
+    seenInBatch.add(key);
+    return true;
+  });
   const skipped = ingredients.length - fresh.length;
   if (fresh.length === 0) return { listId: target, count: 0, skipped, created, listName };
 

@@ -68,4 +68,13 @@ describe("ingredientsInStep", () => {
     const got = ingredientsInStep("Pour in the chopped tomatoes", tin);
     expect(got.map((i) => i.id)).toEqual(["t"]);
   });
+
+  it("does not surface a standalone ingredient that is a prefix of another (chili vs chili flakes)", () => {
+    const chilis = [
+      { id: "a", display_text: "1 chili", name: null },
+      { id: "b", display_text: "1 tsp chili flakes", name: null },
+    ];
+    const got = ingredientsInStep("Add the chili flakes and stir", chilis);
+    expect(got.map((i) => i.id)).toEqual(["b"]);
+  });
 });

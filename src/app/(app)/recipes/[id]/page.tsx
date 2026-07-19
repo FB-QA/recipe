@@ -31,7 +31,6 @@ export default async function RecipeDetailPage({
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
   const addedIngredientIds = await listedIngredientIds(recipe.id);
-  const stepTerms = ingredientTerms(recipe.ingredients);
 
   const metrics = [
     { n: String(recipe.ingredients.length), l: "Ingredients" },
@@ -129,19 +128,24 @@ export default async function RecipeDetailPage({
           groups={recipe.ingredientGroups}
           servingsText={recipe.servings}
           addedIngredientIds={addedIngredientIds}
-          stepTerms={stepTerms}
-          steps={recipe.steps.map((step) => ({
-            id: step.id,
-            title: step.title,
-            instruction: step.instruction,
-            ingredients: ingredientsInStep(step.instruction, recipe.ingredients).map((ing) => ({
-              id: ing.id,
-              display_text: ing.display_text,
-              quantity: ing.quantity,
-              unit: ing.unit,
-              name: ing.name,
-            })),
-          }))}
+          steps={recipe.steps.map((step) => {
+            // One match per step drives BOTH the drawer and the bolded words, so
+            // they can never disagree (a bolded word is always tappable).
+            const matched = ingredientsInStep(step.instruction, recipe.ingredients);
+            return {
+              id: step.id,
+              title: step.title,
+              instruction: step.instruction,
+              terms: ingredientTerms(matched),
+              ingredients: matched.map((ing) => ({
+                id: ing.id,
+                display_text: ing.display_text,
+                quantity: ing.quantity,
+                unit: ing.unit,
+                name: ing.name,
+              })),
+            };
+          })}
         />
       )}
 

@@ -19,7 +19,6 @@ export function CookSections({
   servingsText,
   addedIngredientIds,
   steps,
-  stepTerms,
 }: {
   recipeId: string;
   ingredients: IngredientLike[];
@@ -27,7 +26,6 @@ export function CookSections({
   servingsText: string | null;
   addedIngredientIds: string[];
   steps: MethodStep[];
-  stepTerms: string[];
 }) {
   const base = parseServings(servingsText);
   const [target, setTarget] = useState(base ?? 1);
@@ -51,7 +49,7 @@ export function CookSections({
       {steps.length > 0 && (
         <section>
           <h2 className="mb-3 mt-5 text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">Method</h2>
-          <MethodSteps steps={steps} stepTerms={stepTerms} scale={scale} />
+          <MethodSteps steps={steps} scale={scale} />
         </section>
       )}
     </>
