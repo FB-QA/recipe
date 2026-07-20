@@ -35,6 +35,56 @@ const LEADING_UNIT =
   /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|splash(?:es)?|drizzles?|g|kg|ml|l|litres?|oz|lb|lbs|pounds?|grams?|kilograms?|millilitres?)\b\.?\s*/i;
 const TRAILING_PARENS = /\s*\([^)]*\)\s*$/;
 
+// Preparation words — how an ingredient is cut or readied, not what you buy.
+// Stripped only when they TRAIL the head noun ("onion, finely chopped" → "onion");
+// a LEADING prep word is part of the product name and stays ("chopped tomatoes",
+// "minced beef"). Adverbs ("finely") and participles ("chopped") both appear.
+const PREP_WORD =
+  "finely|roughly|coarsely|thinly|thickly|freshly|very|lightly|" +
+  "chopped|diced|sliced|minced|grated|crushed|drained|rinsed|peeled|deseeded|" +
+  "seeded|trimmed|halved|quartered|cubed|shredded|beaten|melted|softened|" +
+  "crumbled|torn|mashed|whisked|sifted|zested|juiced|cored|stoned|pitted|" +
+  "skinned|boned|deboned|shelled|podded|segmented|destemmed|stemmed|flaked|" +
+  "separated|toasted|roasted";
+// A trailing run of one or more prep words, optionally chained with "and"/"&"
+// ("peeled and diced"). Anchored to the end so only trailing prep is removed.
+const TRAILING_PREP = new RegExp(`(?:\\s+(?:and\\s+|&\\s+)?(?:${PREP_WORD}))+\\s*$`, "i");
+// A clause that is ENTIRELY preparation (one or more prep words, chained with
+// "and"/"&"). Used to tell a prep descriptor apart from a product variant: the
+// suffix of "onion, finely chopped" matches, but "smoked" (bacon) and "red"
+// (pepper) do not — so those commas survive.
+const PREP_CLAUSE = new RegExp(`^(?:${PREP_WORD})(?:\\s+(?:and\\s+|&\\s+)?(?:${PREP_WORD}))*$`, "i");
+const isPrepClause = (s: string): boolean => PREP_CLAUSE.test(s.trim());
+
+/**
+ * Drop a trailing preparation clause from an ingredient's noun phrase: a
+ * comma-delimited descriptor ("tuna in olive oil, drained" → "tuna in olive
+ * oil") and/or a bare trailing prep run ("small onion finely chopped" → "small
+ * onion"). Leading prep is never touched; a comma clause is dropped only when it
+ * is purely preparation, so product variants survive ("bacon, smoked", "1
+ * pepper, red"); and the strip never empties the name or leaves a dangling prep
+ * word — a noun-less "finely chopped" is returned intact.
+ */
+function stripTrailingPrep(text: string): string {
+  let s = text.trim();
+
+  // Peel trailing comma-delimited descriptors from the right, but only while each
+  // is purely preparation: "1 red pepper, deseeded, sliced" → "1 red pepper",
+  // while "bacon, smoked" and "1 pepper, red" keep their (non-prep) variant.
+  for (let comma = s.lastIndexOf(","); comma !== -1; comma = s.lastIndexOf(",")) {
+    const head = s.slice(0, comma).trim();
+    const suffix = s.slice(comma + 1).trim();
+    if (!head || !isPrepClause(suffix)) break;
+    s = head;
+  }
+
+  const stripped = s.replace(TRAILING_PREP, "").trim();
+  // If stripping would empty the name or leave only a dangling prep word (a
+  // noun-less line like "finely chopped"), keep the un-stripped text.
+  const kept = !stripped || isPrepClause(stripped) ? s : stripped;
+  return kept.replace(/\s+/g, " ").trim();
+}
+
 /** Is `unit` a cooking measure (dropped for shopping) vs a countable ("can")? */
 export function isMeasureUnit(unit: string | null | undefined): boolean {
   return Boolean(unit && LEADING_UNIT.test(unit.trim()));
@@ -61,12 +111,12 @@ export function groceryName(ing: { display_text: string; name?: string | null })
   // A unit right after the (optional) number → measured quantity: drop both.
   const unitMatch = rest.match(LEADING_UNIT);
   if (unitMatch) {
-    const item = rest.slice(unitMatch[0].length).replace(/\s+/g, " ").trim();
+    const item = stripTrailingPrep(rest.slice(unitMatch[0].length));
     return item || rest.replace(/\s+/g, " ").trim() || original;
   }
 
   // No unit. Keep a real leading count with the item ("3 lemons"); otherwise the name.
-  const item = rest.replace(/\s+/g, " ").trim();
+  const item = stripTrailingPrep(rest);
   const hasNumber = /[\d¼½¾⅓⅔⅛⅜⅝⅞]/.test(leadingQty);
   if (hasNumber && item) return `${leadingQty} ${item}`.replace(/\s+/g, " ").trim();
   return item || original;

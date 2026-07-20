@@ -42,6 +42,45 @@ describe("groceryName — measures dropped, counts kept", () => {
   });
 });
 
+describe("groceryName — trailing prep clauses dropped, leading prep kept", () => {
+  const cases: Array<[string, string]> = [
+    // Trailing prep with no comma — a bare instruction on the end of the line.
+    ["1 small onion finely chopped", "1 small onion"],
+    ["2 garlic cloves finely chopped", "2 garlic cloves"],
+    ["1 red pepper roughly chopped", "1 red pepper"],
+    ["200g chicken thighs, diced", "chicken thighs"],
+    // Comma-delimited trailing clause.
+    ["can tuna in olive oil, drained", "can tuna in olive oil"],
+    ["1 small onion, finely chopped", "1 small onion"],
+    ["400g potatoes, peeled and diced", "potatoes"],
+    ["1 lemon, zested and juiced", "1 lemon"],
+    // Multiple comma clauses, each purely prep, all peeled off from the right.
+    ["1 red pepper, deseeded, sliced", "1 red pepper"],
+    // Multi-word adverbial prep runs.
+    ["1 carrot very finely diced", "1 carrot"],
+    // LEADING prep is part of the product name — it must survive (existing behaviour).
+    ["2 tbsp chopped parsley", "chopped parsley"],
+    ["2x 400g chopped tomatoes", "chopped tomatoes"],
+    ["500g minced beef", "minced beef"],
+    // A comma clause that is NOT preparation is a product variant — keep it.
+    ["bacon, smoked", "bacon, smoked"],
+    ["1 pepper, red", "1 pepper, red"],
+    ["tomatoes, on the vine", "tomatoes, on the vine"],
+    // A comma-cut / prep strip must never eat the whole name or leave a dangling
+    // prep word — a noun-less "finely chopped" is returned intact.
+    ["chopped", "chopped"],
+    ["finely chopped", "finely chopped"],
+    // Non-prep trailing words are left alone.
+    ["salt and pepper", "salt and pepper"],
+    ["1 onion", "1 onion"],
+  ];
+  for (const [input, expected] of cases) {
+    it(`"${input}" → "${expected}"`, () => {
+      expect(groceryName({ display_text: input, name: input })).toBe(expected);
+    });
+  }
+});
+
 describe("groceryQuantity — structured count, measures dropped", () => {
   it("keeps a bare count (no unit)", () => {
     expect(groceryQuantity({ quantity: "3", unit: null })).toBe("3");

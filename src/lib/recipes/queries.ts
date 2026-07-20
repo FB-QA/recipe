@@ -30,11 +30,17 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
   if (search) query = query.ilike("title", `%${search}%`);
 
   const { data, error } = await query;
-  // A query error here renders as an empty shelf, indistinguishable from "no
-  // recipes yet". Log it so a genuine failure is diagnosable rather than a silent
-  // blank — the UI still degrades to empty rather than throwing.
-  if (error) console.error("listRecipes query failed:", error.message);
-  if (error || !data) return [];
+  // A query error must NOT degrade to an empty list: an empty shelf is a valid,
+  // cacheable success, so a transient failure (an expired token, a refresh race, a
+  // dropped connection) would masquerade as "no recipes yet" and stick in the
+  // client router cache until a hard reload. Throw instead — the error boundary
+  // shows a "Try again" that re-renders fresh. A genuinely empty shelf is `data:
+  // []` with no error, and still returns [] below.
+  if (error) {
+    console.error("listRecipes query failed:", error.message);
+    throw new Error(`listRecipes query failed: ${error.message}`);
+  }
+  if (!data) return [];
 
   const covers = await signStoragePaths(
     supabase,
@@ -70,9 +76,18 @@ export async function getRecipe(id: string) {
        recipe_tips (id, text, sort_order)`,
     )
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) return null;
+  // Distinguish a genuinely-missing recipe from a transient failure. `maybeSingle`
+  // returns `data: null` with no error when the row simply isn't there — that stays
+  // a clean `notFound()` at the call site. A real error must throw instead, or the
+  // same refresh-race/blip this PR fixes for the shelf would render a recipe as a
+  // 404 "not found" rather than the "Try again" boundary.
+  if (error) {
+    console.error("getRecipe query failed:", error.message);
+    throw new Error(`getRecipe query failed: ${error.message}`);
+  }
+  if (!data) return null;
 
   const covers = await signStoragePaths(
     supabase,
@@ -113,6 +128,12 @@ export async function getRecipe(id: string) {
 
 export async function countRecipes(): Promise<number> {
   const supabase = await createClient();
-  const { count } = await supabase.from("recipes").select("id", { count: "exact", head: true });
+  const { count, error } = await supabase.from("recipes").select("id", { count: "exact", head: true });
+  // Same rule as listRecipes: a failed count must not silently read as zero, which
+  // would render "your shelf is empty" over a shelf that isn't.
+  if (error) {
+    console.error("countRecipes query failed:", error.message);
+    throw new Error(`countRecipes query failed: ${error.message}`);
+  }
   return count ?? 0;
 }

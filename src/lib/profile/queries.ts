@@ -20,11 +20,21 @@ export const getProfile = cache(async (): Promise<Profile> => {
   const user = await requireUser();
   const supabase = await createClient();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .select("display_name, email")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
+
+  // `maybeSingle` gives `data: null` with no error when the row genuinely isn't
+  // there yet (the trigger may lag a fresh signup) — that's the intended fallback
+  // below. A real error is a transient failure and must throw: getProfile runs in
+  // the same shelf `Promise.all` as the queries this PR fixed, so a swallowed error
+  // here would silently degrade the signed-in user's name on a blip.
+  if (error) {
+    console.error("getProfile query failed:", error.message);
+    throw new Error(`getProfile query failed: ${error.message}`);
+  }
 
   return {
     displayName: data?.display_name ?? null,
@@ -37,6 +47,14 @@ export const getProfile = cache(async (): Promise<Profile> => {
 /** How many recipes this user has imported (rather than typed in by hand). */
 export const countImports = cache(async (): Promise<number> => {
   const supabase = await createClient();
-  const { count } = await supabase.from("recipe_imports").select("id", { count: "exact", head: true });
+  const { count, error } = await supabase
+    .from("recipe_imports")
+    .select("id", { count: "exact", head: true });
+  // A failed count must not read as zero — that renders "0 · free tier",
+  // indistinguishable from a genuinely-new user, on a transient blip.
+  if (error) {
+    console.error("countImports query failed:", error.message);
+    throw new Error(`countImports query failed: ${error.message}`);
+  }
   return count ?? 0;
 });

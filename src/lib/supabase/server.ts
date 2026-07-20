@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/supabase/database.types";
@@ -6,8 +7,18 @@ import type { Database } from "@/lib/supabase/database.types";
  * Server-side Supabase client for Server Components, Route Handlers, and
  * Server Actions. Reads/writes the auth session from Next's cookie store.
  * Still bound by RLS — the service role key is never used here.
+ *
+ * `cache()` makes this ONE client per request, shared across every query in that
+ * render. That is load-bearing, not just an allocation saving: a page fans several
+ * queries out in a `Promise.all`, and if each held its own client, a token sitting
+ * near expiry would have them all try to refresh it at once. With refresh-token
+ * rotation on, the first refresh wins and rotates the token out from under the
+ * others, which then 401 — so one query in the fan-out succeeds and another comes
+ * back empty on the very same render (a populated header over an empty shelf). A
+ * single shared client serialises that refresh through supabase-js's own lock, so
+ * the whole render sees one consistent session.
  */
-export async function createClient() {
+export const createClient = cache(async () => {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
@@ -31,7 +42,7 @@ export async function createClient() {
       },
     },
   );
-}
+});
 
 /**
  * The RLS-bound server client's type, for helpers that receive one as a
