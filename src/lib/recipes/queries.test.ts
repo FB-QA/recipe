@@ -12,6 +12,7 @@ vi.mock("@/lib/supabase/storage", () => ({ signStoragePaths }));
 
 let queryResult: { data: unknown; error: unknown };
 let countResult: { count: number | null; error?: unknown };
+let singleResult: { data: unknown; error: unknown };
 
 // A minimal chainable stand-in for the Supabase query builder. The list query is
 // awaited after .order(); the count query is awaited after .select().
@@ -20,8 +21,10 @@ function makeClient() {
   for (const m of ["select", "order", "eq", "ilike"]) {
     listBuilder[m] = vi.fn(() => listBuilder);
   }
-  // Awaiting the builder resolves to the list query result.
+  // Awaiting the builder resolves to the list query result (listRecipes ends on
+  // .order()). getRecipe ends on .maybeSingle(), which resolves to singleResult.
   (listBuilder as { then: unknown }).then = (resolve: (v: unknown) => void) => resolve(queryResult);
+  listBuilder.maybeSingle = vi.fn(() => Promise.resolve(singleResult));
 
   return {
     from: vi.fn(() => ({
@@ -36,12 +39,13 @@ function makeClient() {
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => makeClient()) }));
 
-import { listRecipes, countRecipes } from "./queries";
+import { listRecipes, countRecipes, getRecipe } from "./queries";
 
 beforeEach(() => {
   vi.clearAllMocks();
   queryResult = { data: [], error: null };
   countResult = { count: 0 };
+  singleResult = { data: null, error: null };
   signStoragePaths.mockResolvedValue({});
 });
 
@@ -88,5 +92,34 @@ describe("countRecipes — a count error surfaces, it never silently reports zer
   it("returns the count on success", async () => {
     countResult = { count: 5 };
     await expect(countRecipes()).resolves.toBe(5);
+  });
+});
+
+describe("getRecipe — a query error surfaces, a missing recipe is a clean null", () => {
+  it("throws when the query errors (not a silent 404)", async () => {
+    singleResult = { data: null, error: { message: "JWT expired" } };
+    await expect(getRecipe("r1")).rejects.toThrow(/getRecipe/i);
+  });
+
+  it("returns null when the recipe genuinely does not exist (no error, no data)", async () => {
+    singleResult = { data: null, error: null };
+    await expect(getRecipe("missing")).resolves.toBeNull();
+  });
+
+  it("returns the recipe on success", async () => {
+    singleResult = {
+      data: {
+        id: "r1",
+        title: "Jambalaya",
+        cover_image_path: null,
+        recipe_ingredient_groups: [],
+        recipe_ingredients: [],
+        recipe_steps: [],
+        recipe_tips: [],
+      },
+      error: null,
+    };
+    const r = await getRecipe("r1");
+    expect(r).toMatchObject({ id: "r1", title: "Jambalaya" });
   });
 });

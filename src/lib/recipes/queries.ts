@@ -76,9 +76,18 @@ export async function getRecipe(id: string) {
        recipe_tips (id, text, sort_order)`,
     )
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) return null;
+  // Distinguish a genuinely-missing recipe from a transient failure. `maybeSingle`
+  // returns `data: null` with no error when the row simply isn't there — that stays
+  // a clean `notFound()` at the call site. A real error must throw instead, or the
+  // same refresh-race/blip this PR fixes for the shelf would render a recipe as a
+  // 404 "not found" rather than the "Try again" boundary.
+  if (error) {
+    console.error("getRecipe query failed:", error.message);
+    throw new Error(`getRecipe query failed: ${error.message}`);
+  }
+  if (!data) return null;
 
   const covers = await signStoragePaths(
     supabase,
