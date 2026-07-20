@@ -58,6 +58,43 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(extractRecipeFromHtml(withJsonLd(graph))?.title).toBe("Greek Chicken Burgers");
   });
 
+  it("recovers WP Recipe Maker ingredient sections the flat JSON-LD list loses", () => {
+    // Same recipe, but the page carries WPRM section markup (RecipeTineats et al.).
+    // JSON-LD has no groups, so we lift the named sections out of the HTML.
+    const recipe = {
+      ...RECIPE,
+      recipeIngredient: ["2 chicken breasts", "100g feta", "1 tbsp olive oil", "1 lemon"],
+    };
+    const wprm = `
+      <div class="wprm-recipe-ingredient-group">
+        <h4 class="wprm-recipe-ingredient-group-name">Burgers</h4>
+        <ul>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-amount">2</span><span class="wprm-recipe-ingredient-name">chicken breasts</span></li>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-amount">100g</span><span class="wprm-recipe-ingredient-name">feta</span></li>
+        </ul>
+      </div>
+      <div class="wprm-recipe-ingredient-group">
+        <h4 class="wprm-recipe-ingredient-group-name">To serve</h4>
+        <ul>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-amount">1 tbsp</span><span class="wprm-recipe-ingredient-name">olive oil</span></li>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-amount">1</span><span class="wprm-recipe-ingredient-name">lemon</span></li>
+        </ul>
+      </div>`;
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify(recipe)}</script></head><body>${wprm}</body></html>`;
+    const r = extractRecipeFromHtml(html);
+    expect(r!.ingredientGroups.map((g) => g.name)).toEqual(["Burgers", "To serve"]);
+    expect(r!.ingredientGroups[0].ingredients.map((i) => i.originalText)).toEqual(["2 chicken breasts", "100g feta"]);
+    expect(r!.ingredientGroups[1].ingredients.map((i) => i.originalText)).toEqual(["1 tbsp olive oil", "1 lemon"]);
+    // Positions stay continuous across sections.
+    expect(r!.ingredientGroups.flatMap((g) => g.ingredients).map((i) => i.position)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("falls back to one unnamed group when a page has no WPRM sections", () => {
+    const r = extractRecipeFromHtml(withJsonLd(RECIPE));
+    expect(r!.ingredientGroups).toHaveLength(1);
+    expect(r!.ingredientGroups[0].name).toBeNull();
+  });
+
   it("splits newline-joined string instructions and keeps step order", () => {
     const r = extractRecipeFromHtml(
       withJsonLd({ ...RECIPE, recipeInstructions: "Step one.\nStep two.\nStep three." }),
