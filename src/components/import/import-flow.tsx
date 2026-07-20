@@ -13,6 +13,7 @@ import { ImportNote } from "@/components/import/import-note";
 import { ImportFailure } from "@/components/import/import-failure";
 import { InstagramIcon, GlobeIcon, CheckIcon } from "@/components/icons";
 import { extractedToFormInitial } from "@/lib/import/to-form";
+import { isCompositeReelCover } from "@/lib/import/config";
 import { useImportPolling } from "@/components/import/use-import-polling";
 import { attributionLabel } from "@/lib/recipes/handle";
 import type { ImportResult, ExtractedRecipe } from "@/lib/import/schema";
@@ -154,6 +155,39 @@ function Review({
   const sourceType = recipe.source.sourceType.startsWith("instagram") ? "instagram" : "website";
   const cached = recipe.source.retrievalMethod === "cache";
   const creatorLabel = attributionLabel(recipe.source.creatorName, { at: sourceType === "instagram" }) ?? "Imported";
+
+  // Deferred Reel cover enrichment (spec: docs/spec/defer-cover-enrichment.md). The
+  // pipeline handed us the play-button composite so we got here ~11s sooner; fetch
+  // the clean Apify cover in the background and swap it in. Saving cancels the fetch
+  // (the request is aborted) and keeps the composite thumbnail.
+  const initialCover = recipe.source.coverImageUrl;
+  const [coverUrl, setCoverUrl] = useState<string | null>(initialCover);
+  const [coverEnriching, setCoverEnriching] = useState(() => isCompositeReelCover(initialCover));
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!isCompositeReelCover(initialCover)) return;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const cap = setTimeout(() => ctrl.abort(), 20_000); // Q3: never spin forever.
+    (async () => {
+      try {
+        const res = await fetch(`/api/imports/${importId}/cover`, { method: "POST", signal: ctrl.signal });
+        const data = (await res.json()) as { coverUrl: string | null };
+        if (data?.coverUrl && !isCompositeReelCover(data.coverUrl)) setCoverUrl(data.coverUrl);
+      } catch {
+        // aborted (save/timeout) or failed — keep the composite, silently.
+      } finally {
+        clearTimeout(cap);
+        setCoverEnriching(false);
+      }
+    })();
+    return () => {
+      clearTimeout(cap);
+      ctrl.abort();
+    };
+  }, [importId, initialCover]);
+
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
@@ -170,7 +204,9 @@ function Review({
         action={createRecipe}
         initial={extractedToFormInitial(recipe)}
         source={{ type: sourceType, url: recipe.source.sourceUrl ?? "", handle: recipe.source.creatorName }}
-        importCoverUrl={recipe.source.coverImageUrl}
+        importCoverUrl={coverUrl}
+        coverEnriching={coverEnriching}
+        onBeforeSave={() => abortRef.current?.abort()}
         importId={importId}
         submitLabel="Save to shelf"
         isNew

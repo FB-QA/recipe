@@ -293,4 +293,52 @@ export async function markImportSaved(importId: string, recipeId: string, userId
     .eq("state", "ready_for_review");
 }
 
+/**
+ * The next retrieval-attempt number for an import — the deferred cover enrichment
+ * runs in its own request, so it can't share the engine's in-memory counter.
+ */
+export async function nextRetrievalAttemptNumber(importId: string): Promise<number> {
+  const { count } = await svc()
+    .from("source_retrieval_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("recipe_import_id", importId);
+  return (count ?? 0) + 1;
+}
+
+/**
+ * Patch the enriched cover onto a review-stage import (deferred cover enrichment).
+ * Read-modify-write on the `extracted` JSONB, CAS-guarded on `state` so it can never
+ * clobber a row that has since been saved/failed, and always user-scoped.
+ */
+export async function updateExtractedCover(
+  userId: string,
+  importId: string,
+  coverUrl: string,
+  costDeltaMicroUsd: number,
+): Promise<void> {
+  const db = svc();
+  const { data } = await db
+    .from("recipe_imports")
+    .select("extracted, total_cost_micro_usd, state")
+    .eq("id", importId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const row = data as { extracted: ExtractedRecipe | null; total_cost_micro_usd: number; state: ImportState | null } | null;
+  if (!row?.extracted || row.state !== "ready_for_review") return;
+
+  const extracted: ExtractedRecipe = {
+    ...row.extracted,
+    source: { ...row.extracted.source, coverImageUrl: coverUrl },
+  };
+  await db
+    .from("recipe_imports")
+    .update({
+      extracted,
+      total_cost_micro_usd: Number(row.total_cost_micro_usd) + costDeltaMicroUsd,
+    })
+    .eq("id", importId)
+    .eq("user_id", userId)
+    .eq("state", "ready_for_review");
+}
+
 export const config = importConfig;

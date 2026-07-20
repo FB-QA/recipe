@@ -17,9 +17,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * the app never depends on Meta staying reachable. This is a paid third-party
  * scraper (ToS grey area); keep it here and nowhere else.
  */
-export async function fetchInstagram(url: string): Promise<InstagramMedia | null> {
+export async function fetchInstagram(url: string, external?: AbortSignal): Promise<InstagramMedia | null> {
   const token = process.env.APIFY_API_TOKEN;
   if (!token) return null;
+  // Combine each request's own timeout with an optional caller signal, so the
+  // deferred cover fetch is genuinely cancelled when the user saves (spec §1).
+  const withTimeout = (ms: number) =>
+    external ? AbortSignal.any([external, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
 
   let runId: string | null = null;
   let succeeded = false;
@@ -34,7 +38,7 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
         resultsLimit: 1,
         addParentData: false,
       }),
-      signal: AbortSignal.timeout(15_000),
+      signal: withTimeout(15_000),
     });
     if (!startRes.ok) return null;
 
@@ -47,9 +51,10 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
     let status = run.data.status as string;
     let usageUsd = 0;
     while (Date.now() < deadline) {
+      if (external?.aborted) return null; // caller (e.g. a save) cancelled — stop polling.
       await sleep(3_000);
       const poll = await fetch(`${BASE}/actor-runs/${runId}?token=${token}`, {
-        signal: AbortSignal.timeout(10_000),
+        signal: withTimeout(10_000),
       });
       if (!poll.ok) continue;
       const body = await poll.json();
@@ -61,7 +66,7 @@ export async function fetchInstagram(url: string): Promise<InstagramMedia | null
     succeeded = true;
 
     const itemsRes = await fetch(`${BASE}/datasets/${datasetId}/items?clean=true&token=${token}`, {
-      signal: AbortSignal.timeout(15_000),
+      signal: withTimeout(15_000),
     });
     if (!itemsRes.ok) return null;
 

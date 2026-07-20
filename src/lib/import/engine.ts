@@ -119,7 +119,7 @@ export type EngineOutcome =
 
 // ---- cost helpers (pure) ----
 
-function retrievalCost(prices: PriceRow[], result: SourceResolverResult): {
+export function retrievalCost(prices: PriceRow[], result: SourceResolverResult): {
   units: number | null; unitType: string | null; costMicroUsd: number; accuracy: "metered" | "estimated" | "none";
 } {
   const cost = result.cost;

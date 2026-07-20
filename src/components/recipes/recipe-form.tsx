@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TextField } from "@/components/ui/text-field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Spinner } from "@/components/ui/spinner";
 import { CloseIcon, PlusIcon } from "@/components/icons";
 import type { RecipeFormState } from "@/lib/recipes/actions";
 import { createdRecipeHref } from "@/lib/recipes/constants";
@@ -60,6 +61,8 @@ export function RecipeForm({
   source,
   importCoverUrl,
   importId,
+  coverEnriching,
+  onBeforeSave,
   isNew,
   onSaved,
 }: {
@@ -70,6 +73,10 @@ export function RecipeForm({
   importCoverUrl?: string | null;
   /** When confirming an import draft: links the saved recipe back to its import row. */
   importId?: string;
+  /** The deferred Reel cover is still being fetched — show a shimmer on the cover. */
+  coverEnriching?: boolean;
+  /** Called on submit, before the action runs — used to cancel the in-flight cover fetch. */
+  onBeforeSave?: () => void;
   /** Newly-created recipe (adds ?created=1 so the detail page toasts "Saved"). */
   isNew?: boolean;
   /** Host handles navigation on save (e.g. a drawer closes then routes). When
@@ -128,8 +135,12 @@ export function RecipeForm({
     importCoverUrl && /^https?:\/\//.test(importCoverUrl)
       ? `/api/image-proxy?url=${encodeURIComponent(importCoverUrl)}`
       : (importCoverUrl ?? null);
-  const [preview, setPreview] = useState<string | null>(importPreviewSrc ?? initial.coverUrl);
+  // `preview` holds only a user override (a chosen file, or `null` after Remove).
+  // While the cover is "kept", the shown image is derived from `importCoverUrl` so
+  // it follows the deferred cover enrichment swapping the composite → clean image.
+  const [preview, setPreview] = useState<string | null>(null);
   const [coverAction, setCoverAction] = useState<"keep" | "replace" | "remove">("keep");
+  const displayed = coverAction === "keep" ? (importPreviewSrc ?? initial.coverUrl) : preview;
   const fileRef = useRef<HTMLInputElement>(null);
   // Cover downscale is async: a monotonic token identifies the latest selection so
   // a slower earlier conversion can't overwrite a newer one, and `converting`
@@ -183,7 +194,11 @@ export function RecipeForm({
   };
 
   return (
-    <form action={formAction} className="flex flex-col gap-5 pb-4">
+    <form
+      action={formAction}
+      onSubmit={() => onBeforeSave?.()}
+      className="flex flex-col gap-5 pb-4"
+    >
       <input type="hidden" name="payload" value={JSON.stringify(payload)} />
       <input type="hidden" name="coverAction" value={coverAction} />
       {importId && <input type="hidden" name="importId" value={importId} />}
@@ -199,11 +214,21 @@ export function RecipeForm({
       <div>
         <FieldLabel>Cover photo</FieldLabel>
         <div className="relative flex h-[168px] items-center justify-center overflow-hidden rounded-card border border-dashed border-line bg-surface-2">
-          {preview ? (
+          {displayed ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Cover preview" className="h-full w-full object-cover" />
+            <img src={displayed} alt="Cover preview" className="h-full w-full object-cover" />
           ) : (
             <span className="text-[13px] text-ink-3">Add a photo (optional)</span>
+          )}
+          {/* Deferred cover enrichment in flight: a subtle shimmer + spinner over the
+              composite thumbnail while the clean cover is fetched (spec §4). */}
+          {coverEnriching && coverAction === "keep" && displayed && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <span aria-hidden className="skeleton absolute inset-0 opacity-40" />
+              <span className="relative rounded-full bg-black/35 p-2 backdrop-blur-[1px]">
+                <Spinner size={16} tone="white" />
+              </span>
+            </div>
           )}
           <div className="absolute bottom-2.5 right-2.5 flex gap-2">
             <button
@@ -211,9 +236,9 @@ export function RecipeForm({
               onClick={() => fileRef.current?.click()}
               className="rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-sm"
             >
-              {preview ? "Change" : "Add photo"}
+              {displayed ? "Change" : "Add photo"}
             </button>
-            {preview && (
+            {displayed && (
               <button
                 type="button"
                 onClick={() => {
