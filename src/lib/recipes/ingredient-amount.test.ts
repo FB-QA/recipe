@@ -224,6 +224,28 @@ describe("renderIngredientAmount", () => {
     expect(r.text).not.toMatch(/oz/);
   });
 
+  it("converts a line with a '/' alternative and a hyphenated name", () => {
+    // Real importer shape: name holds the WHOLE line, quantity/unit null.
+    const dt = "1 1/2 cups plain flour / all-purpose flour";
+    const r = renderIngredientAmount(
+      ing({ display_text: dt, name: dt, quantity_value: null, unit: null }),
+      { scale: 1, targetSystem: "metric", sourceRegion: "metric" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.text).toBe("375 ml plain flour / all-purpose flour");
+  });
+
+  it("does not prepend the amount to a name that is the whole line", () => {
+    const dt = "2 tsp vanilla extract";
+    const r = renderIngredientAmount(
+      ing({ display_text: dt, name: dt, quantity_value: null, unit: null }),
+      { scale: 1, targetSystem: "metric", sourceRegion: "metric" },
+    );
+    // "10 ml vanilla extract", never "10 ml 2 tsp vanilla extract".
+    expect(r.text).toBe("10 ml vanilla extract");
+    expect(r.text).not.toMatch(/tsp/);
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),

@@ -83,6 +83,15 @@ const LEADING_MODIFIER = /^(?:about|approximately|approx|roughly|generous|heaped
 // always converts or intentionally falls back, never fails on a fraction gap.
 const LEADING_NUMERIC = new RegExp(String.raw`^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—${UNICODE_FRACTION_CHARS}+-]+`, "i");
 
+// A bounded leading-quantity slice: optional modifiers/article, then the number
+// span. Parsing ONLY this slice (not the whole line) stops trailing name
+// pollution — a "/ all-purpose flour" alternative, a hyphen in "all-purpose" —
+// from corrupting the quantity parse.
+const LEADING_QUANTITY_SLICE = new RegExp(
+  String.raw`^(?:(?:about|approximately|approx|roughly|generous|heaped|rounded|level|scant|an?)\s+)*(?:\d+\s*[×x]\s*)?[\d\s.,/–—${UNICODE_FRACTION_CHARS}+-]+`,
+  "i",
+);
+
 /**
  * ONE legacy parser for a raw ingredient line — the amount/range, the unit and
  * the remaining name, so `legacyLead` and `nameOf` never drift apart. Used only
@@ -94,8 +103,11 @@ function parseLegacyIngredient(text: string): {
   unit: string | null;
   name: string;
 } {
-  const parsed = parseQuantity(text);
-  let rest = text.trim();
+  const t = text.trim();
+  // Value from the bounded leading slice only (see LEADING_QUANTITY_SLICE).
+  const slice = t.match(LEADING_QUANTITY_SLICE)?.[0]?.trim();
+  const parsed = parseQuantity(slice || t);
+  let rest = t;
   while (LEADING_MODIFIER.test(rest)) rest = rest.replace(LEADING_MODIFIER, "");
   rest = rest.replace(/^(?:an?)\s+/i, "");
   rest = rest.replace(LEADING_NUMERIC, "").trim();
@@ -153,7 +165,12 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   const value = ing.quantity_value ?? ing.quantity_min ?? legacy.value;
   const max = ing.quantity_max ?? legacy.max;
   const unitText = ing.unit ?? legacy.unit;
-  const name = ing.name?.trim() || legacy.name;
+  // The importer sometimes stores the WHOLE line in `name` (quantity + unit +
+  // noun). If it still leads with a quantity, don't trust it — use the stripped
+  // legacy name, so the converted amount isn't prepended to the original line
+  // ("10 ml 2 tsp vanilla" ✗ → "10 ml vanilla" ✓).
+  const rawName = ing.name?.trim();
+  const name = rawName && !LEADING_NUMERIC.test(rawName) ? rawName : legacy.name;
 
   const fallback = (status: IngredientConversionStatus): RenderedIngredientAmount => ({
     text: scaled(),
