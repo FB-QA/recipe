@@ -117,4 +117,35 @@ describe("parseWprmIngredientGroups", () => {
     const groups = parseWprmIngredientGroups(card("First", "flour") + card("Second", "sugar"));
     expect(groups).toEqual([{ name: "First", ingredients: ["flour"] }]);
   });
+
+  // A named recipe card with its ingredients section, in document order.
+  const recipeCard = (name: string, groupName: string, ing: string) => `
+    <div class="wprm-recipe-container"><h2 class="wprm-recipe-name">${name}</h2>
+      <div class="wprm-recipe-ingredients-container">
+        <div class="wprm-recipe-ingredient-group">
+          <h4 class="wprm-recipe-ingredient-group-name">${groupName}</h4>
+          <ul><li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-name">${ing}</span></li></ul>
+        </div>
+      </div>
+    </div>`;
+
+  it("associates groups with the SELECTED recipe, not just the first card", () => {
+    // A related recipe appears BEFORE the one the JSON-LD selected — the title picks
+    // the right card (Codex finding: associate WPRM markup with the JSON-LD recipe).
+    const html = recipeCard("Related Cake", "Batter", "flour") + recipeCard("Main Curry", "Spices", "cumin");
+    expect(parseWprmIngredientGroups(html, "Main Curry")).toEqual([{ name: "Spices", ingredients: ["cumin"] }]);
+  });
+
+  it("matches the recipe name despite punctuation (hyphen vs en-dash)", () => {
+    // Real case: JSON-LD title has an ASCII hyphen, WPRM name has &ndash;.
+    const html = recipeCard("Pad See Ew &ndash; Thai Noodles", "Sauce", "soy sauce");
+    expect(parseWprmIngredientGroups(html, "Pad See Ew - Thai Noodles")).toEqual([
+      { name: "Sauce", ingredients: ["soy sauce"] },
+    ]);
+  });
+
+  it("does not guess when several recipes are present and none matches the title", () => {
+    const html = recipeCard("Cake", "Batter", "flour") + recipeCard("Soup", "Base", "stock");
+    expect(parseWprmIngredientGroups(html, "Totally Different Dish")).toBeNull();
+  });
 });

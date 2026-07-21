@@ -120,8 +120,8 @@ function yieldValue(text: string | null): number | null {
  * and its ingredient count is close to the JSON-LD list's — a wildly different count
  * means a bad parse, so we fall back rather than ship garbage.
  */
-function buildIngredientGroups(html: string, flat: string[]): IngredientGroup[] {
-  const wprm = parseWprmIngredientGroups(html);
+function buildIngredientGroups(html: string, flat: string[], title: string): IngredientGroup[] {
+  const wprm = parseWprmIngredientGroups(html, title);
   if (wprm && wprm.some((g) => g.name)) {
     const total = wprm.reduce((n, g) => n + g.ingredients.length, 0);
     const lo = Math.max(2, Math.floor(flat.length * 0.5));
@@ -216,7 +216,7 @@ export function extractRecipeFromHtml(html: string): AiExtractedRecipe | null {
       prepTimeMinutes: durationToMinutes(firstString(node.prepTime)),
       cookTimeMinutes: durationToMinutes(firstString(node.cookTime)),
       totalTimeMinutes: durationToMinutes(firstString(node.totalTime)),
-      ingredientGroups: buildIngredientGroups(html, ingredients),
+      ingredientGroups: buildIngredientGroups(html, ingredients, title),
       steps,
       tips: [],
       servingSuggestions: [],

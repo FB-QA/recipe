@@ -52,26 +52,60 @@ function ingredientText(liInner: string): string {
  * fails), then stop at the next ingredients-container — which begins a different
  * recipe. Pages with no further container (e.g. test fixtures) run to the end.
  */
-function scopeToFirstRecipe(html: string): string {
-  const firstGroup = html.search(/<div[^>]*class="[^"]*\bwprm-recipe-ingredient-group\b/i);
-  if (firstGroup === -1) return html;
-  const after = html.slice(firstGroup);
+/** Collapse a recipe name to a comparison key: entity-decoded, alphanumerics only.
+ *  So the JSON-LD title ("… - …", ASCII hyphen) matches WPRM's name ("… &ndash; …"). */
+const normName = (s: string): string => decodeEntities(s).toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * Bound parsing to the ingredient groups of the recipe `extractRecipeFromHtml`
+ * selected, identified by its `title`. A page can carry several WPRM recipes (a
+ * related-recipe card, a print variant), so the groups must be ASSOCIATED with the
+ * chosen recipe, not just "the first ones on the page".
+ *
+ * Match the recipe by its `wprm-recipe-name` (normalised — the JSON-LD title and the
+ * WPRM heading differ in punctuation), then anchor on the first real ingredient-group
+ * AFTER that heading and stop at the next ingredients-container. If several distinct
+ * recipes are present and none matches the title, return "" so the caller keeps the
+ * flat list rather than staple the wrong ingredients on. With no name markup or a
+ * single recipe (the common case, plus test fixtures), anchor on the first group.
+ */
+function scopeToRecipe(html: string, title: string | null): string {
+  const names = [...html.matchAll(/wprm-recipe-name[^>]*>([^<]+)</gi)]
+    .map((m) => ({ pos: m.index ?? 0, norm: normName(m[1]) }))
+    .filter((n) => n.norm.length > 0);
+  const distinct = new Set(names.map((n) => n.norm));
+
+  let searchFrom = 0;
+  if (title && names.length > 0) {
+    const want = normName(title);
+    const match = names.find((n) => n.norm === want);
+    if (match) searchFrom = match.pos;
+    else if (distinct.size > 1) return ""; // several recipes, none is the selected one → don't guess
+    // else: a single recipe whose name didn't normalise-match — safe to use it
+  }
+
+  const rel = html.slice(searchFrom).search(/<div[^>]*class="[^"]*\bwprm-recipe-ingredient-group\b/i);
+  if (rel === -1) return html;
+  const from = searchFrom + rel;
+  const after = html.slice(from);
   const nextContainer = after.slice(1).search(/wprm-recipe-ingredients-container/i);
   return nextContainer === -1 ? after : after.slice(0, nextContainer + 1);
 }
 
 /**
- * Parse WPRM ingredient groups out of a page's HTML, in document order. Returns
- * `null` when the page carries no WPRM ingredient-group markup (the caller then
- * keeps the flat JSON-LD list). Groups with no parsed ingredients are dropped.
+ * Parse WPRM ingredient groups out of a page's HTML, in document order. `title` is
+ * the recipe `extractRecipeFromHtml` selected, used to associate the groups with the
+ * right card on a multi-recipe page. Returns `null` when the page carries no WPRM
+ * ingredient-group markup (the caller keeps the flat JSON-LD list). Groups with no
+ * parsed ingredients are dropped.
  *
  * Every ingredient-group WRAPPER opens a fresh group, so an unnamed group that
  * follows a named one keeps its own boundary rather than merging into the previous
  * section. An ingredient-group heading names the group the wrapper just opened.
  */
-export function parseWprmIngredientGroups(html: string): WprmIngredientGroup[] | null {
+export function parseWprmIngredientGroups(html: string, title: string | null = null): WprmIngredientGroup[] | null {
   if (!/wprm-recipe-ingredient-group\b/i.test(html)) return null;
-  const scoped = scopeToFirstRecipe(html);
+  const scoped = scopeToRecipe(html, title);
 
   type Token = { pos: number; kind: "wrapper" | "name" | "ing"; text: string };
   const tokens: Token[] = [];
