@@ -122,6 +122,15 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     return { ...base, error: "INVALID_QUANTITY", explanation: "Quantity must be non-negative." };
   }
 
+  // A range's upper bound gets the same validation as the primary quantity —
+  // a non-finite or illegally-negative max must fail the whole request, not
+  // slip through as a corrupt partial range.
+  if (quantityMax != null) {
+    if (!Number.isFinite(quantityMax) || (quantityMax < 0 && dimension !== "temperature")) {
+      return { ...base, error: "INVALID_QUANTITY", explanation: "Range upper bound is not a valid quantity." };
+    }
+  }
+
   // "Original" means "do not convert" — return the value unchanged so a toggle
   // switching back to Original gets a successful passthrough, not an error.
   if (!req.toUnit && req.targetSystem === "original") {
@@ -167,14 +176,16 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     };
   }
 
-  const crossSystem = req.targetSystem != null && req.toUnit == null;
-
   const one = convertOne(quantity, fromUnit, toUnit, dimension, sourceRegion, req.targetSystem);
   if (one === undefined) {
     return { ...base, error: "UNSUPPORTED_CONVERSION", warning: "Conversion is not available." };
   }
 
-  const approximate = crossSystem || (dimension === "temperature" && toUnit === "gas_mark");
+  // Approximate ONLY when the value genuinely loses precision — i.e. mapping a
+  // continuous temperature onto the discrete gas-mark scale. A system-targeted
+  // weight/temperature/length/volume conversion is an exact formula/unit
+  // change; requesting it via `targetSystem` does not make it approximate.
+  const approximate = dimension === "temperature" && toUnit === "gas_mark";
 
   // Honour an explicit allowApproximate:false — a caller enforcing an
   // exact-only display policy must not be handed an approximate result.
@@ -194,7 +205,8 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     approximate,
   };
 
-  if (quantityMax != null && Number.isFinite(quantityMax) && (quantityMax >= 0 || dimension === "temperature")) {
+  if (quantityMax != null) {
+    // Already validated finite + sign-legal above.
     const maxConverted = convertOne(quantityMax, fromUnit, toUnit, dimension, sourceRegion, req.targetSystem);
     if (maxConverted !== undefined) result.convertedQuantityMax = maxConverted;
   }

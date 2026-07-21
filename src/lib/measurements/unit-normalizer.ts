@@ -15,6 +15,12 @@ const AMBIGUOUS_TOKENS: Record<string, { candidates: MeasurementUnit[]; confiden
   C: { candidates: ["celsius", "cup"], confidence: 0.4 },
 };
 
+/** Multi-letter tokens that map to two units — checked on the canonical key. */
+const AMBIGUOUS_KEYS: Record<string, { candidates: MeasurementUnit[]; confidence: number }> = {
+  // "gm" is grams to most, gas mark to some — surface it, don't silently pick.
+  gm: { candidates: ["g", "gas_mark"], confidence: 0.5 },
+};
+
 /** Case-sensitive shorthand where case carries the meaning. */
 const CASED_TOKENS: Record<string, { unit: MeasurementUnit; confidence: number }> = {
   T: { unit: "tbsp", confidence: 0.7 },
@@ -40,7 +46,7 @@ const ALIAS_MAP: Record<string, MeasurementUnit> = (() => {
   for (const def of Object.values(UNIT_DEFINITIONS)) {
     for (const alias of [def.id, ...def.aliases]) {
       const key = canonicalize(alias);
-      if (!key || skip.has(key)) continue;
+      if (!key || skip.has(key) || key in AMBIGUOUS_KEYS) continue;
       // First writer wins; definitions are ordered weight→volume→… so a
       // collision (there are none today) would favour the earlier dimension.
       if (!(key in map)) map[key] = def.id;
@@ -74,6 +80,18 @@ export function normalizeUnit(input: string): NormalizedUnitResult {
   }
 
   const key = canonicalize(trimmed);
+
+  if (key in AMBIGUOUS_KEYS) {
+    const hit = AMBIGUOUS_KEYS[key];
+    return {
+      unit: hit.candidates[0],
+      confidence: hit.confidence,
+      originalText: original,
+      ambiguous: true,
+      candidates: hit.candidates,
+    };
+  }
+
   const unit = ALIAS_MAP[key];
   if (unit) {
     return { unit, confidence: 1, originalText: original };
