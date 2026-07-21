@@ -56,10 +56,10 @@ backfill, or instruction annotation.**
 | Phase | What | Data deps | UI |
 |---|---|---|---|
 | **1 — Conversion foundation** | Types, unit model, regional profiles, unit normaliser, quantity parser, quantity formatter, exact converter (weight/volume/temp/length) | none | none — pure library |
-| **2 — Recipe toggle + portion** | Controls bar, selector, original preservation, portion-scaling from source, no-reload update, a11y | none new | prototype-led (Maya) |
+| **2 — Recipe toggle + portion** | Controls bar, selector, original preservation, portion-scaling from source (incl. range endpoints), no-reload update, a11y, **display-time oven-temperature conversion in method text** (`350°F`/`180°C`/`Gas Mark 4`, single/range/dual-scale) | none new | native `<select>` (design supplied by Freddi) |
 | **3 — Seed density dataset** | `ingredient_conversion_profiles`, ~25 curated verified staples, cup↔gram where data exists | new table | approximation indicators |
 | **4 — Legacy parsing** | Per-ingredient convert-on-read status model, lazy parse of null-quantity rows, session cache | none | per-ingredient status |
-| **5 — Instruction conversion** | Limited deterministic temp/dimension parser in-step first; persisted spans + extractor change later | later table | in-step substitution |
+| **5 — Instruction conversion (remainder)** | Tin/length dimensions in text; PERSISTED character-span annotations + extractor change. (Deterministic oven-**temperature** parsing already shipped in Phase 2, display-time only, no stored spans.) | later table | span substitution |
 | **6 — Overrides + polish** | Individual ingredient conversion, per-recipe + ingredient persistence, optimistic save, logged-out session, perf | 3 tables (§36) | overrides UI |
 
 **Density (§17):** seed a small verified set (~25 baking staples), prep-state

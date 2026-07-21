@@ -75,11 +75,17 @@ falling back to the text scaler whenever structured conversion is unavailable.
   `ingredients-section` (3): Original → Metric shows `237 ml flour`, switch back
   restores `1 cup flour`, region-unknown keeps the cup original.
 
-**Test run:**
+**Test run (after review hardening + main merge):**
 ```
-new: 30 tests (24 unit + 6 component), all green
-full repo: 485 passed (52 files); tsc --noEmit → 0; eslint src → clean
-next build → success (/recipes/[id] compiled with the new client boundary)
+unit: measurement-region, ingredient-amount (bridge), instruction-temp (temp
+  expression parser: single/range/dual paren+slash+or/no-degree/gas guard),
+  scale (range endpoints), measurements/target-units (US lb/cup selection)
+component: measurement-toggle, ingredients-section
+integration (CookSections/MethodSteps): method-only selector, temp-range
+  conversion, drawer preparation preservation, Original range scaling,
+  repeated portion+system switching, live-region updates
+full repo: 523 passed (53 files); tsc --noEmit → 0; eslint src → clean
+next build → success
 ```
 
 **Attack vectors (falsify):** missing quantity, unknown/ambiguous unit,

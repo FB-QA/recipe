@@ -29,16 +29,19 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
   // A BARE "pint" is ambiguous (US 473 ml vs UK/IE 568 ml), so it is not a
   // signal. Only an explicitly "imperial pint" is a strong UK/IE cue.
   const hasImperialPint = /\bimperial\s+pints?\b/.test(text);
+  // Gas marks are a British/Irish oven convention — a strong UK/IE cue.
+  const hasGasMark = /\bgas\s*mark\b/.test(text) || units.some((u) => u === "gas_mark");
   const hasMetricWeight =
     units.some((u) => ["g", "kg", "gram", "grams", "kilogram", "kilograms"].includes(u)) ||
     /\d\s*g\b|\bgrams?\b/.test(text);
 
   // Conflicting cues → we can't tell; don't guess. Both oven scales together, or
-  // a US cue (Fahrenheit) alongside an explicitly imperial (UK/IE) pint.
+  // a US cue (Fahrenheit) alongside a UK/IE cue (imperial pint or gas mark).
   if (hasFahrenheit && hasCelsius) return undefined;
-  if (hasFahrenheit && hasImperialPint) return undefined;
+  if (hasFahrenheit && (hasImperialPint || hasGasMark)) return undefined;
   if (hasFahrenheit) return "us";
-  if (hasImperialPint) return "uk_ie";
+  // UK/IE cues (either is strong; gas mark may co-occur with °C, still UK/IE).
+  if (hasImperialPint || hasGasMark) return "uk_ie";
   if (hasCelsius && hasMetricWeight) return "metric";
   return undefined;
 }

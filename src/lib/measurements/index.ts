@@ -14,6 +14,7 @@ export { normalizeUnit } from "./unit-normalizer";
 export { parseQuantity, parseDimensions } from "./quantity-parser";
 export type { ParsedDimensions } from "./quantity-parser";
 export { convert } from "./measurement-converter";
+export { selectSystemUnit, pickUsVolumeUnit } from "./target-units";
 export {
   friendlyFraction,
   formatQuantityValue,

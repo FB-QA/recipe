@@ -107,6 +107,24 @@ describe("renderIngredientAmount", () => {
     expect(r.text).not.toMatch(/ml/);
   });
 
+  it("promotes US weight to pounds for large amounts (2 kg → lb, not 70 oz)", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "2 kg beef", quantity_value: 2, unit: "kg", name: "beef" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.text).toMatch(/lb beef$/); // ~4⅜ lb
+    expect(r.text).not.toMatch(/oz/);
+  });
+
+  it("keeps a small US weight in ounces", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "100 g almonds", quantity_value: 100, unit: "g", name: "almonds" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.text).toMatch(/oz almonds$/); // ~3½ oz
+  });
+
   it("keeps UK/Ireland volume in millilitres (favours metric per §26)", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "500 ml milk", quantity_value: 500, unit: "ml", name: "milk" }),
@@ -121,7 +139,7 @@ describe("renderIngredientAmount", () => {
       { scale: 1, targetSystem: "us" },
     );
     expect(r.status).toBe("converted");
-    expect(r.text).toMatch(/oz chicken$/); // used the 'g' unit, not 'about'
+    expect(r.text).toMatch(/lb chicken$/); // used the g unit (500g → 1.1 lb), not "about"
   });
 
   it("derives a name when the structured name is missing", () => {
@@ -138,8 +156,8 @@ describe("renderIngredientAmount", () => {
       { scale: 1, targetSystem: "us" },
     );
     expect(r.status).toBe("converted");
-    // Not "18 oz about 500g chicken" — the modifier + amount are stripped.
-    expect(r.text).toMatch(/oz chicken$/);
+    // Not "1⅛ lb about 500g chicken" — the modifier + amount are stripped.
+    expect(r.text).toMatch(/lb chicken$/);
     expect(r.text).not.toMatch(/about|500/);
   });
 

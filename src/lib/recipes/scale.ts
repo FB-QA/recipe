@@ -42,15 +42,29 @@ export function formatAmount(n: number): string {
 }
 
 // Leading quantity: a fraction (a/b), a decimal/integer, or a unicode fraction.
-const QTY_RE = /(\d+\s*\/\s*\d+|\d+(?:\.\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞])/;
+const QTY = String.raw`\d+\s*\/\s*\d+|\d+(?:\.\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞]`;
+const QTY_RE = new RegExp(`(${QTY})`);
+// A leading RANGE: two quantities joined by a dash or "to" ("1–2", "1 to 2").
+const RANGE_RE = new RegExp(String.raw`^(\s*)(${QTY})(\s*(?:[–—-]|\bto\b)\s*)(${QTY})`);
 
 /**
- * Scale the FIRST quantity in an ingredient line by `factor`. Scaling only the
- * lead number is deliberate: "2 x 125g chicken" scales the count (→ "4 x 125g"),
+ * Scale a quantity in an ingredient line by `factor`. A leading RANGE scales
+ * BOTH endpoints ("1–2 tbsp" → "2–4 tbsp"); otherwise only the FIRST number is
+ * scaled — deliberate, so "2 x 125g chicken" scales the count (→ "4 x 125g"),
  * not the per-item weight. Lines with no number are returned unchanged.
  */
 export function scaleIngredientText(text: string, factor: number): string {
   if (!Number.isFinite(factor) || factor === 1) return text;
+
+  const range = text.match(RANGE_RE);
+  if (range) {
+    const lo = parseQtyToken(range[2]);
+    const hi = parseQtyToken(range[4]);
+    if (lo != null && hi != null) {
+      return range[1] + formatAmount(lo * factor) + range[3] + formatAmount(hi * factor) + text.slice(range[0].length);
+    }
+  }
+
   return text.replace(QTY_RE, (match) => {
     const value = parseQtyToken(match);
     if (value == null) return match;

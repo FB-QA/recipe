@@ -37,10 +37,26 @@ describe("convertInstructionTemps", () => {
     expect(convertInstructionTemps("Gas Mark 10.", "metric")).toBe("Gas Mark 10.");
   });
 
-  it("collapses a dual-scale temperature instead of contradicting it", () => {
+  it("collapses a parenthesised dual-scale temperature instead of contradicting it", () => {
     expect(convertInstructionTemps("Bake at 180°C (350°F).", "metric")).toBe("Bake at 180°C.");
     expect(convertInstructionTemps("Bake at 180°C (350°F).", "us")).toBe("Bake at 350°F.");
     expect(convertInstructionTemps("Bake at 350°F (180°C).", "metric")).toBe("Bake at 180°C.");
+  });
+
+  it("collapses slash- and 'or'-separated equivalents the same way", () => {
+    expect(convertInstructionTemps("Bake at 180°C / 350°F.", "metric")).toBe("Bake at 180°C.");
+    expect(convertInstructionTemps("Oven 180°C/350°F.", "us")).toBe("Oven 350°F.");
+    expect(convertInstructionTemps("Heat to 180°C or 350°F.", "us")).toBe("Heat to 350°F.");
+  });
+
+  it("supports no-degree-symbol forms (350 F / 180 C / 180C)", () => {
+    expect(convertInstructionTemps("Bake at 350 F.", "metric")).toBe("Bake at 175°C.");
+    expect(convertInstructionTemps("Bake at 180 C.", "us")).toBe("Bake at 350°F.");
+    expect(convertInstructionTemps("Bake at 180C.", "us")).toBe("Bake at 350°F.");
+  });
+
+  it("does not match a number that is not a temperature", () => {
+    expect(convertInstructionTemps("Add 2 fresh eggs and 100 cloves.", "us")).toBe("Add 2 fresh eggs and 100 cloves.");
   });
 
   it("does not partially convert an off-table decimal or range gas mark", () => {

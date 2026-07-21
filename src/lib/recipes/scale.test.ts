@@ -31,6 +31,13 @@ describe("scaleIngredientText", () => {
     expect(scaleIngredientText("2 x 125g chicken", 2)).toBe("4 x 125g chicken");
   });
 
+  it("scales BOTH endpoints of a leading range", () => {
+    expect(scaleIngredientText("1–2 tbsp oil", 2)).toBe("2–4 tbsp oil");
+    expect(scaleIngredientText("1-2 tbsp oil", 2)).toBe("2-4 tbsp oil");
+    expect(scaleIngredientText("1 to 2 cloves garlic", 2)).toBe("2 to 4 cloves garlic");
+    expect(scaleIngredientText("200–250 g flour", 2)).toBe("400–500 g flour");
+  });
+
   it("leaves numberless lines and factor-1 unchanged", () => {
     expect(scaleIngredientText("salt to taste", 3)).toBe("salt to taste");
     expect(scaleIngredientText("2 eggs", 1)).toBe("2 eggs");

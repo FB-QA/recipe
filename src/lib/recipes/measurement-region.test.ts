@@ -43,6 +43,16 @@ describe("detectSourceRegion", () => {
     ).toBeUndefined();
   });
 
+  it("treats a lone gas mark as a UK/Ireland signal", () => {
+    expect(detectSourceRegion({ units: [], instructions: ["Bake at Gas Mark 6 for 25 minutes."] })).toBe("uk_ie");
+    // Even alongside Celsius (both UK/IE-compatible).
+    expect(detectSourceRegion({ units: ["g"], instructions: ["Gas Mark 6 (200°C)."] })).toBe("uk_ie");
+  });
+
+  it("stays undefined when a gas mark conflicts with Fahrenheit", () => {
+    expect(detectSourceRegion({ units: [], instructions: ["Gas Mark 6 / 400°F."] })).toBeUndefined();
+  });
+
   it("does not treat a lone gram as a region signal without a temperature", () => {
     expect(detectSourceRegion({ units: ["g"], instructions: ["Weigh 200 g."] })).toBeUndefined();
   });

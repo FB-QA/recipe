@@ -2,11 +2,11 @@ import {
   convert,
   normalizeUnit,
   parseQuantity,
-  selectFriendlyMass,
-  selectFriendlyVolume,
-  roundForDisplay,
   formatQuantityValue,
+  selectSystemUnit,
+  SYSTEM_REGION,
   UNIT_DEFINITIONS,
+  type MeasurementDimension,
   type MeasurementRegion,
   type MeasurementSystem,
   type MeasurementUnit,
@@ -60,6 +60,13 @@ export interface RenderOptions {
   sourceRegion?: MeasurementRegion;
 }
 
+/** The dimension's canonical unit, used as the pivot for target selection. */
+const CANONICAL_UNIT: Partial<Record<MeasurementDimension, MeasurementUnit>> = {
+  weight: "g",
+  volume: "ml",
+  length: "mm",
+};
+
 /** Volume units whose millilitre value depends on region (cup, pint, spoons…). */
 function isRegionSensitive(unit: MeasurementUnit): boolean {
   const def = UNIT_DEFINITIONS[unit];
@@ -69,95 +76,50 @@ function isRegionSensitive(unit: MeasurementUnit): boolean {
 /** Leading modifier words to step over when locating the unit ("about 500g"). */
 const LEADING_MODIFIER = /^(?:about|approximately|approx|roughly|generous|heaped|rounded|level|scant)\s+/i;
 
-/** Pull a leading quantity + unit token out of a raw line (legacy fallback). */
-function legacyLead(text: string): { value: number | null; max: number | null; unitText: string | null } {
+/**
+ * ONE legacy parser for a raw ingredient line — the amount/range, the unit and
+ * the remaining name, so `legacyLead` and `nameOf` never drift apart. Used only
+ * when the structured fields are absent.
+ */
+function parseLegacyIngredient(text: string): {
+  value: number | null;
+  max: number | null;
+  unit: string | null;
+  name: string;
+} {
   const parsed = parseQuantity(text);
-  // Find the unit AFTER any leading modifier and the numeric span, so
-  // "about 500g chicken" yields "g", not "about".
   let rest = text.trim();
   while (LEADING_MODIFIER.test(rest)) rest = rest.replace(LEADING_MODIFIER, "");
+  rest = rest.replace(/^(?:an?)\s+/i, "");
   rest = rest.replace(/^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/i, "").trim();
-  const unitMatch = rest.match(/^([a-zA-Z.]+)/);
-  return { value: parsed.value, max: parsed.max, unitText: unitMatch ? unitMatch[1] : null };
+  let unit: string | null = null;
+  let name = rest;
+  const um = rest.match(/^([a-zA-Z.]+)(?:\s+|$)/);
+  if (um && normalizeUnit(um[1]).unit !== "unknown") {
+    unit = um[1];
+    name = rest.slice(um[0].length).trim();
+  }
+  return { value: parsed.value, max: parsed.max, unit, name: name || text.trim() };
 }
 
-/** Pick a familiar US volume unit for a millilitre amount (spec §26). */
-function pickUsVolumeUnit(ml: number): MeasurementUnit {
-  const abs = Math.abs(ml);
-  if (abs < 15) return "tsp";
-  if (abs < 118) return "tbsp"; // up to ~½ US cup
-  if (abs < 946) return "cup";
-  return "quart";
-}
+const NO_FRACTION_UNITS = new Set<MeasurementUnit>(["g", "kg", "mg", "ml", "l"]);
 
-/** The ingredient's name — prefer the structured field, else strip the amount. */
-function nameOf(ing: AmountIngredient): string {
-  if (ing.name && ing.name.trim()) return ing.name.trim();
-  // Best-effort: drop leading modifier(s)/article, the numeric span, then a
-  // recognised unit — so "about 500g chicken" yields "chicken", not the whole
-  // line (which would render as "18 oz about 500g chicken").
-  let s = ing.display_text.trim();
-  while (LEADING_MODIFIER.test(s)) s = s.replace(LEADING_MODIFIER, "");
-  s = s.replace(/^(?:an?)\s+/i, "");
-  s = s.replace(/^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/i, "");
-  s = s.replace(/^\s*([a-zA-Z.]+)\s+/, (m, tok) => (normalizeUnit(tok).unit === "unknown" ? m : " "));
-  return s.trim() || ing.display_text.trim();
-}
-
-/** Round a converted numeric for display: bands when approximate, tidy when exact. */
-function roundDisplay(value: number, dimension: string, approximate: boolean): number {
-  if (approximate) return roundForDisplay(value, dimension as never);
+/** Tidy a converted value for display (exact conversions — no lossy bands). */
+function roundDisplay(value: number): number {
   const abs = Math.abs(value);
   if (abs >= 100) return Math.round(value);
   if (abs >= 10) return Math.round(value * 10) / 10;
   return Math.round(value * 100) / 100;
 }
 
-/**
- * The friendly display unit for a converted value. Friendly promotion
- * (g↔kg↔mg, ml↔L) applies ONLY to metric units — an imperial target (oz, lb,
- * fl_oz) keeps its own unit, never routed back through the metric picker.
- */
-function chosenDisplayUnit(value: number, unit: MeasurementUnit): MeasurementUnit {
-  if (unit === "g" || unit === "kg" || unit === "mg") {
-    return selectFriendlyMass(value * (UNIT_DEFINITIONS[unit].canonicalMultiplier ?? 1)).unit;
-  }
-  if (unit === "ml" || unit === "l") {
-    return selectFriendlyVolume(value * (UNIT_DEFINITIONS[unit].canonicalMultiplier ?? 1)).unit;
-  }
-  return unit;
-}
-
-/** Re-express a value from its converted unit into the chosen display unit. */
-function inDisplayUnit(value: number, fromUnit: MeasurementUnit, displayUnit: MeasurementUnit): number {
-  const canonical = value * (UNIT_DEFINITIONS[fromUnit].canonicalMultiplier ?? 1);
-  return canonical / (UNIT_DEFINITIONS[displayUnit].canonicalMultiplier ?? 1);
-}
-
-const NO_FRACTION_UNITS = new Set<MeasurementUnit>(["g", "kg", "mg", "ml", "l"]);
-
-function renderNumber(displayValue: number, displayUnit: MeasurementUnit, dimension: string, approximate: boolean): string {
-  const rounded = roundDisplay(displayValue, dimension, approximate);
-  const useFractions = UNIT_DEFINITIONS[displayUnit].allowFractions && !NO_FRACTION_UNITS.has(displayUnit);
-  return useFractions ? formatQuantityValue(rounded) : String(rounded);
-}
-
+/** Format a conversion result (already in its chosen display unit). */
 function formatConverted(result: ConversionResult): string {
   const unit = result.convertedUnit!;
-  const dimension = UNIT_DEFINITIONS[unit].dimension;
-  const lo = result.convertedQuantity!;
-  const hi = result.convertedQuantityMax ?? null;
-  // Pick ONE display unit for the whole range, driven by the larger endpoint,
-  // so "900–1100 ml" becomes "0.9–1.1 L", never a mismatched "900–1.1 ml".
-  const driver = Math.max(Math.abs(lo), Math.abs(hi ?? lo));
-  const displayUnit = chosenDisplayUnit(driver, unit);
-  const label = UNIT_DEFINITIONS[displayUnit].shortLabel;
-  const loNum = renderNumber(inDisplayUnit(lo, unit, displayUnit), displayUnit, dimension, result.approximate);
-  const amount =
-    hi != null
-      ? `${loNum}–${renderNumber(inDisplayUnit(hi, unit, displayUnit), displayUnit, dimension, result.approximate)} ${label}`
-      : `${loNum} ${label}`;
-  return result.approximate ? `≈ ${amount}` : amount;
+  const useFractions = UNIT_DEFINITIONS[unit].allowFractions && !NO_FRACTION_UNITS.has(unit);
+  const fmt = (v: number) => (useFractions ? formatQuantityValue(roundDisplay(v)) : String(roundDisplay(v)));
+  const label = UNIT_DEFINITIONS[unit].shortLabel;
+  const hi = result.convertedQuantityMax;
+  return hi != null ? `${fmt(result.convertedQuantity!)}–${fmt(hi)} ${label}` : `${fmt(result.convertedQuantity!)} ${label}`;
 }
 
 export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOptions): RenderedIngredientAmount {
@@ -168,22 +130,16 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   if (opts.targetSystem === "original") {
     return { text: scaled(), status: "original", approximate: false, sourceText };
   }
+  const system = opts.targetSystem;
 
-  // 1. Resolve the original quantity/range + unit from structured fields,
-  //    with a safe legacy parse of the raw line when they're missing. A real v2
-  //    range stores quantity_value: null with quantity_min/max populated, so the
-  //    lower bound comes from quantity_min when quantity_value is absent.
-  let value = ing.quantity_value ?? ing.quantity_min ?? null;
-  let max = ing.quantity_max ?? null;
-  let unitText = ing.unit ?? null;
-  if (value == null || !unitText) {
-    const lead = legacyLead(ing.display_text);
-    if (value == null) {
-      value = lead.value;
-      if (max == null) max = lead.max;
-    }
-    if (!unitText) unitText = lead.unitText;
-  }
+  // 1. Resolve the original quantity/range + unit + name. A real v2 range stores
+  //    quantity_value: null with quantity_min/max populated, so the lower bound
+  //    comes from quantity_min. One legacy parse fills any missing piece.
+  const legacy = parseLegacyIngredient(ing.display_text);
+  const value = ing.quantity_value ?? ing.quantity_min ?? legacy.value;
+  const max = ing.quantity_max ?? legacy.max;
+  const unitText = ing.unit ?? legacy.unit;
+  const name = ing.name?.trim() || legacy.name;
 
   const fallback = (status: IngredientConversionStatus): RenderedIngredientAmount => ({
     text: scaled(),
@@ -193,50 +149,52 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   });
 
   if (value == null) return fallback("missing_quantity");
-
   const norm = normalizeUnit(unitText ?? "");
   if (norm.unit === "unknown") return fallback("unrecognised_unit");
   if (norm.ambiguous) return fallback("ambiguous_unit");
-
-  // Region-sensitive units only convert when the region is genuinely known.
   if (isRegionSensitive(norm.unit) && !opts.sourceRegion) return fallback("ambiguous_region");
 
-  // 2. Scale the ORIGINAL numeric, then convert the scaled value.
-  const result = convert({
-    quantity: value * opts.scale,
-    quantityMax: max != null ? max * opts.scale : undefined,
-    fromUnit: norm.unit,
-    targetSystem: opts.targetSystem,
-    sourceRegion: opts.sourceRegion,
-  });
+  const dimension = UNIT_DEFINITIONS[norm.unit].dimension;
+  const scaledLo = value * opts.scale;
+  const scaledHi = max != null ? max * opts.scale : undefined;
+
+  // 2. Convert. Temperatures go straight to the system's scale; everything else
+  //    pivots through the canonical unit so the LIBRARY picks the friendly
+  //    target unit (US weight → lb for large amounts, US volume → cups, etc.).
+  let result: ConversionResult;
+  if (dimension === "temperature") {
+    result = convert({
+      quantity: scaledLo,
+      quantityMax: scaledHi,
+      fromUnit: norm.unit,
+      toUnit: system === "us" ? "fahrenheit" : "celsius",
+    });
+  } else {
+    const canonUnit = CANONICAL_UNIT[dimension];
+    if (!canonUnit) return fallback("unsupported_conversion");
+    // Step 1 — source → canonical (sourceRegion interprets the SOURCE unit).
+    const canon = convert({ quantity: scaledLo, quantityMax: scaledHi, fromUnit: norm.unit, toUnit: canonUnit, sourceRegion: opts.sourceRegion });
+    if (canon.error || canon.convertedQuantity == null) return fallback("unsupported_conversion");
+    const driver = Math.max(Math.abs(canon.convertedQuantity), Math.abs(canon.convertedQuantityMax ?? canon.convertedQuantity));
+    const targetUnit = selectSystemUnit(driver, dimension, system);
+    // Step 2 — canonical → target (system region interprets the TARGET unit).
+    result = convert({
+      quantity: canon.convertedQuantity,
+      quantityMax: canon.convertedQuantityMax,
+      fromUnit: canonUnit,
+      toUnit: targetUnit,
+      sourceRegion: SYSTEM_REGION[system],
+    });
+  }
 
   if (result.error || result.convertedQuantity == null || result.convertedUnit == null) {
     return fallback("unsupported_conversion");
   }
 
-  // US selection renders volume in familiar US units (cups/tbsp/tsp), not ml
-  // (spec §26). Metric and UK/IE keep ml/L. Driven by the larger endpoint so a
-  // range stays in one unit. Target region is US (known), so this is exact.
-  let display = result;
-  if (opts.targetSystem === "us" && result.convertedUnit === "ml") {
-    const driverMl = Math.max(Math.abs(result.convertedQuantity), Math.abs(result.convertedQuantityMax ?? result.convertedQuantity));
-    const usUnit = pickUsVolumeUnit(driverMl);
-    const usResult = convert({
-      quantity: result.convertedQuantity,
-      quantityMax: result.convertedQuantityMax,
-      fromUnit: "ml",
-      toUnit: usUnit,
-      sourceRegion: "us",
-    });
-    if (!usResult.error && usResult.convertedQuantity != null) display = usResult;
-  }
-
-  const amount = formatConverted(display);
-  const name = nameOf(ing);
-  // Preserve a separate preparation field ("toasted", "finely chopped") — it's
-  // a cooking instruction, not noise, and must survive conversion.
+  const amount = formatConverted(result);
+  // Preserve a separate preparation field ("toasted") — a cooking instruction.
   const prep = ing.preparation?.trim();
   const namePart = name && prep ? `${name}, ${prep}` : name || prep || "";
   const text = namePart ? `${amount} ${namePart}` : amount;
-  return { text, status: "converted", approximate: result.approximate, sourceText };
+  return { text, status: "converted", approximate: false, sourceText };
 }

@@ -1,11 +1,13 @@
 import { convert, type MeasurementSystem, type MeasurementUnit } from "@/lib/measurements";
 
 /**
- * Display-time conversion of explicit oven-temperature patterns inside method
- * text — `180°C`, `350°F`, `Gas Mark 4`. It returns a NEW string for display
- * only; the stored instruction is never modified, and no character-span
- * annotations are persisted (that's Phase 5). Deliberately narrow: only clear
- * degree/gas-mark patterns, nothing speculative.
+ * Display-time conversion of oven-temperature EXPRESSIONS inside method text.
+ * Recognises whole expressions — single (`180°C`, `180 C`, `180C`), ranges
+ * (`180–200°C`), dual-scale equivalents (`180°C (350°F)`, `180°C / 350°F`,
+ * `180°C or 350°F`) and gas marks — and converts them as a unit, so a range's
+ * endpoints never split scales and a dual never contradicts itself. Returns a
+ * NEW string for display only; the stored instruction is never modified, and an
+ * unsupported expression is left entirely unchanged. Spec §29 (Phase 2 scope).
  */
 
 type ConcreteSystem = Exclude<MeasurementSystem, "original">;
@@ -17,6 +19,7 @@ function gasValue(token: string): number {
 }
 
 const symbol = (u: MeasurementUnit): string => (u === "fahrenheit" ? "°F" : "°C");
+const scaleOf = (token: string): MeasurementUnit => (token[0].toLowerCase() === "f" ? "fahrenheit" : "celsius");
 
 /** Convert one temperature to a number, rounded to oven-dial increments. */
 function convertTempNum(value: number, from: MeasurementUnit, to: MeasurementUnit): number | null {
@@ -26,55 +29,49 @@ function convertTempNum(value: number, from: MeasurementUnit, to: MeasurementUni
   return Math.round(r.convertedQuantity / step) * step;
 }
 
-/** Convert one temperature to a display string ("175°C"). */
 function convertTemp(value: number, from: MeasurementUnit, to: MeasurementUnit): string | null {
   const n = convertTempNum(value, from, to);
   return n == null ? null : `${n}${symbol(to)}`;
 }
 
+// A single temperature: 2–3 digits, optional degree, a scale word/letter. The
+// 2–3 digit floor keeps "2 fresh eggs" and "50 g" from ever matching.
+const TEMP = String.raw`(\d{2,3})\s*°?\s*(celsius|fahrenheit|[cf])\b`;
+
 export function convertInstructionTemps(text: string, system: ConcreteSystem): string {
   const toUnit: MeasurementUnit = system === "us" ? "fahrenheit" : "celsius";
   let out = text;
 
-  // Dual-scale equivalents first — "180°C (350°F)" must collapse to the single
-  // target-scale value, never become a contradictory "180°C (175°C)".
-  out = out.replace(/(\d{2,3})\s*°\s*([CF])\s*\(\s*(\d{2,3})\s*°\s*([CF])\s*\)/gi, (m, n1, u1, n2, u2) => {
-    const want = toUnit === "fahrenheit" ? "F" : "C";
-    if (u1.toUpperCase() === want) return `${n1}°${want}`;
-    if (u2.toUpperCase() === want) return `${n2}°${want}`;
-    return convertTemp(Number(n1), u1.toUpperCase() === "F" ? "fahrenheit" : "celsius", toUnit) ?? m;
-  });
+  // Collapse a two-temp equivalent (X (Y), X / Y, X or Y) to the single value
+  // already in the target scale — never a contradictory "180°C (175°C)".
+  const collapseDual = (m: string, n1: string, u1: string, n2: string, u2: string): string => {
+    const want: MeasurementUnit = toUnit;
+    if (scaleOf(u1) === want) return `${n1}${symbol(want)}`;
+    if (scaleOf(u2) === want) return `${n2}${symbol(want)}`;
+    return convertTemp(Number(n1), scaleOf(u1), want) ?? m;
+  };
+  out = out.replace(new RegExp(`${TEMP}\\s*\\(\\s*${TEMP}\\s*\\)`, "gi"), collapseDual);
+  out = out.replace(new RegExp(`${TEMP}\\s*(?:\\/|\\bor\\b)\\s*${TEMP}`, "gi"), collapseDual);
 
-  // Temperature RANGES first, so both endpoints convert together — never a
-  // mixed-scale "180–400°F". Run before the single-value passes consume them.
-  out = out.replace(/(\d{2,3})\s*[–—-]\s*(\d{2,3})\s*°\s*F\b/gi, (m, a, b) => {
-    if (toUnit === "fahrenheit") return m;
-    const lo = convertTempNum(Number(a), "fahrenheit", toUnit);
-    const hi = convertTempNum(Number(b), "fahrenheit", toUnit);
-    return lo != null && hi != null ? `${lo}–${hi}${symbol(toUnit)}` : m;
-  });
-  out = out.replace(/(\d{2,3})\s*[–—-]\s*(\d{2,3})\s*°\s*C\b/gi, (m, a, b) => {
-    if (toUnit === "celsius") return m;
-    const lo = convertTempNum(Number(a), "celsius", toUnit);
-    const hi = convertTempNum(Number(b), "celsius", toUnit);
+  // Ranges — both endpoints convert together (never a mixed "180–400°F").
+  out = out.replace(new RegExp(String.raw`(\d{2,3})\s*[–—-]\s*(\d{2,3})\s*°?\s*(celsius|fahrenheit|[cf])\b`, "gi"), (m, a, b, u) => {
+    const from = scaleOf(u);
+    if (from === toUnit) return m;
+    const lo = convertTempNum(Number(a), from, toUnit);
+    const hi = convertTempNum(Number(b), from, toUnit);
     return lo != null && hi != null ? `${lo}–${hi}${symbol(toUnit)}` : m;
   });
 
-  // Fahrenheit sources (run first so a °C→°F insertion isn't re-scanned).
-  out = out.replace(/(\d{2,3})\s*°\s*F\b/gi, (m, n) => {
-    if (toUnit === "fahrenheit") return m;
-    return convertTemp(Number(n), "fahrenheit", toUnit) ?? m;
-  });
-
-  // Celsius sources.
-  out = out.replace(/(\d{2,3})\s*°\s*C\b/gi, (m, n) => {
-    if (toUnit === "celsius") return m;
-    return convertTemp(Number(n), "celsius", toUnit) ?? m;
+  // Single temperatures.
+  out = out.replace(new RegExp(TEMP, "gi"), (m, n, u) => {
+    const from = scaleOf(u);
+    if (from === toUnit) return m;
+    return convertTemp(Number(n), from, toUnit) ?? m;
   });
 
   // Gas marks (source only). The lookahead refuses a dash-range ("Gas Mark
-  // 4–5") so a half-match can't leave "180°C–5"; a decimal like "4.5" is
-  // captured whole and, being off-table, is left unchanged by convertTemp.
+  // 4–5", "Gas Mark 4.5–5"); an off-table decimal is captured whole and left
+  // unchanged by convertTemp — never a partial "180°C.5".
   out = out.replace(/gas\s*mark\s*(¼|½|¾|\d+(?:\.\d+)?)(?!\s*[–—-]\s*\d)/gi, (m, g) => {
     return convertTemp(gasValue(g), "gas_mark", toUnit) ?? m;
   });
