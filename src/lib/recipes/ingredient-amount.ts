@@ -14,6 +14,7 @@ import {
   type ConversionResult,
 } from "@/lib/measurements";
 import { scaleIngredientText } from "./scale";
+import { reduceMeasurementGroups } from "./measurement-annotations";
 
 /**
  * The bridge between a stored ingredient and its displayed amount for a chosen
@@ -150,18 +151,23 @@ function formatConverted(result: ConversionResult): string {
 
 export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOptions): RenderedIngredientAmount {
   const sourceText = ing.display_text;
-  const scaled = () => scaleIngredientText(ing.display_text, opts.scale);
 
   // "Original" — scale the imported line, do not convert.
   if (opts.targetSystem === "original") {
-    return { text: scaled(), status: "original", approximate: false, sourceText };
+    return { text: scaleIngredientText(ing.display_text, opts.scale), status: "original", approximate: false, sourceText };
   }
   const system = opts.targetSystem;
+
+  // Reduce any pre-written multi-unit annotations ("200g / 7 oz") to the chosen
+  // system BEFORE parsing, so the whole line reflects the selection rather than
+  // showing every unit. Everything below works on this reduced text.
+  const displayText = reduceMeasurementGroups(ing.display_text, system === "us" ? "us" : "metric");
+  const scaled = () => scaleIngredientText(displayText, opts.scale);
 
   // 1. Resolve the original quantity/range + unit + name. A real v2 range stores
   //    quantity_value: null with quantity_min/max populated, so the lower bound
   //    comes from quantity_min. One legacy parse fills any missing piece.
-  const legacy = parseLegacyIngredient(ing.display_text);
+  const legacy = parseLegacyIngredient(displayText);
   const value = ing.quantity_value ?? ing.quantity_min ?? legacy.value;
   const max = ing.quantity_max ?? legacy.max;
   const unitText = ing.unit ?? legacy.unit;

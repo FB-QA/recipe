@@ -269,6 +269,20 @@ describe("renderIngredientAmount", () => {
     expect(r.text).toBe("100g flour");
   });
 
+  it("reduces a pre-written dual annotation to the selected system", () => {
+    const dt = "200g / 7 oz dried noodles";
+    const metric = renderIngredientAmount(ing({ display_text: dt, name: dt, quantity_value: null, unit: null }), {
+      scale: 1,
+      targetSystem: "metric",
+    });
+    expect(metric.text).toBe("200g dried noodles"); // no "/ 7 oz"
+    const us = renderIngredientAmount(ing({ display_text: dt, name: dt, quantity_value: null, unit: null }), {
+      scale: 1,
+      targetSystem: "us",
+    });
+    expect(us.text).toBe("7 oz dried noodles"); // no "200g /"
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),
