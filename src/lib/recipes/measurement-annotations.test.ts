@@ -40,4 +40,25 @@ describe("reduceMeasurementGroups", () => {
   it("does not mistake a fraction like 1/2 for a group separator", () => {
     expect(reduceMeasurementGroups("1/2 cup milk", "metric")).toBe("1/2 cup milk");
   });
+
+  it("keeps a mixed unicode fraction whole (no orphaned leading digit)", () => {
+    // "1½ cups / 350 g flour" must not reduce to "1350 g flour".
+    expect(reduceMeasurementGroups("1½ cups / 350 g flour", "metric")).toBe("350 g flour");
+  });
+
+  it("selects the right member when a typed fraction is inside a group", () => {
+    // "1/2 cup / 120 ml milk" must not reduce to "1 milk".
+    expect(reduceMeasurementGroups("1/2 cup / 120 ml milk", "metric")).toBe("120 ml milk");
+    expect(reduceMeasurementGroups("1/2 cup / 120 ml milk", "us")).toBe("1/2 cup milk");
+  });
+
+  it("recognises spelled-out units in a dual annotation", () => {
+    expect(reduceMeasurementGroups("1 cup / 240 millilitres milk", "metric")).toBe("240 millilitres milk");
+    expect(reduceMeasurementGroups("240 millilitres / 8 fluid ounces milk", "us")).toBe("8 fluid ounces milk");
+  });
+
+  it("reduces a dual annotation whose members are ranges", () => {
+    expect(reduceMeasurementGroups("200–250 g / 7–9 oz chicken", "us")).toBe("7–9 oz chicken");
+    expect(reduceMeasurementGroups("200–250 g / 7–9 oz chicken", "metric")).toBe("200–250 g chicken");
+  });
 });

@@ -9,14 +9,19 @@ import { UNICODE_FRACTION_CHARS } from "@/lib/measurements";
  * a group with no member in the target system is left whole (never lose data).
  */
 
-const METRIC_UNITS = String.raw`kg|g|mg|ml|l`;
-const US_UNITS = String.raw`oz|lbs?|cups?|tbsps?|tablespoons?|tsps?|teaspoons?|fl\.?\s*oz|pints?|quarts?|gallons?`;
+const METRIC_UNITS = String.raw`kilograms?|grams?|milligrams?|millilit(?:re|er)s?|lit(?:re|er)s?|kg|mg|ml|g|l`;
+const US_UNITS = String.raw`fl\.?\s*oz|fluid\s+ounces?|ounces?|pounds?|oz|lbs?|cups?|tablespoons?|tbsps?|teaspoons?|tsps?|pints?|quarts?|gallons?`;
 const UNIT = `${METRIC_UNITS}|${US_UNITS}`;
-// An amount: whole/decimal/mixed/typed-fraction, or a unicode fraction.
-const AMOUNT = String.raw`(?:\d+(?:\s+\d+\/\d+|\.\d+|\/\d+)?|[${UNICODE_FRACTION_CHARS}])`;
-const MEAS = String.raw`${AMOUNT}\s*(?:${UNIT})\b`;
+const METRIC_UNIT_MATCH = /^(kilograms?|grams?|milligrams?|millilit(?:re|er)s?|lit(?:re|er)s?|kg|mg|ml|g|l)$/;
+// An amount: a whole number with a unicode fraction ("1½"), a mixed/decimal/typed
+// fraction ("1 1/2", "1.5", "1/2"), or a bare unicode fraction ("½"). The
+// unicode-mixed form is FIRST so "1½" is taken whole, never split into "1" + "½".
+const AMOUNT = String.raw`(?:\d+\s*[${UNICODE_FRACTION_CHARS}]|\d+(?:\s+\d+\/\d+|\.\d+|\/\d+)?|[${UNICODE_FRACTION_CHARS}])`;
+// A measurement: an amount, an OPTIONAL range ("200–250 g", "7–9 oz"), then a unit.
+const MEAS = String.raw`${AMOUNT}(?:\s*[–—-]\s*${AMOUNT})?\s*(?:${UNIT})\b`;
 // A group: two or more measurements joined by "/".
 const GROUP = new RegExp(`${MEAS}(?:\\s*\\/\\s*${MEAS})+`, "gi");
+const MEAS_GLOBAL = new RegExp(MEAS, "gi");
 const UNIT_IN_MEMBER = new RegExp(`(${UNIT})\\b`, "i");
 
 type ReduceSystem = "metric" | "us";
@@ -24,12 +29,14 @@ type ReduceSystem = "metric" | "us";
 function memberSystem(member: string): ReduceSystem {
   const m = member.match(UNIT_IN_MEMBER);
   const unit = m ? m[1].toLowerCase().replace(/\s+/g, "") : "";
-  return /^(kg|g|mg|ml|l)$/.test(unit) ? "metric" : "us";
+  return METRIC_UNIT_MATCH.test(unit) ? "metric" : "us";
 }
 
 export function reduceMeasurementGroups(text: string, system: ReduceSystem): string {
   return text.replace(GROUP, (group) => {
-    const members = group.split(/\s*\/\s*/).map((s) => s.trim()).filter(Boolean);
+    // Extract members by matching whole measurements — NOT by splitting on "/",
+    // which would also cut a typed fraction ("1/2 cup" → "1" + "2 cup").
+    const members = group.match(MEAS_GLOBAL) ?? [];
     const pick = members.find((m) => memberSystem(m) === system);
     return pick ?? group;
   });
