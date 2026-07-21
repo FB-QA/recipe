@@ -71,8 +71,13 @@ export function normalizeUnit(input: string): NormalizedUnitResult {
     return { unit: "unknown", confidence: 0, originalText: original };
   }
 
-  if (trimmed in AMBIGUOUS_TOKENS) {
-    const hit = AMBIGUOUS_TOKENS[trimmed];
+  // Strip trailing dots but KEEP case, so abbreviated `T.`/`c.` still hit the
+  // case-sensitive ambiguity check (which must run before canonicalisation
+  // lower-cases the token and loses the t/T distinction).
+  const casedToken = trimmed.normalize("NFKC").replace(/[.．]+$/, "").trim();
+
+  if (casedToken in AMBIGUOUS_TOKENS) {
+    const hit = AMBIGUOUS_TOKENS[casedToken];
     return {
       unit: hit.candidates[0],
       confidence: hit.confidence,

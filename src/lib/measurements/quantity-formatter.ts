@@ -55,9 +55,13 @@ function roundTo(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
 
-/** Choose a friendly mass unit for a value in grams. */
+/**
+ * Choose a friendly mass unit for a value in grams. Selection only — the value
+ * is converted to the chosen unit but NOT rounded here (rounding sub-milligram
+ * masses to zero would drop a real quantity); callers apply roundForDisplay.
+ */
 export function selectFriendlyMass(grams: number): { value: number; unit: MeasurementUnit } {
-  if (grams < 1) return { value: roundTo(grams * 1000, 1), unit: "mg" };
+  if (grams < 1) return { value: grams * 1000, unit: "mg" };
   if (grams >= 1000) return { value: grams / 1000, unit: "kg" };
   return { value: grams, unit: "g" };
 }

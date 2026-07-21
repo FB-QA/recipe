@@ -148,8 +148,17 @@ export interface ParsedDimensions {
 export function parseDimensions(input: string): ParsedDimensions {
   const raw = (input ?? "").trim();
   if (!raw) return { values: [], unitText: null };
-  const values = (raw.match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
   // The unit is the last alphabetic run (or a trailing inch mark).
   const unitMatch = raw.match(/([a-zA-Z]+|")\s*$/);
-  return { values, unitText: unitMatch ? unitMatch[1] : null };
+  const unitText = unitMatch ? unitMatch[1] : null;
+  const body = unitMatch ? raw.slice(0, raw.length - unitMatch[0].length) : raw;
+  // Split on the dimension separator (×, x, *), then evaluate each segment as a
+  // full quantity so mixed/fraction dimensions ("8½ × 11") keep their fraction.
+  const values = body
+    .split(/\s*[×x*]\s*/i)
+    .map((seg) => seg.trim())
+    .filter(Boolean)
+    .map(evalNumeric)
+    .filter((v): v is number => v !== null);
+  return { values, unitText };
 }

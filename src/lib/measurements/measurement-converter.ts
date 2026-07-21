@@ -58,12 +58,30 @@ function toCelsius(value: number, unit: MeasurementUnit): number | undefined {
 function fromCelsius(celsius: number, unit: MeasurementUnit): number | undefined {
   if (unit === "celsius") return celsius;
   if (unit === "fahrenheit") return (celsius * 9) / 5 + 32;
-  if (unit === "gas_mark") {
-    return GAS_MARK_TABLE.reduce((best, cur) =>
-      Math.abs(cur.celsius - celsius) < Math.abs(best.celsius - celsius) ? cur : best,
-    ).gasMark;
-  }
   return undefined;
+}
+
+/**
+ * Resolve a temperature to the nearest gas mark using the SOURCE scale's own
+ * table column — the °C and °F columns are not formula-equivalent, so a
+ * Fahrenheit input must be matched against the Fahrenheit column (364°F is
+ * Gas 5 by °F, but would mis-pick Gas 4 if routed through °C first).
+ */
+function tempToGasMark(value: number, fromUnit: MeasurementUnit): number | undefined {
+  if (fromUnit === "gas_mark") {
+    return GAS_MARK_TABLE.some((r) => r.gasMark === value) ? value : undefined;
+  }
+  const col = fromUnit === "fahrenheit" ? "fahrenheit" : "celsius";
+  return GAS_MARK_TABLE.reduce((best, cur) =>
+    Math.abs(cur[col] - value) < Math.abs(best[col] - value) ? cur : best,
+  ).gasMark;
+}
+
+/** True when the source temperature lands exactly on a gas-mark table row. */
+function isExactGasMark(value: number, fromUnit: MeasurementUnit): boolean {
+  if (fromUnit === "gas_mark") return GAS_MARK_TABLE.some((r) => r.gasMark === value);
+  const col = fromUnit === "fahrenheit" ? "fahrenheit" : "celsius";
+  return GAS_MARK_TABLE.some((r) => r[col] === value);
 }
 
 // ------------------------------------------------------------------
@@ -192,11 +210,12 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     return { ...base, error: "UNSUPPORTED_CONVERSION", warning: "Conversion is not available." };
   }
 
-  // Approximate ONLY when the value genuinely loses precision — i.e. mapping a
-  // continuous temperature onto the discrete gas-mark scale. A system-targeted
-  // weight/temperature/length/volume conversion is an exact formula/unit
-  // change; requesting it via `targetSystem` does not make it approximate.
-  const approximate = dimension === "temperature" && toUnit === "gas_mark";
+  // Approximate ONLY when the value genuinely loses precision — a temperature
+  // that does not land on a gas-mark row and must snap to the nearest setting.
+  // An exact table hit (180°C → Gas 4) is exact; a system-targeted weight/
+  // temperature/length/volume conversion is an exact formula/unit change.
+  const gasMarkTarget = dimension === "temperature" && toUnit === "gas_mark";
+  const approximate = gasMarkTarget && !isExactGasMark(quantity, fromUnit);
 
   // Honour an explicit allowApproximate:false — a caller enforcing an
   // exact-only display policy must not be handed an approximate result.
@@ -212,7 +231,7 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     ...base,
     convertedUnit: toUnit,
     convertedQuantity: one,
-    confidence: dimension === "temperature" && toUnit === "gas_mark" ? "high" : "exact",
+    confidence: approximate ? "high" : "exact",
     approximate,
   };
 
@@ -267,6 +286,11 @@ function convertOne(
       if (toUnit === "fahrenheit") return row.fahrenheit;
       if (toUnit === "gas_mark") return row.gasMark;
       return undefined;
+    }
+    // A gas-mark TARGET is a table lookup on the source's own scale, not a
+    // formula round-trip through Celsius.
+    if (toUnit === "gas_mark") {
+      return tempToGasMark(quantity, fromUnit);
     }
     const celsius = toCelsius(quantity, fromUnit);
     if (celsius === undefined) return undefined;
