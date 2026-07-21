@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { FoodImage } from "@/components/food-icons";
 import { ListIcon } from "@/components/icons";
+import { CookControls } from "./cook-controls";
 import { highlightStep } from "@/lib/recipes/highlight";
 import { renderIngredientAmount } from "@/lib/recipes/ingredient-amount";
 import { convertInstructionTemps } from "@/lib/recipes/instruction-temp";
@@ -40,14 +41,23 @@ export type MethodStep = {
 export function MethodSteps({
   steps,
   scale = 1,
+  base = null,
+  target = 1,
+  setTarget,
   system = "original",
+  setSystem,
   sourceRegion,
 }: {
   steps: MethodStep[];
   /** Serving scale, shared with the ingredient list so drawer amounts agree. */
   scale?: number;
+  /** Portion state, shared — so the drawer's controls drive the whole recipe. */
+  base?: number | null;
+  target?: number;
+  setTarget?: Dispatch<SetStateAction<number>>;
   /** Measurement system, shared so step temps + drawer amounts match the list. */
   system?: MeasurementSystem;
+  setSystem?: (value: MeasurementSystem) => void;
   sourceRegion?: MeasurementRegion;
 }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
@@ -115,8 +125,22 @@ export function MethodSteps({
         title={active ? `Step ${(openIdx ?? 0) + 1} ingredients` : undefined}
       >
         {active && (
-          <ul className="flex flex-col gap-1 pb-2">
-            {active.ingredients.map((ing) => {
+          <>
+            {/* Portions + measurement controls, right here — adjust while cooking
+                without scrolling back up. They drive the shared recipe state, so
+                the list and every step stay in sync. */}
+            {setTarget && setSystem && (
+              <CookControls
+                base={base}
+                target={target}
+                setTarget={setTarget}
+                system={system}
+                setSystem={setSystem}
+                className="mb-3 justify-end"
+              />
+            )}
+            <ul className="flex flex-col gap-1 pb-2">
+              {active.ingredients.map((ing) => {
               const rendered = renderIngredientAmount(ing, { scale, targetSystem: system, sourceRegion });
               return (
               <li
@@ -131,7 +155,8 @@ export function MethodSteps({
               </li>
               );
             })}
-          </ul>
+            </ul>
+          </>
         )}
       </Sheet>
     </>

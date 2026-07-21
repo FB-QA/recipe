@@ -58,6 +58,41 @@ describe("CookSections integration", () => {
     expect(within(sheet).getByText(/pecans, toasted$/)).toBeInTheDocument();
   });
 
+  it("the method drawer carries the measurement + portion controls", () => {
+    const steps: MethodStep[] = [
+      {
+        id: "s1",
+        title: null,
+        instruction: "Add the vanilla.",
+        terms: ["vanilla"],
+        ingredients: [
+          { id: "i1", display_text: "2 tsp vanilla", quantity: null, unit: "tsp", name: "vanilla", quantity_value: 2 },
+        ],
+      },
+    ];
+    render(
+      <CookSections
+        recipeId="r1"
+        ingredients={[]}
+        servingsText="4"
+        addedIngredientIds={[]}
+        sourceRegion="metric"
+        steps={steps}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /ingredients for step 1/i }));
+    const sheet = screen.getByTestId("sheet");
+    // Original in the drawer.
+    expect(within(sheet).getByText("2 tsp vanilla")).toBeInTheDocument();
+    // Change measurement FROM INSIDE the drawer.
+    fireEvent.change(within(sheet).getByRole("combobox", { name: /measurement units/i }), {
+      target: { value: "metric" },
+    });
+    expect(within(sheet).getByText("10 ml vanilla")).toBeInTheDocument();
+    // The portion stepper is here too.
+    expect(within(sheet).getByRole("button", { name: /more portions/i })).toBeInTheDocument();
+  });
+
   it("Original mode scales BOTH endpoints of a range when portions change", () => {
     const ingredients: IngredientLike[] = [
       { id: "i1", display_text: "1–2 tbsp oil", quantity: null, unit: "tbsp", name: "oil", quantity_min: 1, quantity_max: 2 },

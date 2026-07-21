@@ -3,8 +3,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { FoodImage } from "@/components/food-icons";
 import { AddToListSheet } from "@/components/grocery/add-to-list-sheet";
-import { MinusIcon, PlusIcon } from "@/components/icons";
-import { MeasurementToggle } from "./measurement-toggle";
+import { CookControls } from "./cook-controls";
 import { renderIngredientAmount } from "@/lib/recipes/ingredient-amount";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
 import type { MeasurementRegion, MeasurementSystem } from "@/lib/measurements";
@@ -50,34 +49,7 @@ export function IngredientsSection({
     <section>
       <div className="mt-5 mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">Ingredients</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          {base !== null && (
-            <div className="flex items-center gap-2 rounded-full border border-line bg-surface px-1.5 py-1">
-              <button
-                type="button"
-                aria-label="Fewer portions"
-                onClick={() => setTarget((t) => Math.max(1, t - 1))}
-                disabled={target <= 1}
-                className="grid h-7 w-7 place-items-center rounded-full text-ink-2 disabled:opacity-40"
-              >
-                <MinusIcon size={16} />
-              </button>
-              <span className="min-w-[68px] text-center text-[13px] font-semibold text-ink">
-                {formatServings(target)}
-              </span>
-              <button
-                type="button"
-                aria-label="More portions"
-                onClick={() => setTarget((t) => Math.min(50, t + 1))}
-                disabled={target >= 50}
-                className="grid h-7 w-7 place-items-center rounded-full text-ink-2 disabled:opacity-40"
-              >
-                <PlusIcon size={16} />
-              </button>
-            </div>
-          )}
-          <MeasurementToggle value={system} onChange={setSystem} />
-        </div>
+        <CookControls base={base} target={target} setTarget={setTarget} system={system} setSystem={setSystem} />
       </div>
 
       <div className="flex flex-col gap-4">
@@ -124,8 +96,4 @@ export function IngredientsSection({
       </div>
     </section>
   );
-}
-
-function formatServings(n: number): string {
-  return `${n} portion${n === 1 ? "" : "s"}`;
 }

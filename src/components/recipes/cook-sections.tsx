@@ -71,7 +71,16 @@ export function CookSections({
                 their explicit oven temperatures can convert. */}
             {ingredients.length === 0 && <MeasurementToggle value={system} onChange={setSystem} />}
           </div>
-          <MethodSteps steps={steps} scale={scale} system={system} sourceRegion={sourceRegion} />
+          <MethodSteps
+            steps={steps}
+            scale={scale}
+            base={base}
+            target={target}
+            setTarget={setTarget}
+            system={system}
+            setSystem={setSystem}
+            sourceRegion={sourceRegion}
+          />
         </section>
       )}
     </>
