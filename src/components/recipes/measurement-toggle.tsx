@@ -15,9 +15,10 @@ export const MEASUREMENT_OPTIONS: { value: MeasurementSystem; label: string }[] 
   { value: "us", label: "Imperial" },
 ];
 
-// The widest label — reserves a FIXED width so the pill never resizes as the
-// selection changes.
-const WIDEST_LABEL = MEASUREMENT_OPTIONS.reduce((a, b) => (b.label.length > a.length ? b.label : a), "Convert");
+// Every possible CLOSED-state label. "Original" shows as the "Convert"
+// placeholder. All are stacked invisibly in the label cell so it reserves the
+// pixel-widest — the pill never resizes as the selection changes.
+const DISPLAY_LABELS = MEASUREMENT_OPTIONS.map((o) => (o.value === "original" ? "Convert" : o.label));
 
 /**
  * The recipe measurement selector — a compact, FIXED-WIDTH native <select>.
@@ -39,12 +40,15 @@ export function MeasurementToggle({
     <label className="relative inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-line bg-surface pl-3 pr-2.5 text-[13px] font-semibold text-ink">
       <span className="sr-only">Measurement units</span>
       <ConvertIcon size={15} className="flex-none text-ink-3" />
-      {/* Fixed-width label box: the invisible widest label reserves the width; the
-          current label renders in the same grid cell so nothing shifts. */}
+      {/* Fixed-width label box: every possible label sits invisibly in the same
+          grid cell, so the cell always reserves the pixel-widest; the current
+          label renders on top of them. Nothing shifts on selection. */}
       <span className="grid">
-        <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-nowrap">
-          {WIDEST_LABEL}
-        </span>
+        {DISPLAY_LABELS.map((l) => (
+          <span key={l} aria-hidden className="invisible col-start-1 row-start-1 whitespace-nowrap">
+            {l}
+          </span>
+        ))}
         <span aria-hidden className="col-start-1 row-start-1 whitespace-nowrap">
           {display}
         </span>

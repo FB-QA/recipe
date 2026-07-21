@@ -47,7 +47,11 @@ export function CookControls({
           >
             <MinusIcon size={16} />
           </button>
-          <span className="min-w-[68px] text-center text-[13px] font-semibold text-ink">{formatServings(target)}</span>
+          {/* Fixed width + tabular figures so "1 portion" and "50 portions" occupy
+              the same space — the stepper never resizes, so nothing shifts. */}
+          <span className="w-[88px] text-center text-[13px] font-semibold tabular-nums text-ink">
+            {formatServings(target)}
+          </span>
           <button
             type="button"
             aria-label="More portions"
