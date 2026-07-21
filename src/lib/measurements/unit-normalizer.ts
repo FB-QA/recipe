@@ -1,0 +1,80 @@
+/**
+ * Unit normaliser — free-text unit → canonical code with a confidence value.
+ * Never guesses on genuine ambiguity (the classic `t` teaspoon / `T`
+ * tablespoon trap); returns `unknown` rather than throwing on nonsense.
+ * Spec: docs/spec/measurement-conversion.md §16.
+ */
+
+import type { MeasurementUnit, NormalizedUnitResult } from "./measurement-types";
+import { UNIT_DEFINITIONS } from "./unit-definitions";
+
+/** Single letters that are inherently ambiguous — handled before the alias map. */
+const AMBIGUOUS_TOKENS: Record<string, { candidates: MeasurementUnit[]; confidence: number }> = {
+  t: { candidates: ["tsp", "tbsp"], confidence: 0.4 },
+  c: { candidates: ["cup", "celsius"], confidence: 0.4 },
+  C: { candidates: ["celsius", "cup"], confidence: 0.4 },
+};
+
+/** Case-sensitive shorthand where case carries the meaning. */
+const CASED_TOKENS: Record<string, { unit: MeasurementUnit; confidence: number }> = {
+  T: { unit: "tbsp", confidence: 0.7 },
+};
+
+/** Fold a token to a comparable key: lower-case, drop dots, collapse spaces. */
+function canonicalize(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** alias key → canonical unit. Single ambiguous letters are excluded on purpose. */
+const ALIAS_MAP: Record<string, MeasurementUnit> = (() => {
+  const map: Record<string, MeasurementUnit> = {};
+  const skip = new Set(["c", "f", "t"]);
+  for (const def of Object.values(UNIT_DEFINITIONS)) {
+    for (const alias of [def.id, ...def.aliases]) {
+      const key = canonicalize(alias);
+      if (!key || skip.has(key)) continue;
+      // First writer wins; definitions are ordered weight→volume→… so a
+      // collision (there are none today) would favour the earlier dimension.
+      if (!(key in map)) map[key] = def.id;
+    }
+  }
+  return map;
+})();
+
+export function normalizeUnit(input: string): NormalizedUnitResult {
+  const original = input ?? "";
+  const trimmed = original.trim();
+
+  if (!trimmed) {
+    return { unit: "unknown", confidence: 0, originalText: original };
+  }
+
+  if (trimmed in CASED_TOKENS) {
+    const hit = CASED_TOKENS[trimmed];
+    return { unit: hit.unit, confidence: hit.confidence, originalText: original };
+  }
+
+  if (trimmed in AMBIGUOUS_TOKENS) {
+    const hit = AMBIGUOUS_TOKENS[trimmed];
+    return {
+      unit: hit.candidates[0],
+      confidence: hit.confidence,
+      originalText: original,
+      ambiguous: true,
+      candidates: hit.candidates,
+    };
+  }
+
+  const key = canonicalize(trimmed);
+  const unit = ALIAS_MAP[key];
+  if (unit) {
+    return { unit, confidence: 1, originalText: original };
+  }
+
+  return { unit: "unknown", confidence: 0, originalText: original };
+}
