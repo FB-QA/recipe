@@ -89,6 +89,12 @@ describe("detectSourceRegion", () => {
     expect(detectSourceRegion({ units: ["cup"], instructions: ["Bake at 350°F.", "Add 1 c milk."] })).toBe("us");
   });
 
+  it("reads the no-degree '180 C' form as a Celsius (metric) cue", () => {
+    // Consistent with convertInstructionTemps, which converts "180 C". A lone
+    // "1 c" (cups) is still excluded.
+    expect(detectSourceRegion({ units: ["cup"], instructions: ["Bake at 180 C.", "Add 1 cup milk."] })).toBe("metric");
+  });
+
   it("reads kilograms in unstructured text as a metric cue", () => {
     expect(detectSourceRegion({ units: [null], instructions: ["Weigh 1 kg flour."] })).toBe("metric");
   });

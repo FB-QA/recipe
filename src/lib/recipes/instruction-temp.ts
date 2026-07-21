@@ -55,7 +55,7 @@ function convertTemp(value: number, from: MeasurementUnit, to: MeasurementUnit):
 // "5 c sugar" (cups) does not. The leading (?<![\d.]) boundary stops a decimal
 // tail ("37.50°C") matching its "50" as a fresh temperature. UNIT accepts a
 // symbol, the word "degree(s)", or nothing, before c / f / celsius / fahrenheit.
-const NUM = String.raw`(?<![\d.])([-−]?\d{2,3}|[-−]?\d(?=\s*°))`;
+const NUM = String.raw`(?<![\d.])([-−]?\d{2,4}|[-−]?\d(?=\s*°))`;
 const UNIT = String.raw`\s*(?:°|degrees?)?\s*(celsius|fahrenheit|[cf])\b`;
 const TEMP = NUM + UNIT;
 
@@ -104,7 +104,7 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   // a dash or the word "to". The first endpoint takes an optional sign so a
   // negative range ("-20–-10°C") keeps it instead of stranding a stray "-".
   out = out.replace(
-    new RegExp(String.raw`(?<![\d.])([-−]?\d{2,3})\s*(–|—|-|\bto\b)\s*([-−]?\d{2,3})\s*(?:°|degrees?)?\s*(celsius|fahrenheit|[cf])\b`, "gi"),
+    new RegExp(String.raw`(?<![\d.])([-−]?\d{2,4})\s*(–|—|-|\bto\b)\s*([-−]?\d{2,4})\s*(?:°|degrees?)?\s*(celsius|fahrenheit|[cf])\b`, "gi"),
     (m, a, sep, b, u) => {
       const from = scaleOf(u);
       if (from === toUnit) return m;

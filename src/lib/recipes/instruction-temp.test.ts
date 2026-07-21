@@ -140,4 +140,9 @@ describe("convertInstructionTemps", () => {
   it("leaves a spaced-fraction gas mark unchanged (no '180°C 1/2')", () => {
     expect(convertInstructionTemps("Bake at Gas Mark 4 1/2.", "metric")).toBe("Bake at Gas Mark 4 1/2.");
   });
+
+  it("converts a four-digit temperature whole (no partial '000°F' match)", () => {
+    // 1000°F = 537.8°C → 538. Must NOT match only "000°F" → a malformed "1-20°C".
+    expect(convertInstructionTemps("Heat a pizza oven to 1000°F.", "metric")).toBe("Heat a pizza oven to 538°C.");
+  });
 });

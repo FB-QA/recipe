@@ -25,10 +25,11 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
     .map((u) => u.toLowerCase().trim());
 
   const hasFahrenheit = /\d\s*°?\s*f\b/.test(text) || /°f/.test(text) || /fahrenheit/.test(text);
-  // Celsius must carry a degree sign or the word "celsius": a bare "c" collides
-  // with the US cup abbreviation ("1 c milk"), which would otherwise fake a °F+°C
-  // conflict and drop a genuine US recipe to undefined.
-  const hasCelsius = /°\s*c\b/.test(text) || /celsius/.test(text);
+  // Celsius: a degree sign, the word "celsius", or the no-degree "180 C" form
+  // (2+ digits — matching what convertInstructionTemps accepts). A bare
+  // single-digit "1 c" is the US cup abbreviation, NOT Celsius, so it is excluded
+  // — else it fakes a °F+°C conflict and drops a genuine US recipe to undefined.
+  const hasCelsius = /°\s*c\b/.test(text) || /celsius/.test(text) || /\d{2,4}\s*c\b/.test(text);
   // A BARE "pint" is ambiguous (US 473 ml vs UK/IE 568 ml), so it is not a
   // signal. Only an explicitly "imperial pint" is a strong UK/IE cue.
   const hasImperialPint = /\bimperial\s+pints?\b/.test(text);
@@ -65,8 +66,9 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
   // A US-primary cue (Fahrenheit / "US cup") wins when there is no metric anchor;
   // any grams then read as a courtesy annotation.
   if (usCue) return "us";
-  // No temperature or qualifier at all — metric measures (grams/mm) alone still
-  // identify a metric-family recipe, so its cups/spoons convert.
-  if (metricMeasure || hasMetricQualifier) return "metric";
+  // Metric measures (grams/mm), a metric qualifier, OR a lone Celsius oven temp
+  // (US ovens read in Fahrenheit) identify a metric-family recipe — no US/UK cue
+  // reached this far — so its region-sensitive cups/spoons convert.
+  if (metricMeasure || hasMetricQualifier || hasCelsius) return "metric";
   return undefined;
 }
