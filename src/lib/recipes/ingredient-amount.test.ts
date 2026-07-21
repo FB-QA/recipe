@@ -199,6 +199,31 @@ describe("renderIngredientAmount", () => {
     expect(r.text).not.toMatch(/250/);
   });
 
+  it.each(["¼", "⅓", "⅕", "⅖", "⅙", "⅒", "½", "¾", "⅛"])(
+    "resolves the unit for a legacy '%s cup oil' — a fraction is never a blocker",
+    (frac) => {
+      const r = renderIngredientAmount(
+        ing({ display_text: `${frac} cup oil`, quantity_value: null, unit: null, name: null }),
+        { scale: 1, targetSystem: "us", sourceRegion: "us" },
+      );
+      // The fraction is stripped, "cup" is found, and it converts (US region
+      // known) — never a unrecognised-unit failure from a parser fraction gap.
+      expect(r.status).toBe("converted");
+      expect(r.text).toMatch(/oil$/);
+    },
+  );
+
+  it("keeps ONE unit across a US-weight range that crosses the pound boundary", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "400–500 g beef", quantity_value: null, quantity_min: 400, quantity_max: 500, unit: "g", name: "beef" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.status).toBe("converted");
+    // Driven by the larger endpoint (500 g > 1 lb) → both ends in lb.
+    expect(r.text).toMatch(/–.*lb beef$/);
+    expect(r.text).not.toMatch(/oz/);
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),

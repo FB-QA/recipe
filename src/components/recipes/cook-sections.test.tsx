@@ -94,6 +94,6 @@ describe("CookSections integration", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent(/Measurements shown as Original\./);
     setSystem("us");
-    expect(status).toHaveTextContent(/Measurements shown as US\./);
+    expect(status).toHaveTextContent(/Measurements shown as US customary\./);
   });
 });

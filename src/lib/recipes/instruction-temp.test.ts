@@ -49,6 +49,18 @@ describe("convertInstructionTemps", () => {
     expect(convertInstructionTemps("Heat to 180°C or 350°F.", "us")).toBe("Heat to 350°F.");
   });
 
+  it("does NOT collapse same-scale alternatives (two distinct settings)", () => {
+    // "180°C or 200°C" are two settings, not equivalents — preserve both.
+    expect(convertInstructionTemps("Bake at 180°C or 200°C.", "metric")).toBe("Bake at 180°C or 200°C.");
+    expect(convertInstructionTemps("Bake at 180°C or 200°C.", "us")).toBe("Bake at 350°F or 400°F.");
+  });
+
+  it("does NOT collapse mismatched cross-scale values (neither disappears)", () => {
+    // 180°C ≠ 450°F, so they are not equivalents — convert each independently.
+    expect(convertInstructionTemps("Try 180°C or 450°F.", "us")).toBe("Try 350°F or 450°F.");
+    expect(convertInstructionTemps("Try 180°C or 450°F.", "metric")).toBe("Try 180°C or 230°C.");
+  });
+
   it("supports no-degree-symbol forms (350 F / 180 C / 180C)", () => {
     expect(convertInstructionTemps("Bake at 350 F.", "metric")).toBe("Bake at 175°C.");
     expect(convertInstructionTemps("Bake at 180 C.", "us")).toBe("Bake at 350°F.");

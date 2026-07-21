@@ -3,11 +3,16 @@
 import type { MeasurementSystem } from "@/lib/measurements";
 import { ChevronDownIcon } from "@/components/icons";
 
+// Three options only. "UK/Ireland" is intentionally NOT offered as a target:
+// its output today is identical to Metric (g/kg, ml/L, °C), and an "Imperial"
+// umbrella would be ambiguous and unsafe (US vs UK pints/cups/fl-oz differ).
+// UK/IE is retained internally as a SOURCE region so imperial pints are read
+// correctly. A later "My units" (saved preference → Metric or US) can replace
+// this list. Spec: docs/spec/measurement-conversion.md §20.
 export const MEASUREMENT_OPTIONS: { value: MeasurementSystem; label: string }[] = [
   { value: "original", label: "Original" },
   { value: "metric", label: "Metric" },
-  { value: "us", label: "US" },
-  { value: "uk_ie", label: "UK/Ireland" },
+  { value: "us", label: "US customary" },
 ];
 
 /**

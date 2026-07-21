@@ -42,6 +42,17 @@ describe("scaleIngredientText", () => {
     expect(scaleIngredientText("about 1–2 tbsp oil", 2)).toBe("about 2–4 tbsp oil");
   });
 
+  it("scales mixed numbers as a whole (not just the integer part)", () => {
+    expect(scaleIngredientText("1½ cups flour", 2)).toBe("3 cups flour");
+    expect(scaleIngredientText("1 1/2 cups flour", 2)).toBe("3 cups flour");
+    expect(scaleIngredientText("2½ cups", 2)).toBe("5 cups");
+  });
+
+  it("scales a mixed-number range on both endpoints (modifier preserved)", () => {
+    expect(scaleIngredientText("1½–2½ cups", 2)).toBe("3–5 cups");
+    expect(scaleIngredientText("about 1½–2½ cups", 2)).toBe("about 3–5 cups");
+  });
+
   it("leaves numberless lines and factor-1 unchanged", () => {
     expect(scaleIngredientText("salt to taste", 3)).toBe("salt to taste");
     expect(scaleIngredientText("2 eggs", 1)).toBe("2 eggs");

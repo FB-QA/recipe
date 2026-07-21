@@ -31,9 +31,13 @@ falling back to the text scaler whenever structured conversion is unavailable.
 
 ### Acceptance criteria
 
-- **AC1** — Every recipe shows a measurement selector (Original / Metric / US /
-  UK-IE) beside the portions stepper; stacks below on narrow screens; ≥44px
-  target; native `<select>` (keyboard + SR). Works logged-out.
+- **AC1** — Every recipe shows a measurement selector with **three** options —
+  **Original / Metric / US customary** — beside the portions stepper; stacks
+  below on narrow screens; ≥44px target; native `<select>` (keyboard + SR).
+  Works logged-out. **UK/Ireland is deliberately NOT a target option** (its
+  output equals Metric today, and an "Imperial" umbrella is ambiguous/unsafe);
+  UK/IE is retained internally as a SOURCE region for reading imperial pints. A
+  later "My units" (saved preference → Metric or US) can replace the list.
 - **AC2** — Switching system re-renders ingredient amounts live, no reload.
 - **AC3** — Amounts are calculated from the ORIGINAL structured value: scale →
   convert → format. No drift across repeated portion/system changes.

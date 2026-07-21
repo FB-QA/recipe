@@ -12,8 +12,10 @@ export function parseServings(text: string | null | undefined): number | null {
 /** Parse a single leading-quantity token — delegates to the measurement parser. */
 const parseQtyToken = (token: string): number | null => parseQuantity(token).value;
 
-// Leading quantity: a fraction (a/b), a decimal/integer, or a unicode fraction.
-const QTY = String.raw`\d+\s*\/\s*\d+|\d+(?:\.\d+)?|[${UNICODE_FRACTION_CHARS}]`;
+const FRAC = String.raw`[${UNICODE_FRACTION_CHARS}]`;
+// Leading quantity, longest form first so a mixed number matches whole:
+// "1½" / "1 ½", "1 1/2", "1/2", "1.5" / "1", or a bare unicode fraction.
+const QTY = String.raw`\d+\s*${FRAC}|\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*\d+|\d+(?:\.\d+)?|${FRAC}`;
 const QTY_RE = new RegExp(`(${QTY})`);
 // A leading RANGE: two quantities joined by a dash or "to" ("1–2", "1 to 2"),
 // optionally after a modifier ("about 1–2") which is preserved.

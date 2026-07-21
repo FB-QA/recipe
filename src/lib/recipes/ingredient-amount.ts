@@ -5,6 +5,7 @@ import {
   formatQuantityValue,
   selectSystemUnit,
   SYSTEM_REGION,
+  UNICODE_FRACTION_CHARS,
   UNIT_DEFINITIONS,
   type MeasurementDimension,
   type MeasurementRegion,
@@ -76,6 +77,12 @@ function isRegionSensitive(unit: MeasurementUnit): boolean {
 /** Leading modifier words to step over when locating the unit ("about 500g"). */
 const LEADING_MODIFIER = /^(?:about|approximately|approx|roughly|generous|heaped|rounded|level|scant)\s+/i;
 
+// The leading numeric span (optional "N×" multiplier, digits, decimals, typed
+// and unicode fractions). Uses the SAME fraction set the quantity parser
+// accepts, so a legacy row like "⅕ cup oil" is stripped consistently — it
+// always converts or intentionally falls back, never fails on a fraction gap.
+const LEADING_NUMERIC = new RegExp(String.raw`^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—${UNICODE_FRACTION_CHARS}+-]+`, "i");
+
 /**
  * ONE legacy parser for a raw ingredient line — the amount/range, the unit and
  * the remaining name, so `legacyLead` and `nameOf` never drift apart. Used only
@@ -91,7 +98,7 @@ function parseLegacyIngredient(text: string): {
   let rest = text.trim();
   while (LEADING_MODIFIER.test(rest)) rest = rest.replace(LEADING_MODIFIER, "");
   rest = rest.replace(/^(?:an?)\s+/i, "");
-  rest = rest.replace(/^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/i, "").trim();
+  rest = rest.replace(LEADING_NUMERIC, "").trim();
   // Match the LONGEST supported unit phrase (up to two words), so multi-word
   // units like "fl oz" resolve instead of capturing only "fl".
   let unit: string | null = null;

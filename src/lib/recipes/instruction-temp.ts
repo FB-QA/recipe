@@ -52,13 +52,23 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   const toUnit: MeasurementUnit = system === "us" ? "fahrenheit" : "celsius";
   let out = text;
 
-  // Collapse a two-temp equivalent (X (Y), X / Y, X or Y) to the single value
-  // already in the target scale — never a contradictory "180°C (175°C)".
+  // Collapse a two-temp expression to a single value ONLY when the two are
+  // genuine opposite-scale EQUIVALENTS (e.g. "180°C (350°F)") — never a
+  // contradictory "180°C (175°C)". Same-scale alternatives ("180°C or 200°C")
+  // and mismatched cross-scale values ("180°C or 450°F") are NOT equivalents:
+  // return the match unchanged so the single-temp pass converts each endpoint
+  // independently and neither value disappears.
   const collapseDual = (m: string, n1: string, u1: string, n2: string, u2: string): string => {
-    const want: MeasurementUnit = toUnit;
-    if (scaleOf(u1) === want) return `${n1}${symbol(want)}`;
-    if (scaleOf(u2) === want) return `${n2}${symbol(want)}`;
-    return convertTemp(num(n1), scaleOf(u1), want) ?? m;
+    const s1 = scaleOf(u1);
+    const s2 = scaleOf(u2);
+    if (s1 === s2) return m; // same scale → two distinct settings, not equivalents
+    const n1AsS2 = convertTempNum(num(n1), s1, s2);
+    const tol = s2 === "fahrenheit" ? OVEN_STEP_FAHRENHEIT : FINE_STEP;
+    if (n1AsS2 == null || Math.abs(n1AsS2 - num(n2)) > tol) return m; // not equivalent
+    // Genuine equivalents → keep the single value already in the target scale.
+    if (s1 === toUnit) return `${n1}${symbol(toUnit)}`;
+    if (s2 === toUnit) return `${n2}${symbol(toUnit)}`;
+    return convertTemp(num(n1), s1, toUnit) ?? m;
   };
   out = out.replace(new RegExp(`${TEMP}\\s*\\(\\s*${TEMP}\\s*\\)`, "gi"), collapseDual);
   out = out.replace(new RegExp(`${TEMP}\\s*(?:\\/|\\bor\\b)\\s*${TEMP}`, "gi"), collapseDual);
