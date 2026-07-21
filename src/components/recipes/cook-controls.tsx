@@ -34,6 +34,9 @@ export function CookControls({
   setSystem: (value: MeasurementSystem) => void;
   className?: string;
 }) {
+  // The cap must never sit below the recipe's own base — a recipe serving 100
+  // must stay adjustable up to 100, else lowering it strands it under 50 forever.
+  const maxPortions = base !== null ? Math.max(MAX_PORTIONS, base) : MAX_PORTIONS;
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
       {base !== null && (
@@ -55,8 +58,8 @@ export function CookControls({
           <button
             type="button"
             aria-label="More portions"
-            onClick={() => setTarget((t) => Math.min(MAX_PORTIONS, t + 1))}
-            disabled={target >= MAX_PORTIONS}
+            onClick={() => setTarget((t) => Math.min(maxPortions, t + 1))}
+            disabled={target >= maxPortions}
             className="grid h-7 w-7 place-items-center rounded-full text-ink-2 disabled:opacity-40"
           >
             <PlusIcon size={16} />

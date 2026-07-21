@@ -99,6 +99,24 @@ describe("CookSections integration", () => {
     expect(within(sheet).getByRole("button", { name: /more portions/i })).toBeInTheDocument();
   });
 
+  it("lets a large recipe (base above 50) be lowered and restored to its base", () => {
+    const ingredients: IngredientLike[] = [
+      { id: "i1", display_text: "1 kg flour", quantity: null, unit: "kg", name: "flour", quantity_value: 1 },
+    ];
+    render(
+      <CookSections recipeId="r1" ingredients={ingredients} servingsText="80" addedIngredientIds={[]} steps={[]} />,
+    );
+    expect(screen.getByText("80 portions")).toBeInTheDocument();
+    // Lower it once, then it must climb back — the old static 50 cap disabled
+    // "more" the instant target exceeded 50, stranding big recipes.
+    fireEvent.click(screen.getByRole("button", { name: /fewer portions/i }));
+    expect(screen.getByText("79 portions")).toBeInTheDocument();
+    const more = screen.getByRole("button", { name: /more portions/i });
+    expect(more).not.toBeDisabled();
+    fireEvent.click(more);
+    expect(screen.getByText("80 portions")).toBeInTheDocument();
+  });
+
   it("Original mode scales BOTH endpoints of a range when portions change", () => {
     const ingredients: IngredientLike[] = [
       { id: "i1", display_text: "1–2 tbsp oil", quantity: null, unit: "tbsp", name: "oil", quantity_min: 1, quantity_max: 2 },
