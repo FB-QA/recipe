@@ -20,13 +20,20 @@ const FRACTION_GLYPHS: { value: number; glyph: string }[] = [
   { value: 7 / 8, glyph: "⅞" },
 ];
 
-/** Nearest friendly fraction glyph for a 0..1 value, or "" if none is close. */
+/**
+ * Nearest friendly fraction glyph for a 0..1 value, or "" if none is close
+ * ENOUGH. The tolerance is RELATIVE to the glyph (with a small absolute floor),
+ * so a snap never materially changes the quantity (§28): 0.5 → ½, but 0.2029
+ * (1 ml as US tsp) does NOT snap to ¼ — a 23% overstatement — and falls back to
+ * a decimal instead.
+ */
 export function friendlyFraction(fraction: number, tolerance = 0.08): string {
   let best = "";
-  let bestDist = tolerance;
+  let bestDist = Infinity;
   for (const f of FRACTION_GLYPHS) {
     const dist = Math.abs(fraction - f.value);
-    if (dist <= bestDist) {
+    const allowed = Math.max(0.02, tolerance * f.value);
+    if (dist <= allowed && dist < bestDist) {
       best = f.glyph;
       bestDist = dist;
     }

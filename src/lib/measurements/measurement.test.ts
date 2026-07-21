@@ -213,9 +213,12 @@ describe("length conversion", () => {
     expect(practicalTinInches(200)).toBe(8); // 20 cm
     expect(practicalTinInches(230)).toBe(9); // 23 cm
   });
-  it("small thickness snaps to a friendly fraction", () => {
+  it("does NOT snap a small thickness to a materially-different fraction (§28)", () => {
+    // 5 mm = 0.197 in. Snapping to ¼ (0.25) is a ~27% overstatement, so the
+    // generic formatter keeps a decimal. A practical "¼-inch tin" display is a
+    // dedicated tin/length formatter's job (Phase 5), not friendlyFraction.
     const inches = convert({ quantity: 5, fromUnit: "mm", toUnit: "inch" }).convertedQuantity!;
-    expect(formatQuantityValue(inches)).toBe("¼");
+    expect(formatQuantityValue(inches)).toBe("0.2");
   });
 });
 

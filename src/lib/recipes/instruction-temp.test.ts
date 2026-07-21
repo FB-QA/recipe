@@ -59,6 +59,12 @@ describe("convertInstructionTemps", () => {
     expect(convertInstructionTemps("Add 2 fresh eggs and 100 cloves.", "us")).toBe("Add 2 fresh eggs and 100 cloves.");
   });
 
+  it("keeps the sign on a negative (freezer) temperature", () => {
+    // -18°C → US: -0.4°F → nearest 25 → 0°F (NOT -75°F from dropping the sign).
+    expect(convertInstructionTemps("Freeze at -18°C.", "us")).toBe("Freeze at 0°F.");
+    expect(convertInstructionTemps("Chill to -40°C.", "us")).toBe("Chill to -40°F.");
+  });
+
   it("does not partially convert an off-table decimal, range, or mixed-fraction gas mark", () => {
     expect(convertInstructionTemps("Gas Mark 4.5 for an hour.", "metric")).toBe("Gas Mark 4.5 for an hour.");
     expect(convertInstructionTemps("Gas Mark 4–5.", "metric")).toBe("Gas Mark 4–5.");

@@ -179,6 +179,16 @@ describe("renderIngredientAmount", () => {
     expect(r.text).toMatch(/ml milk$/);
   });
 
+  it("does NOT snap a tiny US spoon amount to a misleading fraction", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "1 ml vanilla", quantity_value: 1, unit: "ml", name: "vanilla" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    // 1 ml ≈ 0.2 US tsp — must NOT read as "¼ tsp" (~23% overstatement).
+    expect(r.text).not.toMatch(/¼/);
+    expect(r.text).toMatch(/tsp vanilla$/);
+  });
+
   it("does NOT portion-scale a temperature ingredient", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "60°C water", quantity_value: 60, unit: "celsius", name: "water" }),
