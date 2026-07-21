@@ -69,6 +69,14 @@ const CANONICAL_UNIT: Partial<Record<MeasurementDimension, MeasurementUnit>> = {
   length: "mm",
 };
 
+/**
+ * Measuring-spoon units that are the same implement in every system and so are
+ * NEVER converted to ml between Metric and US — only scaled. (Cups DO convert:
+ * a metric cup 250 ml vs US 236 ml differ enough to matter, and ml is a useful
+ * jug measure at that size.)
+ */
+const PRESERVED_UNITS = new Set<MeasurementUnit>(["tsp", "tbsp"]);
+
 /** Volume units whose millilitre value depends on region (cup, pint, spoons…). */
 function isRegionSensitive(unit: MeasurementUnit): boolean {
   const def = UNIT_DEFINITIONS[unit];
@@ -189,6 +197,16 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   const norm = normalizeUnit(unitText ?? "");
   if (norm.unit === "unknown") return fallback("unrecognised_unit");
   if (norm.ambiguous) return fallback("ambiguous_unit");
+
+  // Measuring SPOONS (tsp, tbsp) are system-neutral kitchen implements — a
+  // teaspoon is 5 ml in every system, and cooks measure them with a spoon, not
+  // by millilitres. So "1 tsp" stays "1 tsp" in Metric and US; converting to
+  // "5 ml" is technically right but practically useless (research, §26). They
+  // scale with portions but never change unit.
+  if (PRESERVED_UNITS.has(norm.unit)) {
+    return { text: scaled(), status: "converted", approximate: false, sourceText };
+  }
+
   if (isRegionSensitive(norm.unit) && !opts.sourceRegion) return fallback("ambiguous_region");
 
   const dimension = UNIT_DEFINITIONS[norm.unit].dimension;

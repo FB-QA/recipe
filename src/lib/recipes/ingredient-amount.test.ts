@@ -236,14 +236,30 @@ describe("renderIngredientAmount", () => {
   });
 
   it("does not prepend the amount to a name that is the whole line", () => {
-    const dt = "2 tsp vanilla extract";
+    const dt = "8 oz butter";
     const r = renderIngredientAmount(
       ing({ display_text: dt, name: dt, quantity_value: null, unit: null }),
-      { scale: 1, targetSystem: "metric", sourceRegion: "metric" },
+      { scale: 1, targetSystem: "metric" },
     );
-    // "10 ml vanilla extract", never "10 ml 2 tsp vanilla extract".
-    expect(r.text).toBe("10 ml vanilla extract");
-    expect(r.text).not.toMatch(/tsp/);
+    // "227 g butter", never "227 g 8 oz butter".
+    expect(r.text).toBe("227 g butter");
+    expect(r.text).not.toMatch(/oz/);
+  });
+
+  it("preserves teaspoons and tablespoons — never converts them to ml", () => {
+    for (const system of ["metric", "us"] as const) {
+      expect(renderIngredientAmount(ing({ display_text: "1 tsp olive oil", quantity_value: 1, unit: "tsp", name: "olive oil" }), { scale: 1, targetSystem: system }).text).toBe("1 tsp olive oil");
+      expect(renderIngredientAmount(ing({ display_text: "1 tbsp red wine vinegar", quantity_value: 1, unit: "tbsp", name: "red wine vinegar" }), { scale: 1, targetSystem: system }).text).toBe("1 tbsp red wine vinegar");
+    }
+  });
+
+  it("still scales a preserved spoon unit with portions", () => {
+    expect(
+      renderIngredientAmount(ing({ display_text: "1 tsp olive oil", quantity_value: 1, unit: "tsp", name: "olive oil" }), {
+        scale: 2,
+        targetSystem: "metric",
+      }).text,
+    ).toBe("2 tsp olive oil");
   });
 
   it("does not reflow an already-target-unit amount (50g stays 50g in Metric)", () => {

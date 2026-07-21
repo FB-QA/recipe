@@ -73,7 +73,7 @@ describe("CookSections integration", () => {
         instruction: "Add the vanilla.",
         terms: ["vanilla"],
         ingredients: [
-          { id: "i1", display_text: "2 tsp vanilla", quantity: null, unit: "tsp", name: "vanilla", quantity_value: 2 },
+          { id: "i1", display_text: "8 oz butter", quantity: null, unit: "oz", name: "butter", quantity_value: 8 },
         ],
       },
     ];
@@ -83,19 +83,18 @@ describe("CookSections integration", () => {
         ingredients={[]}
         servingsText="4"
         addedIngredientIds={[]}
-        sourceRegion="metric"
         steps={steps}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /ingredients for step 1/i }));
     const sheet = screen.getByTestId("sheet");
     // Original in the drawer.
-    expect(within(sheet).getByText("2 tsp vanilla")).toBeInTheDocument();
+    expect(within(sheet).getByText("8 oz butter")).toBeInTheDocument();
     // Change measurement FROM INSIDE the drawer.
     fireEvent.change(within(sheet).getByRole("combobox", { name: /measurement units/i }), {
       target: { value: "metric" },
     });
-    expect(within(sheet).getByText("10 ml vanilla")).toBeInTheDocument();
+    expect(within(sheet).getByText("227 g butter")).toBeInTheDocument();
     // The portion stepper is here too.
     expect(within(sheet).getByRole("button", { name: /more portions/i })).toBeInTheDocument();
   });
