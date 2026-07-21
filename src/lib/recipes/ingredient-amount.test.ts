@@ -52,9 +52,10 @@ describe("renderIngredientAmount", () => {
     expect(r.text).toMatch(/^0?\.45 kg butter$|^454 g butter$|^0.45 kg butter$/);
   });
 
-  it("converts a range, both ends", () => {
+  it("converts a real structured range (quantity_value null, quantity_min/max set)", () => {
     const r = renderIngredientAmount(
-      ing({ display_text: "200–250 g flour", quantity_value: 200, quantity_max: 250, unit: "g", name: "flour" }),
+      // The production shape for a range: no quantity_value, bounds in min/max.
+      ing({ display_text: "200–250 g flour", quantity_value: null, quantity_min: 200, quantity_max: 250, unit: "g", name: "flour" }),
       { scale: 1, targetSystem: "us" },
     );
     expect(r.status).toBe("converted");
@@ -88,12 +89,47 @@ describe("renderIngredientAmount", () => {
 
   it("keeps ONE unit across a range that crosses a threshold", () => {
     const r = renderIngredientAmount(
-      ing({ display_text: "900–1100 ml stock", quantity_value: 900, quantity_max: 1100, unit: "ml", name: "stock" }),
+      ing({ display_text: "900–1100 ml stock", quantity_value: null, quantity_min: 900, quantity_max: 1100, unit: "ml", name: "stock" }),
       { scale: 1, targetSystem: "metric" },
     );
     expect(r.status).toBe("converted");
     // Not a mismatched "900–1.1 ml" — both ends in litres.
     expect(r.text).toBe("0.9–1.1 L stock");
+  });
+
+  it("renders volume in US units when US is selected (not ml)", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "500 ml milk", quantity_value: 500, unit: "ml", name: "milk" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.text).toMatch(/cup/); // ~2 US cups, not "500 ml"
+    expect(r.text).not.toMatch(/ml/);
+  });
+
+  it("keeps UK/Ireland volume in millilitres (favours metric per §26)", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "500 ml milk", quantity_value: 500, unit: "ml", name: "milk" }),
+      { scale: 1, targetSystem: "uk_ie" },
+    );
+    expect(r.text).toMatch(/500 ml/);
+  });
+
+  it("legacy-parses the unit after a modifier ('about 500g')", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "about 500g chicken", quantity_value: null, unit: null, name: "chicken" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.text).toMatch(/oz chicken$/); // used the 'g' unit, not 'about'
+  });
+
+  it("derives a name when the structured name is missing", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "8 oz butter", quantity_value: 8, unit: "oz", name: null }),
+      { scale: 1, targetSystem: "metric" },
+    );
+    expect(r.text).toBe("227 g butter");
   });
 
   it("preserves the preparation field through conversion", () => {

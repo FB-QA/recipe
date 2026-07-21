@@ -33,8 +33,10 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
     units.some((u) => ["g", "kg", "gram", "grams", "kilogram", "kilograms"].includes(u)) ||
     /\d\s*g\b|\bgrams?\b/.test(text);
 
-  // Both oven scales present → we can't tell; don't guess.
+  // Conflicting cues → we can't tell; don't guess. Both oven scales together, or
+  // a US cue (Fahrenheit) alongside an explicitly imperial (UK/IE) pint.
   if (hasFahrenheit && hasCelsius) return undefined;
+  if (hasFahrenheit && hasImperialPint) return undefined;
   if (hasFahrenheit) return "us";
   if (hasImperialPint) return "uk_ie";
   if (hasCelsius && hasMetricWeight) return "metric";

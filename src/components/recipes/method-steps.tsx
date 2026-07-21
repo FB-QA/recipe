@@ -18,6 +18,7 @@ export type StepIngredient = {
   quantity_value?: number | null;
   quantity_min?: number | null;
   quantity_max?: number | null;
+  preparation?: string | null;
 };
 
 export type MethodStep = {

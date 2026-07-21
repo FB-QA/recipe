@@ -66,11 +66,28 @@ function isRegionSensitive(unit: MeasurementUnit): boolean {
   return def.dimension === "volume" && def.canonicalMultiplier == null;
 }
 
+/** Leading modifier words to step over when locating the unit ("about 500g"). */
+const LEADING_MODIFIER = /^(?:about|approximately|approx|roughly|generous|heaped|rounded|level|scant)\s+/i;
+
 /** Pull a leading quantity + unit token out of a raw line (legacy fallback). */
 function legacyLead(text: string): { value: number | null; max: number | null; unitText: string | null } {
   const parsed = parseQuantity(text);
-  const unitMatch = text.match(/^[^a-zA-Z]*([a-zA-Z.]+)/);
+  // Find the unit AFTER any leading modifier and the numeric span, so
+  // "about 500g chicken" yields "g", not "about".
+  let rest = text.trim();
+  while (LEADING_MODIFIER.test(rest)) rest = rest.replace(LEADING_MODIFIER, "");
+  rest = rest.replace(/^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/i, "").trim();
+  const unitMatch = rest.match(/^([a-zA-Z.]+)/);
   return { value: parsed.value, max: parsed.max, unitText: unitMatch ? unitMatch[1] : null };
+}
+
+/** Pick a familiar US volume unit for a millilitre amount (spec §26). */
+function pickUsVolumeUnit(ml: number): MeasurementUnit {
+  const abs = Math.abs(ml);
+  if (abs < 15) return "tsp";
+  if (abs < 118) return "tbsp"; // up to ~½ US cup
+  if (abs < 946) return "cup";
+  return "quart";
 }
 
 /** The ingredient's name — prefer the structured field, else strip the amount. */
@@ -150,8 +167,10 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   }
 
   // 1. Resolve the original quantity/range + unit from structured fields,
-  //    with a safe legacy parse of the raw line when they're missing.
-  let value = ing.quantity_value ?? null;
+  //    with a safe legacy parse of the raw line when they're missing. A real v2
+  //    range stores quantity_value: null with quantity_min/max populated, so the
+  //    lower bound comes from quantity_min when quantity_value is absent.
+  let value = ing.quantity_value ?? ing.quantity_min ?? null;
   let max = ing.quantity_max ?? null;
   let unitText = ing.unit ?? null;
   if (value == null || !unitText) {
@@ -192,7 +211,24 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
     return fallback("unsupported_conversion");
   }
 
-  const amount = formatConverted(result);
+  // US selection renders volume in familiar US units (cups/tbsp/tsp), not ml
+  // (spec §26). Metric and UK/IE keep ml/L. Driven by the larger endpoint so a
+  // range stays in one unit. Target region is US (known), so this is exact.
+  let display = result;
+  if (opts.targetSystem === "us" && result.convertedUnit === "ml") {
+    const driverMl = Math.max(Math.abs(result.convertedQuantity), Math.abs(result.convertedQuantityMax ?? result.convertedQuantity));
+    const usUnit = pickUsVolumeUnit(driverMl);
+    const usResult = convert({
+      quantity: result.convertedQuantity,
+      quantityMax: result.convertedQuantityMax,
+      fromUnit: "ml",
+      toUnit: usUnit,
+      sourceRegion: "us",
+    });
+    if (!usResult.error && usResult.convertedQuantity != null) display = usResult;
+  }
+
+  const amount = formatConverted(display);
   const name = nameOf(ing);
   // Preserve a separate preparation field ("toasted", "finely chopped") — it's
   // a cooking instruction, not noise, and must survive conversion.

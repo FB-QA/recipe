@@ -28,6 +28,13 @@ describe("detectSourceRegion", () => {
     expect(detectSourceRegion({ units: ["cup"], instructions: ["Bake at 180°C or 350°F."] })).toBeUndefined();
   });
 
+  it("stays undefined when a US cue and an imperial (UK) cue conflict", () => {
+    // Fahrenheit (US) alongside an explicit imperial pint (UK) → can't tell.
+    expect(
+      detectSourceRegion({ units: ["pint"], instructions: ["Add 1 imperial pint. Bake at 350°F."] }),
+    ).toBeUndefined();
+  });
+
   it("does not treat a lone gram as a region signal without a temperature", () => {
     expect(detectSourceRegion({ units: ["g"], instructions: ["Weigh 200 g."] })).toBeUndefined();
   });

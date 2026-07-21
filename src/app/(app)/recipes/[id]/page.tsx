@@ -155,6 +155,7 @@ export default async function RecipeDetailPage({
                 quantity_value: ing.quantity_value,
                 quantity_min: ing.quantity_min,
                 quantity_max: ing.quantity_max,
+                preparation: ing.preparation,
               })),
             };
           })}
