@@ -22,7 +22,7 @@ export const EXTRACTION_SYSTEM_PROMPT = [
   "Use only information that appears in the supplied evidence.",
   "Do not invent ingredients, quantities, temperatures, timings, servings,",
   "equipment, headings or instructions.",
-  "Use null or an empty collection when information is missing.",
+  "When information is missing, use an empty string for text, null for a number, and an empty collection for a list.",
   "Preserve original ingredient wording in originalText.",
   "ALSO split each ingredient into its parts: name is the ingredient itself with",
   "NO quantity and NO unit (e.g. 'olive oil', 'garlic powder', 'salt'); quantityText",
@@ -38,7 +38,7 @@ export const EXTRACTION_SYSTEM_PROMPT = [
   "Recognise quantity ranges without selecting one guessed value.",
   "Extract nutrition (calories, protein, carbs, fat, fibre, sugar) only when the source states it,",
   "using the exact amounts written; set perServing true when it is per portion.",
-  "Never calculate or estimate nutrition — null any macro the source omits.",
+  "Never calculate or estimate nutrition — leave any macro the source omits as an empty string.",
   "Recognise optional ingredients and optional sections.",
   "Recognise true ingredient alternatives.",
   'Do not treat every use of "or" as an alternative choice.',
@@ -48,29 +48,40 @@ export const EXTRACTION_SYSTEM_PROMPT = [
   "Report contradictions, missing content and unreadable evidence as warnings.",
 ].join("\n");
 
-/** JSON Schema mirror of aiExtractedRecipeSchema — forces valid structured output. */
+/**
+ * JSON Schema mirror of aiExtractedRecipeSchema — forces valid structured output.
+ *
+ * Anthropic's structured-output compiler rejects any schema with more than 16
+ * union-typed parameters (`type: [x, "null"]` / `anyOf`) with an HTTP 400. To stay
+ * under that ceiling, TEXT fields are non-nullable here: the model emits `""` for a
+ * missing value instead of `null`. This is safe because `aiExtractedRecipeSchema`
+ * (zod) accepts both, and `normaliseRecipe` already folds every blank string to
+ * null — so `""` and `null` are indistinguishable downstream. Only genuine numbers
+ * and `perServing` keep a nullable union (no clean numeric/boolean blank sentinel);
+ * that leaves a comfortable margin, enforced by output-schema.test.ts.
+ */
 const nullable = (type: string) => ({ type: [type, "null"] });
-const OUTPUT_SCHEMA = {
+export const OUTPUT_SCHEMA = {
   type: "object",
   properties: {
     extractionStatus: { type: "string", enum: ["recipe", "not_recipe", "insufficient_content"] },
-    title: nullable("string"),
-    description: nullable("string"),
+    title: { type: "string" },
+    description: { type: "string" },
     servings: {
       type: "object",
-      properties: { value: nullable("number"), originalText: nullable("string") },
+      properties: { value: nullable("number"), originalText: { type: "string" } },
       required: ["value", "originalText"],
       additionalProperties: false,
     },
     nutrition: {
-      type: ["object", "null"],
+      type: "object",
       properties: {
-        calories: nullable("string"),
-        protein: nullable("string"),
-        carbs: nullable("string"),
-        fat: nullable("string"),
-        fibre: nullable("string"),
-        sugar: nullable("string"),
+        calories: { type: "string" },
+        protein: { type: "string" },
+        carbs: { type: "string" },
+        fat: { type: "string" },
+        fibre: { type: "string" },
+        sugar: { type: "string" },
         perServing: nullable("boolean"),
       },
       required: ["calories", "protein", "carbs", "fat", "fibre", "sugar", "perServing"],
@@ -85,7 +96,7 @@ const OUTPUT_SCHEMA = {
         type: "object",
         properties: {
           temporaryId: { type: "string" },
-          name: nullable("string"),
+          name: { type: "string" },
           position: { type: "integer" },
           optional: { type: "boolean" },
           ingredients: {
@@ -96,15 +107,15 @@ const OUTPUT_SCHEMA = {
                 temporaryId: { type: "string" },
                 position: { type: "integer" },
                 originalText: { type: "string" },
-                quantityText: nullable("string"),
+                quantityText: { type: "string" },
                 quantityValue: nullable("number"),
                 quantityMin: nullable("number"),
                 quantityMax: nullable("number"),
-                unit: nullable("string"),
+                unit: { type: "string" },
                 name: { type: "string" },
-                preparation: nullable("string"),
+                preparation: { type: "string" },
                 optional: { type: "boolean" },
-                alternativeGroupId: nullable("string"),
+                alternativeGroupId: { type: "string" },
               },
               required: [
                 "temporaryId", "position", "originalText", "quantityText", "quantityValue",
@@ -125,7 +136,7 @@ const OUTPUT_SCHEMA = {
         type: "object",
         properties: {
           position: { type: "integer" },
-          title: nullable("string"),
+          title: { type: "string" },
           instruction: { type: "string" },
           ingredientGroupReferences: { type: "array", items: { type: "string" } },
         },
@@ -249,7 +260,11 @@ export function createAnthropicProvider(options?: {
             ? ("rate_limited" as const)
             : res.status === 401 || res.status === 403
               ? ("invalid_credentials" as const)
-              : ("provider_error" as const);
+              : // A 400 is our own malformed request (bad schema, oversize prompt) —
+                // permanent, not the transient trouble "provider_error" implies.
+                res.status === 400
+                ? ("bad_request" as const)
+                : ("provider_error" as const);
         return {
           ok: false,
           errorCode,

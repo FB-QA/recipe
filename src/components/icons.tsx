@@ -60,6 +60,13 @@ export const ListIcon = (p: IconProps) => (
   </svg>
 );
 
+export const ClockIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7.5V12l3 2" />
+  </svg>
+);
+
 export const CartIcon = (p: IconProps) => (
   <svg {...base(p)} aria-hidden>
     <path d="M3 4h2l2.4 12.2a1 1 0 0 0 1 .8h8.7a1 1 0 0 0 1-.8L21 8H6" />

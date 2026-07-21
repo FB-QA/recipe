@@ -12,6 +12,7 @@ export type RecipeListItem = {
   tags: string[];
   coverUrl: string | null;
   ingredientCount: number;
+  cook_time: string | null;
 };
 
 export async function listRecipes(opts: { search?: string; favourite?: boolean } = {}): Promise<
@@ -21,7 +22,7 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
   let query = supabase
     .from("recipes")
     .select(
-      "id, title, servings, source_type, source_handle, is_favourite, tags, cover_image_path, recipe_ingredients(count)",
+      "id, title, servings, source_type, source_handle, is_favourite, tags, cover_image_path, cook_time, recipe_ingredients(count)",
     )
     .order("created_at", { ascending: false });
 
@@ -57,6 +58,7 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
     coverUrl: r.cover_image_path ? (covers[r.cover_image_path] ?? null) : null,
     ingredientCount: r.recipe_ingredients?.[0]?.count ?? 0,
     source_handle: r.source_handle,
+    cook_time: r.cook_time,
   }));
 }
 
