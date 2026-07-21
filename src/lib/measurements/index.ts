@@ -18,3 +18,13 @@ export { parseQuantity, UNICODE_FRACTION_CHARS } from "./quantity-parser";
 export { convert } from "./measurement-converter";
 export { selectSystemUnit } from "./target-units";
 export { formatQuantityValue } from "./quantity-formatter";
+// Phase 3 — ingredient density corpus for volume↔weight (curated, code-level).
+export {
+  DENSITY_PROFILES,
+  findDensityProfile,
+  gramsPerMl,
+  densityGramsPerMl,
+  normalizeIngredientName,
+  type IngredientDensityProfile,
+  type DensitySourceQuality,
+} from "./density-profiles";
