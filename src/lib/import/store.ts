@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { storeCoverFromUrl } from "@/lib/recipes/cover";
+import { APIFY_COVER_RESOLVER_ID } from "./enrich-cover";
 import { importConfig, isCompositeReelCover } from "./config";
 import type { AiAttemptClose, ImportStore, RetrievalAttemptClose } from "./engine";
 import type { PriceRow } from "./pricing";
@@ -337,6 +338,21 @@ export async function nextRetrievalAttemptNumber(importId: string): Promise<numb
     .select("id", { count: "exact", head: true })
     .eq("recipe_import_id", importId);
   return (count ?? 0) + 1;
+}
+
+/**
+ * Whether a deferred cover enrichment has already been attempted for this import —
+ * a prior `apify_cover` ledger row, succeeded OR failed. The route consults this so a
+ * failed run (which leaves the cover composite, keeping the enrich predicate true)
+ * can't be re-started — and re-paid — every time the review is reopened. At-most-once.
+ */
+export async function hasCoverEnrichmentAttempt(importId: string): Promise<boolean> {
+  const { count } = await svc()
+    .from("source_retrieval_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("recipe_import_id", importId)
+    .eq("resolver_id", APIFY_COVER_RESOLVER_ID);
+  return (count ?? 0) > 0;
 }
 
 /**

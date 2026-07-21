@@ -7,6 +7,7 @@ import {
   createImportStore,
   applyEnrichedCover,
   nextRetrievalAttemptNumber,
+  hasCoverEnrichmentAttempt,
 } from "@/lib/import/store";
 import { createApifyResolver } from "@/lib/import/resolvers/apify";
 import { enrichImportCover, shouldEnrichCover } from "@/lib/import/enrich-cover";
@@ -34,6 +35,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const config = importConfig();
   const currentCover = row.extracted?.source?.coverImageUrl ?? null;
   if (!config.apifyToken || !shouldEnrichCover(row, config.reelCoverEnrich)) {
+    return NextResponse.json({ coverUrl: currentCover });
+  }
+
+  // At-most-once per import. A failed run leaves the cover composite, so the predicate
+  // above stays true; without this, reopening the review would start (and pay for)
+  // another Apify run every time. A prior apify_cover ledger row — success or failure
+  // — means we've already spent our one attempt.
+  if (await hasCoverEnrichmentAttempt(id)) {
     return NextResponse.json({ coverUrl: currentCover });
   }
 

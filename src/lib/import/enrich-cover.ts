@@ -5,6 +5,10 @@ import type { PriceRow } from "./pricing";
 import type { ImportRow } from "./store";
 import type { ImportRequest, SourceResolver } from "./schema";
 
+/** Resolver id for the deferred cover run in the retrieval ledger — one home, so the
+ *  enrichment (writer) and the at-most-once ledger check (reader) can't disagree. */
+export const APIFY_COVER_RESOLVER_ID = "apify_cover";
+
 /**
  * The deferred Reel-cover enrichment (spec: docs/spec/defer-cover-enrichment.md).
  *
@@ -64,7 +68,7 @@ export async function enrichImportCover(deps: CoverEnrichDeps): Promise<{ coverU
     importId: deps.request.importId,
     userId: deps.request.userId,
     attemptNumber: deps.attemptNumber,
-    resolverId: "apify_cover",
+    resolverId: APIFY_COVER_RESOLVER_ID,
     providerId: "apify",
     serviceId: "instagram_scraper",
   });
