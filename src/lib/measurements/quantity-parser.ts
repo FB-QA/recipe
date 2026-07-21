@@ -92,9 +92,10 @@ export function parseQuantity(input: string): ParsedQuantity {
   const modifiers = MODIFIERS.filter((m) => new RegExp(`\\b${m}\\b`).test(lower));
   const leadingArticle = /^(a|an)\b/.test(lower) && !/^\s*[\d¼½¾⅓⅔⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚⅐⅑⅒]/.test(lower);
 
-  // Normalise a numeric "X to Y" into "X-Y", then strip every letter so only
-  // numeric tokens, fraction slashes and range separators remain.
-  const deworded = lower
+  // Expand unicode fractions FIRST so a fraction endpoint ("½ to 1") is seen by
+  // the range detector, then normalise a numeric "X to Y" into "X-Y" and strip
+  // every letter so only numeric tokens, slashes and range separators remain.
+  const deworded = expandUnicodeFractions(lower)
     .replace(/(\d)\s+to\s+(\d)/g, "$1-$2")
     .replace(/[a-z]+/g, " ")
     .replace(/\s+/g, " ")
@@ -116,6 +117,12 @@ export function parseQuantity(input: string): ParsedQuantity {
 
   const value = evalNumeric(deworded);
   if (value !== null) {
+    // "a 400g can": a leading article denotes one unit, and an embedded WHOLE
+    // number is package-size noise, not the quantity — the article wins. A
+    // fractional value ("a 1/2 cup") is a genuine quantity and stands.
+    if (leadingArticle && Number.isInteger(value)) {
+      return { value: 1, max: null, text: raw, isRange: false, modifiers, confidence: 0.6 };
+    }
     return { value, max: null, text: raw, isRange: false, modifiers, confidence: 0.95 };
   }
 

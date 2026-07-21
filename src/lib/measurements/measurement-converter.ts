@@ -180,7 +180,12 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     };
   }
 
-  const one = convertOne(quantity, fromUnit, toUnit, dimension, sourceRegion, req.targetSystem);
+  // An explicit toUnit is authoritative: the docs mark toUnit/targetSystem as
+  // mutually exclusive, so if a caller passes both, the unit wins and the
+  // system is ignored rather than silently reinterpreting the unit's region.
+  const effectiveSystem = req.toUnit ? undefined : req.targetSystem;
+
+  const one = convertOne(quantity, fromUnit, toUnit, dimension, sourceRegion, effectiveSystem);
   // Guard both the "no path" case and numeric overflow (a huge input can push
   // the result to ±Infinity) — never hand back a non-finite converted value.
   if (one === undefined || !Number.isFinite(one)) {
@@ -215,7 +220,7 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     // Already validated finite + sign-legal + ordered above. Both ends must
     // convert: if the upper bound has no path (or overflows), the whole range
     // is unavailable rather than a corrupt lower-bound-only result.
-    const maxConverted = convertOne(quantityMax, fromUnit, toUnit, dimension, sourceRegion, req.targetSystem);
+    const maxConverted = convertOne(quantityMax, fromUnit, toUnit, dimension, sourceRegion, effectiveSystem);
     if (maxConverted === undefined || !Number.isFinite(maxConverted)) {
       return { ...base, error: "UNSUPPORTED_CONVERSION", warning: "The range upper bound could not be converted." };
     }
@@ -252,6 +257,17 @@ function convertOne(
   }
 
   if (dimension === "temperature") {
+    // A gas-mark SOURCE reads its target column straight from the table — the
+    // table's °C and °F are BOTH the contract, and they are deliberately not
+    // related by the exact formula (Gas 4 is 180°C AND 350°F, not 356°F).
+    if (fromUnit === "gas_mark") {
+      const row = GAS_MARK_TABLE.find((r) => r.gasMark === quantity);
+      if (!row) return undefined;
+      if (toUnit === "celsius") return row.celsius;
+      if (toUnit === "fahrenheit") return row.fahrenheit;
+      if (toUnit === "gas_mark") return row.gasMark;
+      return undefined;
+    }
     const celsius = toCelsius(quantity, fromUnit);
     if (celsius === undefined) return undefined;
     return fromCelsius(celsius, toUnit);

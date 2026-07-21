@@ -8,9 +8,15 @@
 import type { MeasurementUnit, NormalizedUnitResult } from "./measurement-types";
 import { UNIT_DEFINITIONS } from "./unit-definitions";
 
-/** Single letters that are inherently ambiguous — handled before the alias map. */
+/**
+ * Single letters that are inherently ambiguous — handled before the alias map,
+ * case-sensitively. Case biases candidate ORDER (capital `T` conventionally
+ * tablespoon, lower `t` teaspoon) but never resolves the ambiguity: the
+ * contract requires the t/T (and c/C) trap surfaced, not silently picked.
+ */
 const AMBIGUOUS_TOKENS: Record<string, { candidates: MeasurementUnit[]; confidence: number }> = {
   t: { candidates: ["tsp", "tbsp"], confidence: 0.4 },
+  T: { candidates: ["tbsp", "tsp"], confidence: 0.5 },
   c: { candidates: ["cup", "celsius"], confidence: 0.4 },
   C: { candidates: ["celsius", "cup"], confidence: 0.4 },
 };
@@ -19,11 +25,6 @@ const AMBIGUOUS_TOKENS: Record<string, { candidates: MeasurementUnit[]; confiden
 const AMBIGUOUS_KEYS: Record<string, { candidates: MeasurementUnit[]; confidence: number }> = {
   // "gm" is grams to most, gas mark to some — surface it, don't silently pick.
   gm: { candidates: ["g", "gas_mark"], confidence: 0.5 },
-};
-
-/** Case-sensitive shorthand where case carries the meaning. */
-const CASED_TOKENS: Record<string, { unit: MeasurementUnit; confidence: number }> = {
-  T: { unit: "tbsp", confidence: 0.7 },
 };
 
 /**
@@ -68,11 +69,6 @@ export function normalizeUnit(input: string): NormalizedUnitResult {
 
   if (!trimmed) {
     return { unit: "unknown", confidence: 0, originalText: original };
-  }
-
-  if (trimmed in CASED_TOKENS) {
-    const hit = CASED_TOKENS[trimmed];
-    return { unit: hit.unit, confidence: hit.confidence, originalText: original };
   }
 
   if (trimmed in AMBIGUOUS_TOKENS) {

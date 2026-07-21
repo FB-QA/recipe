@@ -48,6 +48,11 @@ describe("normalizeUnit", () => {
     expect(lower.ambiguous).toBe(true);
     expect(lower.confidence).toBeLessThan(0.6);
     expect(lower.candidates).toEqual(expect.arrayContaining(["tsp", "tbsp"]));
+
+    const upper = normalizeUnit("T");
+    expect(upper.ambiguous).toBe(true);
+    expect(upper.confidence).toBeLessThan(0.8);
+    expect(upper.candidates).toEqual(expect.arrayContaining(["tsp", "tbsp"]));
   });
 
   it("returns unknown (confidence 0) for nonsense, never throwing", () => {
