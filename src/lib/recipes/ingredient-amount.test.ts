@@ -132,6 +132,17 @@ describe("renderIngredientAmount", () => {
     expect(r.text).toBe("227 g butter");
   });
 
+  it("derives a clean name past a modifier when structured name is missing", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "about 500g chicken", quantity_value: null, unit: null, name: null }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.status).toBe("converted");
+    // Not "18 oz about 500g chicken" — the modifier + amount are stripped.
+    expect(r.text).toMatch(/oz chicken$/);
+    expect(r.text).not.toMatch(/about|500/);
+  });
+
   it("preserves the preparation field through conversion", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "100 g pecans, toasted", quantity_value: 100, unit: "g", name: "pecans", preparation: "toasted" }),

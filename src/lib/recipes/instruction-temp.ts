@@ -16,13 +16,20 @@ function gasValue(token: string): number {
   return GAS_FRACTIONS[token] ?? Number(token);
 }
 
-/** Convert one temperature and round to oven-dial increments (°F→25, °C→5). */
-function convertTemp(value: number, from: MeasurementUnit, to: MeasurementUnit): string | null {
+const symbol = (u: MeasurementUnit): string => (u === "fahrenheit" ? "°F" : "°C");
+
+/** Convert one temperature to a number, rounded to oven-dial increments. */
+function convertTempNum(value: number, from: MeasurementUnit, to: MeasurementUnit): number | null {
   const r = convert({ quantity: value, fromUnit: from, toUnit: to });
   if (r.error || r.convertedQuantity == null) return null;
   const step = to === "fahrenheit" ? 25 : 5;
-  const rounded = Math.round(r.convertedQuantity / step) * step;
-  return `${rounded}°${to === "fahrenheit" ? "F" : "C"}`;
+  return Math.round(r.convertedQuantity / step) * step;
+}
+
+/** Convert one temperature to a display string ("175°C"). */
+function convertTemp(value: number, from: MeasurementUnit, to: MeasurementUnit): string | null {
+  const n = convertTempNum(value, from, to);
+  return n == null ? null : `${n}${symbol(to)}`;
 }
 
 export function convertInstructionTemps(text: string, system: ConcreteSystem): string {
@@ -36,6 +43,21 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
     if (u1.toUpperCase() === want) return `${n1}°${want}`;
     if (u2.toUpperCase() === want) return `${n2}°${want}`;
     return convertTemp(Number(n1), u1.toUpperCase() === "F" ? "fahrenheit" : "celsius", toUnit) ?? m;
+  });
+
+  // Temperature RANGES first, so both endpoints convert together — never a
+  // mixed-scale "180–400°F". Run before the single-value passes consume them.
+  out = out.replace(/(\d{2,3})\s*[–—-]\s*(\d{2,3})\s*°\s*F\b/gi, (m, a, b) => {
+    if (toUnit === "fahrenheit") return m;
+    const lo = convertTempNum(Number(a), "fahrenheit", toUnit);
+    const hi = convertTempNum(Number(b), "fahrenheit", toUnit);
+    return lo != null && hi != null ? `${lo}–${hi}${symbol(toUnit)}` : m;
+  });
+  out = out.replace(/(\d{2,3})\s*[–—-]\s*(\d{2,3})\s*°\s*C\b/gi, (m, a, b) => {
+    if (toUnit === "celsius") return m;
+    const lo = convertTempNum(Number(a), "celsius", toUnit);
+    const hi = convertTempNum(Number(b), "celsius", toUnit);
+    return lo != null && hi != null ? `${lo}–${hi}${symbol(toUnit)}` : m;
   });
 
   // Fahrenheit sources (run first so a °C→°F insertion isn't re-scanned).

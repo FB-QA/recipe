@@ -37,7 +37,9 @@ export default async function RecipeDetailPage({
   // only when a region is genuinely known, else they stay original.
   const sourceRegion = detectSourceRegion({
     units: recipe.ingredients.map((i) => i.unit),
-    instructions: recipe.steps.map((s) => s.instruction),
+    // Ingredient display text too — imports keep "imperial" in display_text while
+    // storing the unit as a bare "pint", so the UK cue lives there, not the unit.
+    instructions: [...recipe.steps.map((s) => s.instruction), ...recipe.ingredients.map((i) => i.display_text)],
   });
 
   const metrics = [

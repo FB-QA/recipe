@@ -93,12 +93,15 @@ function pickUsVolumeUnit(ml: number): MeasurementUnit {
 /** The ingredient's name — prefer the structured field, else strip the amount. */
 function nameOf(ing: AmountIngredient): string {
   if (ing.name && ing.name.trim()) return ing.name.trim();
-  // Strip a leading "N unit" from the display text as a best effort.
-  const stripped = ing.display_text
-    .replace(/^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/i, "")
-    .replace(/^\s*[a-zA-Z]+\.?\s+/, (m) => (normalizeUnit(m.trim()).unit === "unknown" ? m : ""))
-    .trim();
-  return stripped || ing.display_text.trim();
+  // Best-effort: drop leading modifier(s)/article, the numeric span, then a
+  // recognised unit — so "about 500g chicken" yields "chicken", not the whole
+  // line (which would render as "18 oz about 500g chicken").
+  let s = ing.display_text.trim();
+  while (LEADING_MODIFIER.test(s)) s = s.replace(LEADING_MODIFIER, "");
+  s = s.replace(/^(?:an?)\s+/i, "");
+  s = s.replace(/^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/i, "");
+  s = s.replace(/^\s*([a-zA-Z.]+)\s+/, (m, tok) => (normalizeUnit(tok).unit === "unknown" ? m : " "));
+  return s.trim() || ing.display_text.trim();
 }
 
 /** Round a converted numeric for display: bands when approximate, tidy when exact. */

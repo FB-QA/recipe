@@ -19,6 +19,14 @@ describe("detectSourceRegion", () => {
     expect(detectSourceRegion({ units: ["pint", "oz"], instructions: ["Add 1 pint stock."] })).toBeUndefined();
   });
 
+  it("finds an imperial-pint cue in an ingredient line, not just the steps", () => {
+    // page.tsx feeds ingredient display_text into the scan, since imports store
+    // "imperial" in display_text while the unit is a bare "pint".
+    expect(
+      detectSourceRegion({ units: ["pint"], instructions: ["Simmer gently.", "1 imperial pint beef stock"] }),
+    ).toBe("uk_ie");
+  });
+
   it("reads clean metric (°C + grams, no Fahrenheit) as metric", () => {
     expect(detectSourceRegion({ units: ["g", "ml"], instructions: ["Bake at 180°C."] })).toBe("metric");
   });

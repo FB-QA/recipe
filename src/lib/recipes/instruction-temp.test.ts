@@ -51,4 +51,14 @@ describe("convertInstructionTemps", () => {
   it("still converts a valid gas mark ending a sentence", () => {
     expect(convertInstructionTemps("Set to Gas Mark 4.", "metric")).toBe("Set to 180°C.");
   });
+
+  it("converts BOTH endpoints of a temperature range (never a mixed scale)", () => {
+    expect(convertInstructionTemps("Bake at 180–200°C.", "us")).toBe("Bake at 350–400°F.");
+    // 350°F = 176.7°C → 175; 400°F = 204.4°C → 205 (nearest 5° is the accurate value).
+    expect(convertInstructionTemps("Bake at 350–400°F.", "metric")).toBe("Bake at 175–205°C.");
+  });
+
+  it("leaves a range already in the target scale untouched", () => {
+    expect(convertInstructionTemps("Bake at 180–200°C.", "metric")).toBe("Bake at 180–200°C.");
+  });
 });
