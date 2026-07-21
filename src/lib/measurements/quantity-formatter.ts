@@ -20,41 +20,44 @@ const FRACTION_GLYPHS: { value: number; glyph: string }[] = [
   { value: 7 / 8, glyph: "⅞" },
 ];
 
-/**
- * Nearest friendly fraction glyph for a 0..1 value, or "" if none is close
- * ENOUGH. The tolerance is RELATIVE to the glyph (with a small absolute floor),
- * so a snap never materially changes the quantity (§28): 0.5 → ½, but 0.2029
- * (1 ml as US tsp) does NOT snap to ¼ — a 23% overstatement — and falls back to
- * a decimal instead.
- */
-export function friendlyFraction(fraction: number, tolerance = 0.08): string {
-  let best = "";
-  let bestDist = Infinity;
-  for (const f of FRACTION_GLYPHS) {
-    const dist = Math.abs(fraction - f.value);
-    const allowed = Math.max(0.02, tolerance * f.value);
-    if (dist <= allowed && dist < bestDist) {
-      best = f.glyph;
-      bestDist = dist;
-    }
-  }
-  return best;
-}
+// Snap targets for the fractional part: a whole (0), each glyph, or the next
+// whole (1). "" means no glyph — round to the whole number.
+const SNAP_TARGETS: { value: number; glyph: string }[] = [
+  { value: 0, glyph: "" },
+  ...FRACTION_GLYPHS,
+  { value: 1, glyph: "" },
+];
 
-/** Format a value as "1½", "¼", "3", or a plain decimal when no fraction fits. */
+/**
+ * Format a value as "1½", "¼", "7", or a plain decimal. Snaps to the nearest
+ * friendly value (a whole or a familiar fraction) ONLY when that doesn't
+ * materially change the quantity — the tolerance is relative to the WHOLE value
+ * (§28). So 7.0548 oz → "7" (a 0.7% nudge), but 0.2029 tsp does NOT become "¼"
+ * (a 23% overstatement) and falls back to a decimal.
+ */
 export function formatQuantityValue(value: number): string {
   if (!Number.isFinite(value)) return "";
   const sign = value < 0 ? "-" : "";
   const abs = Math.abs(value);
+  if (abs < 1e-9) return "0";
   const whole = Math.floor(abs + 1e-9);
   const frac = abs - whole;
 
-  const glyph = frac > 1e-9 ? friendlyFraction(frac) : "";
-  if (glyph) {
-    return whole > 0 ? `${sign}${whole}${glyph}` : `${sign}${glyph}`;
+  let best = SNAP_TARGETS[0];
+  let bestDist = Infinity;
+  for (const t of SNAP_TARGETS) {
+    const d = Math.abs(frac - t.value);
+    if (d < bestDist) {
+      bestDist = d;
+      best = t;
+    }
   }
-  if (frac <= 1e-9) return `${sign}${whole}`;
-  // No friendly fraction fits — fall back to a trimmed decimal.
+  // Relative tolerance (with a small absolute floor for tiny values).
+  if (bestDist <= Math.max(0.02, 0.04 * abs)) {
+    const w = best.value === 1 ? whole + 1 : whole;
+    if (best.glyph) return w > 0 ? `${sign}${w}${best.glyph}` : `${sign}${best.glyph}`;
+    return `${sign}${w}`;
+  }
   return `${sign}${Number(abs.toFixed(2))}`;
 }
 

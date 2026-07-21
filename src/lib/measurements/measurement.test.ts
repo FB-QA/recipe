@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { normalizeUnit } from "./unit-normalizer";
 import { parseQuantity } from "./quantity-parser";
 import { convert } from "./measurement-converter";
-import { friendlyFraction, formatQuantityValue, selectFriendlyMass, selectFriendlyVolume } from "./quantity-formatter";
+import { formatQuantityValue, selectFriendlyMass, selectFriendlyVolume } from "./quantity-formatter";
 
 // ------------------------------------------------------------------
 // AC1 — unit normalisation (§16, §43)
@@ -249,13 +249,21 @@ describe("formatting", () => {
     [0.5, "½"],
     [2 / 3, "⅔"],
     [0.75, "¾"],
-  ])("friendlyFraction(%d) = %s", (v, expected) => {
-    expect(friendlyFraction(v)).toBe(expected);
+  ])("formatQuantityValue(%d) = %s", (v, expected) => {
+    expect(formatQuantityValue(v)).toBe(expected);
   });
   it("formats mixed numbers", () => {
     expect(formatQuantityValue(1.5)).toBe("1½");
     expect(formatQuantityValue(2.25)).toBe("2¼");
     expect(formatQuantityValue(3)).toBe("3");
+  });
+  it("rounds an over-precise value to a friendly whole/fraction (200g → 7 oz)", () => {
+    expect(formatQuantityValue(7.0548)).toBe("7"); // was "7.05"
+    expect(formatQuantityValue(8.818)).toBe("8⅞");
+    expect(formatQuantityValue(4.409)).toBe("4⅜");
+  });
+  it("does NOT snap a value that would change materially (§28)", () => {
+    expect(formatQuantityValue(0.2029)).toBe("0.2"); // 1 ml as US tsp — not "¼"
   });
   it("selects friendly mass units", () => {
     expect(selectFriendlyMass(3)).toMatchObject({ value: 3, unit: "g" });
