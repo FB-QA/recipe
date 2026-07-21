@@ -1,6 +1,5 @@
 import { cache } from "react";
 import { headers } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
 
 /**
  * The one place the signed-in user is resolved. Every page, action and query
@@ -15,6 +14,14 @@ import { createClient } from "@/lib/supabase/server";
  * So the proxy — which has already verified the token — stamps the result onto
  * the request, and everything downstream reads it for free. One verification per
  * request, at the edge, where it belongs.
+ *
+ * The proxy is also the SOLE session-refresh authority. A Server Component cannot
+ * persist a rotated cookie (server.ts's `setAll` is a no-op in that context), so a
+ * `getUser()` here would refresh a token it then loses — replayed on the next
+ * request as a stale token and revoked by the auth server as suspected reuse
+ * ("Session not found"), logging the user out on their first post-login render.
+ * Hence: no fallback verification. Absent stamp on a protected render is a bug to
+ * surface, never a reason to refresh.
  */
 
 /**
@@ -64,25 +71,18 @@ export function stampVerifiedUser(
  * The signed-in user for THIS request, or null.
  *
  * `cache()` dedupes it across a single render pass, so a page and the queries it
- * calls all share one resolution. The fast path reads the proxy's stamp and makes
- * no network call at all; the fallback exists only for contexts the proxy does not
- * cover, and is the same check the proxy would have made.
+ * calls all share one resolution. It reads the proxy's stamp and makes no network
+ * call — ever. No stamp means no verified session was handed down: return null and
+ * let the caller fail closed (`requireUser` throws; actions return the signed-out
+ * error). It deliberately does NOT verify-by-refresh here — see the header comment.
  */
 export const currentUser = cache(async (): Promise<VerifiedUser | null> => {
   const h = await headers();
   const id = h.get(AUTH_HEADER.id);
+  if (!id) return null;
 
-  if (id) {
-    const email = h.get(AUTH_HEADER.email);
-    return { id, email: email ? decodeURIComponent(email) : null };
-  }
-
-  // Fallback: no stamp (a route the proxy matcher misses). Verify properly.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user ? { id: user.id, email: user.email ?? null } : null;
+  const email = h.get(AUTH_HEADER.email);
+  return { id, email: email ? decodeURIComponent(email) : null };
 });
 
 /**
