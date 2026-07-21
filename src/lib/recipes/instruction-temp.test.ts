@@ -36,4 +36,19 @@ describe("convertInstructionTemps", () => {
     // No 'Gas Mark 10' in the table → left as written.
     expect(convertInstructionTemps("Gas Mark 10.", "metric")).toBe("Gas Mark 10.");
   });
+
+  it("collapses a dual-scale temperature instead of contradicting it", () => {
+    expect(convertInstructionTemps("Bake at 180°C (350°F).", "metric")).toBe("Bake at 180°C.");
+    expect(convertInstructionTemps("Bake at 180°C (350°F).", "us")).toBe("Bake at 350°F.");
+    expect(convertInstructionTemps("Bake at 350°F (180°C).", "metric")).toBe("Bake at 180°C.");
+  });
+
+  it("does not partially convert an off-table decimal or range gas mark", () => {
+    expect(convertInstructionTemps("Gas Mark 4.5 for an hour.", "metric")).toBe("Gas Mark 4.5 for an hour.");
+    expect(convertInstructionTemps("Gas Mark 4–5.", "metric")).toBe("Gas Mark 4–5.");
+  });
+
+  it("still converts a valid gas mark ending a sentence", () => {
+    expect(convertInstructionTemps("Set to Gas Mark 4.", "metric")).toBe("Set to 180°C.");
+  });
 });

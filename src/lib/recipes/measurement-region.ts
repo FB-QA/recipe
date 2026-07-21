@@ -26,7 +26,9 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
 
   const hasFahrenheit = /\d\s*°?\s*f\b/.test(text) || /°f/.test(text) || /fahrenheit/.test(text);
   const hasCelsius = /\d\s*°?\s*c\b/.test(text) || /°c/.test(text) || /celsius/.test(text);
-  const hasPint = /\bpints?\b/.test(text) || units.some((u) => u === "pint" || u === "pt" || u === "pints");
+  // A BARE "pint" is ambiguous (US 473 ml vs UK/IE 568 ml), so it is not a
+  // signal. Only an explicitly "imperial pint" is a strong UK/IE cue.
+  const hasImperialPint = /\bimperial\s+pints?\b/.test(text);
   const hasMetricWeight =
     units.some((u) => ["g", "kg", "gram", "grams", "kilogram", "kilograms"].includes(u)) ||
     /\d\s*g\b|\bgrams?\b/.test(text);
@@ -34,7 +36,7 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
   // Both oven scales present → we can't tell; don't guess.
   if (hasFahrenheit && hasCelsius) return undefined;
   if (hasFahrenheit) return "us";
-  if (hasPint) return "uk_ie";
+  if (hasImperialPint) return "uk_ie";
   if (hasCelsius && hasMetricWeight) return "metric";
   return undefined;
 }

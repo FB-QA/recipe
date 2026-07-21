@@ -4,7 +4,7 @@ import { useState } from "react";
 import { parseServings } from "@/lib/recipes/scale";
 import { IngredientsSection, type IngredientGroupView } from "./ingredients-section";
 import { MethodSteps, type MethodStep } from "./method-steps";
-import { MEASUREMENT_OPTIONS } from "./measurement-toggle";
+import { MEASUREMENT_OPTIONS, MeasurementToggle } from "./measurement-toggle";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
 import type { MeasurementRegion, MeasurementSystem } from "@/lib/measurements";
 
@@ -65,7 +65,12 @@ export function CookSections({
 
       {steps.length > 0 && (
         <section>
-          <h2 className="mb-3 mt-5 text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">Method</h2>
+          <div className="mb-3 mt-5 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">Method</h2>
+            {/* Method-only recipes (no ingredient list) still need the selector so
+                their explicit oven temperatures can convert. */}
+            {ingredients.length === 0 && <MeasurementToggle value={system} onChange={setSystem} />}
+          </div>
           <MethodSteps steps={steps} scale={scale} system={system} sourceRegion={sourceRegion} />
         </section>
       )}

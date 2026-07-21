@@ -29,6 +29,15 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   const toUnit: MeasurementUnit = system === "us" ? "fahrenheit" : "celsius";
   let out = text;
 
+  // Dual-scale equivalents first — "180°C (350°F)" must collapse to the single
+  // target-scale value, never become a contradictory "180°C (175°C)".
+  out = out.replace(/(\d{2,3})\s*°\s*([CF])\s*\(\s*(\d{2,3})\s*°\s*([CF])\s*\)/gi, (m, n1, u1, n2, u2) => {
+    const want = toUnit === "fahrenheit" ? "F" : "C";
+    if (u1.toUpperCase() === want) return `${n1}°${want}`;
+    if (u2.toUpperCase() === want) return `${n2}°${want}`;
+    return convertTemp(Number(n1), u1.toUpperCase() === "F" ? "fahrenheit" : "celsius", toUnit) ?? m;
+  });
+
   // Fahrenheit sources (run first so a °C→°F insertion isn't re-scanned).
   out = out.replace(/(\d{2,3})\s*°\s*F\b/gi, (m, n) => {
     if (toUnit === "fahrenheit") return m;
@@ -41,8 +50,10 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
     return convertTemp(Number(n), "celsius", toUnit) ?? m;
   });
 
-  // Gas marks (source only — never a conversion target).
-  out = out.replace(/gas\s*mark\s*(¼|½|¾|\d+)/gi, (m, g) => {
+  // Gas marks (source only). The lookahead refuses a dash-range ("Gas Mark
+  // 4–5") so a half-match can't leave "180°C–5"; a decimal like "4.5" is
+  // captured whole and, being off-table, is left unchanged by convertTemp.
+  out = out.replace(/gas\s*mark\s*(¼|½|¾|\d+(?:\.\d+)?)(?!\s*[–—-]\s*\d)/gi, (m, g) => {
     return convertTemp(gasValue(g), "gas_mark", toUnit) ?? m;
   });
 

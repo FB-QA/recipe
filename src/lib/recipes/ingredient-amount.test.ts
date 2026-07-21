@@ -86,6 +86,25 @@ describe("renderIngredientAmount", () => {
     expect(r.text).toMatch(/milk$/);
   });
 
+  it("keeps ONE unit across a range that crosses a threshold", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "900–1100 ml stock", quantity_value: 900, quantity_max: 1100, unit: "ml", name: "stock" }),
+      { scale: 1, targetSystem: "metric" },
+    );
+    expect(r.status).toBe("converted");
+    // Not a mismatched "900–1.1 ml" — both ends in litres.
+    expect(r.text).toBe("0.9–1.1 L stock");
+  });
+
+  it("preserves the preparation field through conversion", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "100 g pecans, toasted", quantity_value: 100, unit: "g", name: "pecans", preparation: "toasted" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.text).toMatch(/pecans, toasted$/);
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),

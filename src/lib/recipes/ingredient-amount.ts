@@ -93,39 +93,50 @@ function roundDisplay(value: number, dimension: string, approximate: boolean): n
   return Math.round(value * 100) / 100;
 }
 
-/** Friendly {value, unit} for a converted single value in its canonical unit. */
-function friendly(value: number, unit: MeasurementUnit): { value: number; label: string } {
-  const dim = UNIT_DEFINITIONS[unit].dimension;
-  if (dim === "weight" && (unit === "g" || unit === "kg" || unit === "mg")) {
-    const grams = value * (UNIT_DEFINITIONS[unit].canonicalMultiplier ?? 1);
-    const f = selectFriendlyMass(grams);
-    return { value: f.value, label: UNIT_DEFINITIONS[f.unit].shortLabel };
+/**
+ * The friendly display unit for a converted value. Friendly promotion
+ * (g↔kg↔mg, ml↔L) applies ONLY to metric units — an imperial target (oz, lb,
+ * fl_oz) keeps its own unit, never routed back through the metric picker.
+ */
+function chosenDisplayUnit(value: number, unit: MeasurementUnit): MeasurementUnit {
+  if (unit === "g" || unit === "kg" || unit === "mg") {
+    return selectFriendlyMass(value * (UNIT_DEFINITIONS[unit].canonicalMultiplier ?? 1)).unit;
   }
-  if (dim === "volume" && (unit === "ml" || unit === "l")) {
-    const ml = value * (UNIT_DEFINITIONS[unit].canonicalMultiplier ?? 1);
-    const f = selectFriendlyVolume(ml);
-    return { value: f.value, label: UNIT_DEFINITIONS[f.unit].shortLabel };
+  if (unit === "ml" || unit === "l") {
+    return selectFriendlyVolume(value * (UNIT_DEFINITIONS[unit].canonicalMultiplier ?? 1)).unit;
   }
-  return { value, label: UNIT_DEFINITIONS[unit].shortLabel };
+  return unit;
 }
 
-/** Format one converted endpoint value into "227 g" / "1½ cup". */
-function formatOne(value: number, unit: MeasurementUnit, dimension: string, approximate: boolean): { num: string; label: string } {
-  const f = friendly(value, unit);
-  const rounded = roundDisplay(f.value, dimension, approximate);
-  const useFractions = UNIT_DEFINITIONS[unit].allowFractions && unit !== "g" && unit !== "ml" && unit !== "kg";
-  const num = useFractions ? formatQuantityValue(rounded) : String(rounded);
-  return { num, label: f.label };
+/** Re-express a value from its converted unit into the chosen display unit. */
+function inDisplayUnit(value: number, fromUnit: MeasurementUnit, displayUnit: MeasurementUnit): number {
+  const canonical = value * (UNIT_DEFINITIONS[fromUnit].canonicalMultiplier ?? 1);
+  return canonical / (UNIT_DEFINITIONS[displayUnit].canonicalMultiplier ?? 1);
+}
+
+const NO_FRACTION_UNITS = new Set<MeasurementUnit>(["g", "kg", "mg", "ml", "l"]);
+
+function renderNumber(displayValue: number, displayUnit: MeasurementUnit, dimension: string, approximate: boolean): string {
+  const rounded = roundDisplay(displayValue, dimension, approximate);
+  const useFractions = UNIT_DEFINITIONS[displayUnit].allowFractions && !NO_FRACTION_UNITS.has(displayUnit);
+  return useFractions ? formatQuantityValue(rounded) : String(rounded);
 }
 
 function formatConverted(result: ConversionResult): string {
   const unit = result.convertedUnit!;
   const dimension = UNIT_DEFINITIONS[unit].dimension;
-  const lo = formatOne(result.convertedQuantity!, unit, dimension, result.approximate);
+  const lo = result.convertedQuantity!;
+  const hi = result.convertedQuantityMax ?? null;
+  // Pick ONE display unit for the whole range, driven by the larger endpoint,
+  // so "900–1100 ml" becomes "0.9–1.1 L", never a mismatched "900–1.1 ml".
+  const driver = Math.max(Math.abs(lo), Math.abs(hi ?? lo));
+  const displayUnit = chosenDisplayUnit(driver, unit);
+  const label = UNIT_DEFINITIONS[displayUnit].shortLabel;
+  const loNum = renderNumber(inDisplayUnit(lo, unit, displayUnit), displayUnit, dimension, result.approximate);
   const amount =
-    result.convertedQuantityMax != null
-      ? `${lo.num}–${formatOne(result.convertedQuantityMax, unit, dimension, result.approximate).num} ${lo.label}`
-      : `${lo.num} ${lo.label}`;
+    hi != null
+      ? `${loNum}–${renderNumber(inDisplayUnit(hi, unit, displayUnit), displayUnit, dimension, result.approximate)} ${label}`
+      : `${loNum} ${label}`;
   return result.approximate ? `≈ ${amount}` : amount;
 }
 
@@ -183,6 +194,10 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
 
   const amount = formatConverted(result);
   const name = nameOf(ing);
-  const text = name ? `${amount} ${name}` : amount;
+  // Preserve a separate preparation field ("toasted", "finely chopped") — it's
+  // a cooking instruction, not noise, and must survive conversion.
+  const prep = ing.preparation?.trim();
+  const namePart = name && prep ? `${name}, ${prep}` : name || prep || "";
+  const text = namePart ? `${amount} ${namePart}` : amount;
   return { text, status: "converted", approximate: result.approximate, sourceText };
 }

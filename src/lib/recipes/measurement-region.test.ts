@@ -11,8 +11,12 @@ describe("detectSourceRegion", () => {
     expect(detectSourceRegion({ units: [], instructions: ["Preheat oven to 400 F"] })).toBe("us");
   });
 
-  it("reads an imperial pint as UK/Ireland", () => {
-    expect(detectSourceRegion({ units: ["pint", "oz"], instructions: ["Add 1 pint stock."] })).toBe("uk_ie");
+  it("reads an explicit imperial pint as UK/Ireland", () => {
+    expect(detectSourceRegion({ units: ["pint"], instructions: ["Add 1 imperial pint of stock."] })).toBe("uk_ie");
+  });
+
+  it("does NOT infer a region from a bare, unqualified pint (US and UK pints differ)", () => {
+    expect(detectSourceRegion({ units: ["pint", "oz"], instructions: ["Add 1 pint stock."] })).toBeUndefined();
   });
 
   it("reads clean metric (°C + grams, no Fahrenheit) as metric", () => {
