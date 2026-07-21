@@ -23,14 +23,21 @@ export const CARD_SHELL =
 export const CARD_COVER_H = "h-[118px]";
 
 /**
- * The title clamp and its reserved height are one decision. `line-clamp-2` gives
- * the ellipsis; `min-h-[2lh]` reserves exactly two of THIS element's line-heights
- * so a one-line title is the same height as a two-line one and the grid never
- * staggers. The `lh` unit tracks whatever `leading-tight` resolves to — change the
- * leading and the reserved height follows, with no second value to keep in sync.
+ * The title's reserved two-line box: font size, leading, and a `min-height` of two
+ * of this element's own line-heights. `min-h-[2lh]` reserves exactly two lines so a
+ * one-line title is the same height as a two-line one and the grid never staggers;
+ * the `lh` unit tracks whatever `leading-tight` resolves to, so there is no second
+ * value to keep in sync. Exported because the loading skeleton (`ShelfSkeleton`)
+ * reserves the identical box — otherwise a single-line card visibly grows when the
+ * placeholder resolves, the very reflow the shared-class pattern exists to prevent.
  */
-const CARD_TITLE =
-  "line-clamp-2 min-h-[2lh] text-[14.5px] font-bold leading-tight tracking-[-0.01em] text-ink [text-wrap:balance]";
+export const CARD_TITLE_BOX = "min-h-[2lh] text-[14.5px] leading-tight";
+
+/**
+ * The title clamp and its reserved box are one decision: `line-clamp-2` gives the
+ * ellipsis, `CARD_TITLE_BOX` reserves the two lines it clamps to.
+ */
+const CARD_TITLE = `line-clamp-2 ${CARD_TITLE_BOX} font-bold tracking-[-0.01em] text-ink [text-wrap:balance]`;
 
 /**
  * One meta item — an icon and its value — defined once rather than per stat, so the
