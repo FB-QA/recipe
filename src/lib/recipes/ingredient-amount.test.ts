@@ -246,6 +246,29 @@ describe("renderIngredientAmount", () => {
     expect(r.text).not.toMatch(/tsp/);
   });
 
+  it("does not reflow an already-target-unit amount (50g stays 50g in Metric)", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "50g flour", quantity_value: 50, unit: "g", name: "flour" }),
+      { scale: 1, targetSystem: "metric" },
+    );
+    // No unit change → keep original formatting, never "50 g flour".
+    expect(r.text).toBe("50g flour");
+    // And it matches Original mode exactly.
+    const orig = renderIngredientAmount(
+      ing({ display_text: "50g flour", quantity_value: 50, unit: "g", name: "flour" }),
+      { scale: 1, targetSystem: "original" },
+    );
+    expect(r.text).toBe(orig.text);
+  });
+
+  it("still scales an already-target-unit amount when portions change", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "50g flour", quantity_value: 50, unit: "g", name: "flour" }),
+      { scale: 2, targetSystem: "metric" },
+    );
+    expect(r.text).toBe("100g flour");
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),

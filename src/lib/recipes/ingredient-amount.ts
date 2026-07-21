@@ -224,6 +224,14 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
     return fallback("unsupported_conversion");
   }
 
+  // No unit change ⇒ already in the target unit (e.g. grams stay grams in
+  // Metric). Keep the ORIGINAL line's formatting rather than rebuilding it,
+  // which would only reflow "50g" → "50 g" for no real change. The value is
+  // already the correct target-system value, so status stays "converted".
+  if (result.convertedUnit === norm.unit) {
+    return { text: scaled(), status: "converted", approximate: false, sourceText };
+  }
+
   const amount = formatConverted(result);
   // Preserve a separate preparation field ("toasted") — a cooking instruction.
   const prep = ing.preparation?.trim();
