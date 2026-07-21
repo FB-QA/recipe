@@ -26,16 +26,17 @@ any new queue/worker infrastructure.
 ## 1. Shape of the design
 
 The import returns the preview at ~9s with the composite cover. The clean cover is
-fetched by a **client-triggered request the client can cancel** — so it must be a
-**route handler** (`POST /api/imports/[id]/cover`) the preview `fetch`es with an
-`AbortController`, not a server action (a server-action call can't be aborted). The
-preview shows a shimmer while it's in flight and swaps the cover in on success.
+fetched by a **route handler** (`POST /api/imports/[id]/cover`) the preview `fetch`es;
+the preview shows a shimmer while it's in flight and swaps the cover in on success.
 
-**On save before the cover lands (Q1):** the client `abort()`s the in-flight request
-and saves with the composite cover. No background completion, no saved-recipe update —
-if the user didn't wait, they keep the play-button thumbnail. The route handler
-receives the abort via `request.signal` (threaded into the Apify call) so the work is
-genuinely cancelled, not just ignored. No queue, no worker, no `after()`.
+**On save before the cover lands (Q1) — REVISED:** the run is **not** cancelled. An
+Apify run we have already paid to start is finished server-side (kept alive with
+`after()`), and its clean image is applied wherever the import now is: patched onto
+the import's `extracted.source.coverImageUrl` if still in review, or **upserted onto
+the saved recipe's cover** if the run outran the save. Cancelling would burn the token
+for nothing; completing gives a saved recipe its clean thumbnail a few seconds later,
+in the background. The Apify call no longer takes a caller signal, and the client no
+longer aborts on save.
 
 ## 2. The pending signal (no new state)
 
@@ -53,32 +54,35 @@ No new column, no flag to keep in sync. Once the cover is replaced by Apify's cl
 ## 3. Server changes
 
 ### 3.1 Main pipeline stops enriching inline
-`runPipelineFor` (`actions.ts`) no longer passes `coverEnricher` to the engine. The
-pipeline finishes retrieval (direct) + AI and marks `ready_for_review` with the
-composite cover. The engine's existing enrichment block (`engine.ts:341–381`) stays
-in place but dormant (it is gated on `deps.coverEnricher`); engine unit tests that
-pass their own enricher are unaffected.
+`runPipelineFor` (`actions.ts`) no longer passes any cover enricher to the engine.
+The pipeline finishes retrieval (direct) + AI and marks `ready_for_review` with the
+composite cover. The old inline enrichment block in `engine.ts` was removed — the
+single home for cover enrichment is now `enrich-cover.ts`.
 
 Result: time-to-response drops to ~9s.
 
 ### 3.2 Route handler `POST /api/imports/[id]/cover`
-1. Auth (`currentUser`); load row (`readById`). Guards — return `{ coverUrl: current
-   }` with NO Apify call unless: Instagram import, state `ready_for_review`, and cover
-   still composite (`isCompositeReelCover`). Idempotent — a repeat is a no-op.
-2. Run the Apify cover resolver, passing `request.signal` so a client `abort()`
-   genuinely cancels the work (not just the client's wait).
-3. Record an `apify_cover` retrieval attempt in the ledger
-   (`openRetrievalAttempt` / `closeRetrievalAttempt`) — cost accounting identical to
-   today, just recorded from here. (A request aborted before the attempt starts records
-   nothing.)
-4. If a clean (non-`cmp1`) image returns: update the import's
-   `extracted.source.coverImageUrl` (CAS: only while still composite), add cost to the
-   row total, return `{ coverUrl: clean }`. Otherwise return `{ coverUrl: null }`.
-5. Failures / aborts return `{ coverUrl: null }` — the composite stands.
+1. Auth (`currentUser`); load row (`readById`). Cheap early-out on the shared
+   `shouldEnrichCover` predicate **and** `config.apifyToken` — no ledger/Apify work
+   unless: Apify is configured, switch on, Instagram import, state `ready_for_review`,
+   cover still composite. Idempotent — a repeat is a no-op.
+2. Start the enrichment **once** (`enrichImportCover`). The Apify resolver takes no
+   caller signal, so a client disconnect does not cancel it. `after(() => enrichment)`
+   keeps it alive past a disconnect; the synchronous `await` returns the clean cover
+   for the live preview. Same promise → a single Apify run either way.
+3. `enrichImportCover` records an `apify_cover` ledger attempt, then calls
+   `onComplete(coverUrl | null, cost)` for **every** completed attempt (even a failed
+   one) so the cost always reconciles with the ledger.
+4. `onComplete` → `applyEnrichedCover` (state-aware): in review → patch the import
+   cover (CAS same-state, atomic cost); already saved → `storeCoverFromUrl` upserts the
+   clean image onto the recipe (atomic cost on the import); either way the cost is
+   added in the database, never dropped.
+5. Response returns `{ coverUrl: clean ?? current }`; failures keep the composite.
 
-No `createRecipe` change: save persists the client's current `importCoverUrl` hidden
-field, which is the composite until the swap lands and the clean URL after — so an
-early save (before swap) keeps the composite, exactly as intended.
+No `createRecipe` change to the save path itself: it persists the client's current
+`importCoverUrl` (composite until the swap lands). The saved-recipe swap is done by
+`applyEnrichedCover` via the shared `storeCoverFromUrl`, overwriting the same cover
+path in place.
 
 ### 3.3 Store method
 `updateExtractedCover(userId, importId, cleanUrl, costDeltaMicroUsd)` — patches the

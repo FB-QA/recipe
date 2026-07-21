@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { storeCoverFromUrl } from "@/lib/recipes/cover";
 import { importConfig } from "./config";
 import type { AiAttemptClose, ImportStore, RetrievalAttemptClose } from "./engine";
 import type { PriceRow } from "./pricing";
@@ -306,42 +307,57 @@ export async function nextRetrievalAttemptNumber(importId: string): Promise<numb
 }
 
 /**
- * Patch the enriched cover onto a review-stage import (deferred cover enrichment).
+ * Apply the result of a deferred cover enrichment, wherever the import now is.
  *
- * The cost is accumulated ATOMICALLY: the write goes through the `import_transition`
- * RPC, whose `total_cost_micro_usd = total_cost_micro_usd + p_cost_delta` runs in the
- * database, so two overlapping enrichments (a retry, or the review open in two tabs)
- * each add their own Apify cost rather than one read-modify-write clobbering the
- * other. `p_expected = p_next = ready_for_review` keeps the state and acts as the CAS
- * guard, so it can never touch a row that has since been saved/failed.
+ * Called for EVERY completed attempt — a clean cover, or `coverUrl = null` for a
+ * failed/no-clean one — so the import's `total_cost_micro_usd` always reconciles with
+ * the retrieval ledger (which already recorded the paid attempt) and no cost is
+ * silently dropped when the row is saved mid-run.
+ *
+ * - **Still in review** → patch the clean cover onto the import's `extracted`; the
+ *   review preview picks it up.
+ * - **Already saved** (the Apify run finished *after* the user hit Save to shelf) →
+ *   upsert the clean cover onto the SAVED recipe, so a run we already paid to start
+ *   is not wasted.
+ * - Either way the cost is added ATOMICALLY via the `import_transition` RPC
+ *   (`total_cost_micro_usd = total_cost_micro_usd + p_cost_delta`, in the database),
+ *   with `p_expected = p_next = <current state>` as a same-state CAS guard so
+ *   overlapping runs (a retry, or the review open in two tabs) each add their own
+ *   cost rather than clobbering one another.
  */
-export async function updateExtractedCover(
+export async function applyEnrichedCover(
   userId: string,
   importId: string,
-  coverUrl: string,
+  coverUrl: string | null,
   costDeltaMicroUsd: number,
 ): Promise<void> {
   const db = svc();
-  // The RPC replaces `extracted` wholesale, so read the current value to patch just
-  // the cover. (The recipe body is fixed at this stage; only the cover changes, so a
-  // concurrent writer setting the same clean cover is a harmless last-writer-wins.)
   const { data } = await db
     .from("recipe_imports")
-    .select("extracted, state")
+    .select("extracted, state, recipe_id")
     .eq("id", importId)
     .eq("user_id", userId)
     .maybeSingle();
-  const row = data as { extracted: ExtractedRecipe | null; state: ImportState | null } | null;
-  if (!row?.extracted || row.state !== "ready_for_review") return;
+  const row = data as
+    | { extracted: ExtractedRecipe | null; state: ImportState | null; recipe_id: string | null }
+    | null;
+  if (!row?.state) return;
 
-  const extracted: ExtractedRecipe = {
-    ...row.extracted,
-    source: { ...row.extracted.source, coverImageUrl: coverUrl },
-  };
+  // Cover swap onto the import applies only while it is still in review; the RPC
+  // replaces `extracted` wholesale, so patch just the cover onto the current value.
+  let extracted = row.extracted;
+  if (row.state === "ready_for_review" && coverUrl && row.extracted) {
+    extracted = { ...row.extracted, source: { ...row.extracted.source, coverImageUrl: coverUrl } };
+  } else if (row.state === "saved" && row.recipe_id && coverUrl) {
+    // The run outran the save — land the clean cover on the recipe itself.
+    await storeCoverFromUrl(db.storage, userId, row.recipe_id, coverUrl);
+  }
+
+  // Same-state atomic write: reconcile the ledger cost (and, in review, the cover).
   await db.rpc("import_transition", {
     p_id: importId,
-    p_expected: "ready_for_review",
-    p_next: "ready_for_review",
+    p_expected: row.state,
+    p_next: row.state,
     p_extracted: extracted,
     p_cost_delta: costDeltaMicroUsd,
   });

@@ -62,7 +62,7 @@ function cleanResult(imageUrl: string | null): SourceResolverResult {
 }
 
 let store: { openRetrievalAttempt: ReturnType<typeof vi.fn>; closeRetrievalAttempt: ReturnType<typeof vi.fn> };
-let updateCover: ReturnType<typeof vi.fn>;
+let onComplete: ReturnType<typeof vi.fn>;
 
 function deps(over: Partial<CoverEnrichDeps>): CoverEnrichDeps {
   return {
@@ -73,7 +73,7 @@ function deps(over: Partial<CoverEnrichDeps>): CoverEnrichDeps {
     resolver: resolverReturning(cleanResult(CLEAN)),
     request: { sourceKind: "instagram_reel", url: "https://www.instagram.com/p/ABC/", text: null, userId: "u1", importId: "imp1" },
     attemptNumber: 2,
-    updateCover,
+    onComplete,
     ...over,
   };
 }
@@ -83,7 +83,7 @@ beforeEach(() => {
     openRetrievalAttempt: vi.fn(async () => "attempt1"),
     closeRetrievalAttempt: vi.fn(async () => {}),
   };
-  updateCover = vi.fn(async () => {});
+  onComplete = vi.fn(async () => {});
 });
 
 describe("shouldEnrichCover — the single enrich-or-not rule (route + enrichment share it)", () => {
@@ -112,21 +112,21 @@ describe("enrichImportCover — replaces a composite Reel cover with the clean o
       expect.objectContaining({ resolverId: "apify_cover", providerId: "apify" }),
     );
     expect(store.closeRetrievalAttempt).toHaveBeenCalledWith("attempt1", expect.objectContaining({ status: "succeeded" }));
-    expect(updateCover).toHaveBeenCalledWith(CLEAN, expect.any(Number));
+    expect(onComplete).toHaveBeenCalledWith(CLEAN, expect.any(Number));
   });
 
   it("does nothing (no Apify call) when the kill switch is off", async () => {
     const out = await enrichImportCover(deps({ enabled: false }));
     expect(out).toEqual({ coverUrl: COMPOSITE });
     expect(store.openRetrievalAttempt).not.toHaveBeenCalled();
-    expect(updateCover).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
   });
 
   it("does nothing (no Apify call) when the cover is already clean", async () => {
     const out = await enrichImportCover(deps({ row: rowWith(CLEAN) }));
     expect(out).toEqual({ coverUrl: CLEAN });
     expect(store.openRetrievalAttempt).not.toHaveBeenCalled();
-    expect(updateCover).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
   });
 
   it("does nothing when the import is not in review", async () => {
@@ -139,12 +139,13 @@ describe("enrichImportCover — replaces a composite Reel cover with the clean o
     const out = await enrichImportCover(deps({ resolver: resolverReturning(null) }));
     expect(out).toEqual({ coverUrl: null });
     expect(store.closeRetrievalAttempt).toHaveBeenCalledWith("attempt1", expect.objectContaining({ status: "failed" }));
-    expect(updateCover).not.toHaveBeenCalled();
+    // Still reported (coverUrl null) so the attempt's cost reconciles with the ledger.
+    expect(onComplete).toHaveBeenCalledWith(null, expect.any(Number));
   });
 
   it("keeps the composite when Apify returns another composite image", async () => {
     const out = await enrichImportCover(deps({ resolver: resolverReturning(cleanResult(COMPOSITE)) }));
     expect(out).toEqual({ coverUrl: null });
-    expect(updateCover).not.toHaveBeenCalled();
+    expect(onComplete).toHaveBeenCalledWith(null, expect.any(Number));
   });
 });

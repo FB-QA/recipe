@@ -62,7 +62,6 @@ export function RecipeForm({
   importCoverUrl,
   importId,
   coverEnriching,
-  onBeforeSave,
   isNew,
   onSaved,
 }: {
@@ -75,8 +74,6 @@ export function RecipeForm({
   importId?: string;
   /** The deferred Reel cover is still being fetched — show a shimmer on the cover. */
   coverEnriching?: boolean;
-  /** Called on submit, before the action runs — used to cancel the in-flight cover fetch. */
-  onBeforeSave?: () => void;
   /** Newly-created recipe (adds ?created=1 so the detail page toasts "Saved"). */
   isNew?: boolean;
   /** Host handles navigation on save (e.g. a drawer closes then routes). When
@@ -194,11 +191,7 @@ export function RecipeForm({
   };
 
   return (
-    <form
-      action={formAction}
-      onSubmit={() => onBeforeSave?.()}
-      className="flex flex-col gap-5 pb-4"
-    >
+    <form action={formAction} className="flex flex-col gap-5 pb-4">
       <input type="hidden" name="payload" value={JSON.stringify(payload)} />
       <input type="hidden" name="coverAction" value={coverAction} />
       {importId && <input type="hidden" name="importId" value={importId} />}

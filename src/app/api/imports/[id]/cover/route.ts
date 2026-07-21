@@ -1,15 +1,14 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse, after } from "next/server";
 import { currentUser } from "@/lib/auth/session";
 import { importConfig } from "@/lib/import/config";
 import {
   readById,
   loadPrices,
   createImportStore,
-  updateExtractedCover,
+  applyEnrichedCover,
   nextRetrievalAttemptNumber,
 } from "@/lib/import/store";
 import { createApifyResolver } from "@/lib/import/resolvers/apify";
-import { fetchInstagram } from "@/lib/import/apify";
 import { enrichImportCover, shouldEnrichCover } from "@/lib/import/enrich-cover";
 import type { RecipeImportSourceType } from "@/lib/import/schema";
 
@@ -29,40 +28,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const row = await readById(user.id, id);
   if (!row) return NextResponse.json({ coverUrl: null }, { status: 404 });
 
-  // Cheap early-out on the shared predicate — skip the price/ledger/Apify work
-  // entirely when there is nothing to enrich (switch off, cover already clean,
-  // import already saved, or not an Instagram composite).
+  // Cheap early-out — skip the price/ledger/Apify work entirely when there is
+  // nothing to enrich: no Apify token configured, or the shared predicate says no
+  // (switch off, cover already clean, import saved, or not an Instagram composite).
   const config = importConfig();
   const currentCover = row.extracted?.source?.coverImageUrl ?? null;
-  if (!shouldEnrichCover(row, config.reelCoverEnrich)) {
+  if (!config.apifyToken || !shouldEnrichCover(row, config.reelCoverEnrich)) {
     return NextResponse.json({ coverUrl: currentCover });
   }
 
   const prices = await loadPrices();
   const store = createImportStore(prices);
-  const resolver = createApifyResolver({ fetchInstagram: (url) => fetchInstagram(url, request.signal) });
+  // No caller signal: the run is NOT cancelled when the client navigates away on
+  // save — one we have already paid to start finishes, and `applyEnrichedCover`
+  // lands its clean image on the import (still in review) or the saved recipe.
+  const resolver = createApifyResolver();
   const attemptNumber = await nextRetrievalAttemptNumber(id);
 
-  try {
-    const result = await enrichImportCover({
-      enabled: config.reelCoverEnrich,
-      row,
-      prices,
-      store,
-      resolver,
-      request: {
-        sourceKind: (row.source_kind ?? "instagram_reel") as RecipeImportSourceType,
-        url: row.source_url,
-        text: null,
-        userId: user.id,
-        importId: id,
-      },
-      attemptNumber,
-      updateCover: (coverUrl, cost) => updateExtractedCover(user.id, id, coverUrl, cost),
-    });
-    return NextResponse.json(result);
-  } catch {
-    // Never surface a cosmetic-cover failure as an error to the client.
-    return NextResponse.json({ coverUrl: null });
-  }
+  // One enrichment, awaited twice: `after()` keeps it (and its apply) alive past a
+  // client disconnect; the synchronous await returns the clean cover for the live
+  // review preview. Same promise → a single Apify run either way.
+  const enrichment = enrichImportCover({
+    enabled: config.reelCoverEnrich,
+    row,
+    prices,
+    store,
+    resolver,
+    request: {
+      sourceKind: (row.source_kind ?? "instagram_reel") as RecipeImportSourceType,
+      url: row.source_url,
+      text: null,
+      userId: user.id,
+      importId: id,
+    },
+    attemptNumber,
+    onComplete: (coverUrl, cost) => applyEnrichedCover(user.id, id, coverUrl, cost),
+  }).catch(() => ({ coverUrl: null as string | null }));
+
+  after(() => enrichment);
+  const { coverUrl } = await enrichment;
+  return NextResponse.json({ coverUrl: coverUrl ?? currentCover });
 }

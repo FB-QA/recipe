@@ -159,18 +159,17 @@ function Review({
   const creatorLabel = attributionLabel(recipe.source.creatorName, { at: sourceType === "instagram" }) ?? "Imported";
 
   // Deferred Reel cover enrichment (spec: docs/spec/defer-cover-enrichment.md). The
-  // pipeline handed us the play-button composite so we got here ~11s sooner; fetch
-  // the clean Apify cover in the background and swap it in. Saving cancels the fetch
-  // (the request is aborted) and keeps the composite thumbnail.
+  // pipeline handed us the play-button composite so we got here sooner; fetch the
+  // clean Apify cover and swap it in. Saving does NOT cancel the run — the server
+  // finishes it (kept alive with after()) and lands the clean cover on the import
+  // while in review, or on the saved recipe if the run outran the save.
   const initialCover = recipe.source.coverImageUrl;
   const [coverUrl, setCoverUrl] = useState<string | null>(initialCover);
   const [coverEnriching, setCoverEnriching] = useState(() => isCompositeReelCover(initialCover));
-  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!isCompositeReelCover(initialCover)) return;
     const ctrl = new AbortController();
-    abortRef.current = ctrl;
     const cap = setTimeout(() => ctrl.abort(), COVER_ENRICH_TIMEOUT_MS);
     (async () => {
       try {
@@ -208,7 +207,6 @@ function Review({
         source={{ type: sourceType, url: recipe.source.sourceUrl ?? "", handle: recipe.source.creatorName }}
         importCoverUrl={coverUrl}
         coverEnriching={coverEnriching}
-        onBeforeSave={() => abortRef.current?.abort()}
         importId={importId}
         submitLabel="Save to shelf"
         isNew

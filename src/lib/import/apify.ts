@@ -17,13 +17,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * the app never depends on Meta staying reachable. This is a paid third-party
  * scraper (ToS grey area); keep it here and nowhere else.
  */
-export async function fetchInstagram(url: string, external?: AbortSignal): Promise<InstagramMedia | null> {
+export async function fetchInstagram(url: string): Promise<InstagramMedia | null> {
   const token = process.env.APIFY_API_TOKEN;
   if (!token) return null;
-  // Combine each request's own timeout with an optional caller signal, so the
-  // deferred cover fetch is genuinely cancelled when the user saves (spec §1).
-  const withTimeout = (ms: number) =>
-    external ? AbortSignal.any([external, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
 
   let runId: string | null = null;
   let succeeded = false;
@@ -38,9 +34,6 @@ export async function fetchInstagram(url: string, external?: AbortSignal): Promi
         resultsLimit: 1,
         addParentData: false,
       }),
-      // Deliberately NOT the external signal: if the caller aborts mid-start, Apify
-      // may already have created a paid run, and we need its id captured so the
-      // `finally` can abort it. Honour cancellation AFTER the id is known.
       signal: AbortSignal.timeout(15_000),
     });
     if (!startRes.ok) return null;
@@ -54,10 +47,9 @@ export async function fetchInstagram(url: string, external?: AbortSignal): Promi
     let status = run.data.status as string;
     let usageUsd = 0;
     while (Date.now() < deadline) {
-      if (external?.aborted) return null; // caller (e.g. a save) cancelled — the finally aborts the run.
       await sleep(3_000);
       const poll = await fetch(`${BASE}/actor-runs/${runId}?token=${token}`, {
-        signal: withTimeout(10_000),
+        signal: AbortSignal.timeout(10_000),
       });
       if (!poll.ok) continue;
       const body = await poll.json();
@@ -69,7 +61,7 @@ export async function fetchInstagram(url: string, external?: AbortSignal): Promi
     succeeded = true;
 
     const itemsRes = await fetch(`${BASE}/datasets/${datasetId}/items?clean=true&token=${token}`, {
-      signal: withTimeout(15_000),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!itemsRes.ok) return null;
 

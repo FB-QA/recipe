@@ -23,8 +23,13 @@ export interface CoverEnrichDeps {
   request: ImportRequest;
   /** Next attempt number in this import's retrieval ledger. */
   attemptNumber: number;
-  /** Persist the clean cover onto the import row (CAS-guarded in the real impl). */
-  updateCover: (coverUrl: string, costMicroUsd: number) => Promise<void>;
+  /**
+   * Called once the attempt is closed, with the clean cover (or null when the run
+   * failed / returned another composite) and the cost incurred. Always invoked when
+   * an attempt ran, so the cost reconciles with the ledger even without a new cover;
+   * the real impl applies the cover to the import-in-review or the saved recipe.
+   */
+  onComplete: (coverUrl: string | null, costMicroUsd: number) => Promise<void>;
 }
 
 /**
@@ -97,9 +102,9 @@ export async function enrichImportCover(deps: CoverEnrichDeps): Promise<{ coverU
     latencyMs: Math.max(0, Date.now() - started),
   });
 
-  if (usable && cleanImage) {
-    await deps.updateCover(cleanImage, cost.costMicroUsd);
-    return { coverUrl: cleanImage };
-  }
-  return { coverUrl: null };
+  // Always report the completed attempt so its cost reconciles with the ledger,
+  // even when there is no usable cover to swap in.
+  const coverUrl = usable && cleanImage ? cleanImage : null;
+  await deps.onComplete(coverUrl, cost.costMicroUsd);
+  return { coverUrl };
 }

@@ -7,8 +7,9 @@ import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
 import { parseRecipePayload, type RecipeInput } from "./schema";
 import { resolveGroups, flattenIngredients } from "./groups";
 import { markImportSaved } from "@/lib/import/store";
-import { optimizeCover, optimizeFromUrl } from "@/lib/images/optimize";
+import { optimizeCover } from "@/lib/images/optimize";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
+import { storeCoverFromUrl } from "./cover";
 
 export type RecipeFormState = { error?: string } | { ok: true; id: string } | undefined;
 
@@ -30,15 +31,8 @@ async function uploadCover(supabase: Client, userId: string, recipeId: string, f
   return path;
 }
 
-async function uploadCoverFromUrl(supabase: Client, userId: string, recipeId: string, url: string) {
-  const optimized = await optimizeFromUrl(url);
-  if (!optimized) return null;
-  const path = `${userId}/${recipeId}/cover.webp`;
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, optimized, { contentType: "image/webp", upsert: true });
-  return error ? null : path;
-}
+const uploadCoverFromUrl = (supabase: Client, userId: string, recipeId: string, url: string) =>
+  storeCoverFromUrl(supabase.storage, userId, recipeId, url);
 
 async function removeRecipeFolder(supabase: Client, userId: string, recipeId: string) {
   const prefix = `${userId}/${recipeId}`;
