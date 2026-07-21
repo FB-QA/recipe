@@ -38,16 +38,21 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
     units.some((u) => ["g", "kg", "gram", "grams", "kilogram", "kilograms"].includes(u)) ||
     /\d\s*g\b|\bgrams?\b/.test(text);
 
-  // Collapse to the distinct region cues; more than one distinct cue → we can't
-  // tell, so don't guess (leave region-sensitive units unchanged).
-  const usCue = hasFahrenheit || hasUsQualifier;
+  // A recipe that weighs in grams AND uses Celsius is metric-family — a printed
+  // "180°C/350°F" or "340g/12oz" is a courtesy dual annotation, NOT a US signal
+  // (US recipes don't weigh in grams). This anchor beats a bare Fahrenheit.
+  const hasMetricAnchor = hasCelsius && hasMetricWeight;
   const ukCue = hasImperialPint || hasGasMark;
-  const metricCue = hasMetricQualifier;
-  if (hasFahrenheit && hasCelsius) return undefined;
-  if ([usCue, ukCue, metricCue].filter(Boolean).length > 1) return undefined;
-  if (usCue) return "us";
+
+  // Genuine conflicts → we can't tell; don't guess.
+  if (hasUsQualifier && ukCue) return undefined;
+  if (hasFahrenheit && ukCue) return undefined;
+
+  if (hasUsQualifier) return "us";
   if (ukCue) return "uk_ie";
-  if (metricCue) return "metric";
-  if (hasCelsius && hasMetricWeight) return "metric";
+  if (hasMetricAnchor || hasMetricQualifier) return "metric";
+  // No metric anchor: both oven scales with nothing to break the tie → unknown.
+  if (hasFahrenheit && hasCelsius) return undefined;
+  if (hasFahrenheit) return "us";
   return undefined;
 }

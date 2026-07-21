@@ -40,8 +40,19 @@ describe("detectSourceRegion", () => {
   });
 
   it("stays undefined on a conflicting/mixed signal rather than guessing", () => {
-    // Both °F (US) and °C present → ambiguous.
+    // Both °F (US) and °C present, no metric anchor → ambiguous.
     expect(detectSourceRegion({ units: ["cup"], instructions: ["Bake at 180°C or 350°F."] })).toBeUndefined();
+  });
+
+  it("reads a gram-and-Celsius recipe as metric despite a courtesy °F", () => {
+    // Real case: "Preheat to 180°C/350°F" + grams throughout is a metric recipe;
+    // the /350°F is a dual annotation, not a US signal.
+    expect(
+      detectSourceRegion({
+        units: [null, null],
+        instructions: ["Preheat the oven to 180°C/350°F (160°C fan-forced).", "1 x 340g/12oz can milk"],
+      }),
+    ).toBe("metric");
   });
 
   it("stays undefined when a US cue and an imperial (UK) cue conflict", () => {
