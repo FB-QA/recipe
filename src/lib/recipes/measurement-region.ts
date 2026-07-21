@@ -37,22 +37,30 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
   const hasMetricWeight =
     units.some((u) => ["g", "kg", "gram", "grams", "kilogram", "kilograms"].includes(u)) ||
     /\d\s*g\b|\bgrams?\b/.test(text);
-
-  // A recipe that weighs in grams AND uses Celsius is metric-family — a printed
-  // "180°C/350°F" or "340g/12oz" is a courtesy dual annotation, NOT a US signal
-  // (US recipes don't weigh in grams). This anchor beats a bare Fahrenheit.
-  const hasMetricAnchor = hasCelsius && hasMetricWeight;
+  const hasMetricLength = /\d\s*mm\b|\d\s*cm\b/.test(text);
+  // Grams or mm/cm ⇒ a metric-family recipe: US recipes weigh in oz/lb and
+  // measure in inches, never grams/mm. This holds even with no oven temperature
+  // (a stovetop recipe), and a printed "500g / 1 lb" or "180°C/350°F" is a
+  // courtesy dual annotation, not a US signal.
+  const metricMeasure = hasMetricWeight || hasMetricLength;
+  const usCue = hasFahrenheit || hasUsQualifier;
   const ukCue = hasImperialPint || hasGasMark;
 
-  // Genuine conflicts → we can't tell; don't guess.
-  if (hasUsQualifier && ukCue) return undefined;
-  if (hasFahrenheit && ukCue) return undefined;
+  // Genuine conflicts → we can't tell; don't guess (US cup + gas mark, °F + imperial pint).
+  if (usCue && ukCue) return undefined;
 
-  if (hasUsQualifier) return "us";
-  if (ukCue) return "uk_ie";
-  if (hasMetricAnchor || hasMetricQualifier) return "metric";
-  // No metric anchor: both oven scales with nothing to break the tie → unknown.
+  // Explicit UK/IE cues first — an imperial pint MUST resolve to UK/IE (568 ml,
+  // not the US 473 ml); a gas mark is a UK/IE oven convention.
+  if (hasImperialPint || hasGasMark) return "uk_ie";
+  // A Celsius-and-metric recipe is metric even with a courtesy °F (Tres Leches).
+  if (hasCelsius && metricMeasure) return "metric";
+  // Both oven scales, no metric anchor to break the tie → unknown.
   if (hasFahrenheit && hasCelsius) return undefined;
-  if (hasFahrenheit) return "us";
+  // A US-primary cue (Fahrenheit / "US cup") wins when there is no metric anchor;
+  // any grams then read as a courtesy annotation.
+  if (usCue) return "us";
+  // No temperature or qualifier at all — metric measures (grams/mm) alone still
+  // identify a metric-family recipe, so its cups/spoons convert.
+  if (metricMeasure || hasMetricQualifier) return "metric";
   return undefined;
 }

@@ -72,8 +72,15 @@ describe("detectSourceRegion", () => {
     expect(detectSourceRegion({ units: [], instructions: ["Gas Mark 6 / 400°F."] })).toBeUndefined();
   });
 
-  it("does not treat a lone gram as a region signal without a temperature", () => {
-    expect(detectSourceRegion({ units: ["g"], instructions: ["Weigh 200 g."] })).toBeUndefined();
+  it("reads a grams/mm recipe as metric even with NO oven temperature (stovetop)", () => {
+    // US recipes weigh in oz/lb and measure in inches — grams or mm identify a
+    // metric-family recipe, so its cups/spoons still convert.
+    expect(detectSourceRegion({ units: [], instructions: ["Weigh 500 g pork mince.", "Cut into 8mm wedges."] })).toBe("metric");
+  });
+
+  it("stays undefined for a cups-only recipe with no metric measure or temperature", () => {
+    // No grams/mm, no oven temp, no qualifier — genuinely can't tell the region.
+    expect(detectSourceRegion({ units: ["cup", "tbsp"], instructions: ["Mix 1 cup flour with 2 tbsp sugar."] })).toBeUndefined();
   });
 
   it("is null-safe on empty input", () => {
