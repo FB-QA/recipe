@@ -307,8 +307,13 @@ export async function nextRetrievalAttemptNumber(importId: string): Promise<numb
 
 /**
  * Patch the enriched cover onto a review-stage import (deferred cover enrichment).
- * Read-modify-write on the `extracted` JSONB, CAS-guarded on `state` so it can never
- * clobber a row that has since been saved/failed, and always user-scoped.
+ *
+ * The cost is accumulated ATOMICALLY: the write goes through the `import_transition`
+ * RPC, whose `total_cost_micro_usd = total_cost_micro_usd + p_cost_delta` runs in the
+ * database, so two overlapping enrichments (a retry, or the review open in two tabs)
+ * each add their own Apify cost rather than one read-modify-write clobbering the
+ * other. `p_expected = p_next = ready_for_review` keeps the state and acts as the CAS
+ * guard, so it can never touch a row that has since been saved/failed.
  */
 export async function updateExtractedCover(
   userId: string,
@@ -317,28 +322,29 @@ export async function updateExtractedCover(
   costDeltaMicroUsd: number,
 ): Promise<void> {
   const db = svc();
+  // The RPC replaces `extracted` wholesale, so read the current value to patch just
+  // the cover. (The recipe body is fixed at this stage; only the cover changes, so a
+  // concurrent writer setting the same clean cover is a harmless last-writer-wins.)
   const { data } = await db
     .from("recipe_imports")
-    .select("extracted, total_cost_micro_usd, state")
+    .select("extracted, state")
     .eq("id", importId)
     .eq("user_id", userId)
     .maybeSingle();
-  const row = data as { extracted: ExtractedRecipe | null; total_cost_micro_usd: number; state: ImportState | null } | null;
+  const row = data as { extracted: ExtractedRecipe | null; state: ImportState | null } | null;
   if (!row?.extracted || row.state !== "ready_for_review") return;
 
   const extracted: ExtractedRecipe = {
     ...row.extracted,
     source: { ...row.extracted.source, coverImageUrl: coverUrl },
   };
-  await db
-    .from("recipe_imports")
-    .update({
-      extracted,
-      total_cost_micro_usd: Number(row.total_cost_micro_usd) + costDeltaMicroUsd,
-    })
-    .eq("id", importId)
-    .eq("user_id", userId)
-    .eq("state", "ready_for_review");
+  await db.rpc("import_transition", {
+    p_id: importId,
+    p_expected: "ready_for_review",
+    p_next: "ready_for_review",
+    p_extracted: extracted,
+    p_cost_delta: costDeltaMicroUsd,
+  });
 }
 
 export const config = importConfig;

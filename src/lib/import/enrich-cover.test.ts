@@ -66,6 +66,7 @@ let updateCover: ReturnType<typeof vi.fn>;
 
 function deps(over: Partial<CoverEnrichDeps>): CoverEnrichDeps {
   return {
+    enabled: true,
     row: rowWith(COMPOSITE),
     prices: [],
     store,
@@ -94,6 +95,13 @@ describe("enrichImportCover — replaces a composite Reel cover with the clean o
     );
     expect(store.closeRetrievalAttempt).toHaveBeenCalledWith("attempt1", expect.objectContaining({ status: "succeeded" }));
     expect(updateCover).toHaveBeenCalledWith(CLEAN, expect.any(Number));
+  });
+
+  it("does nothing (no Apify call) when the kill switch is off", async () => {
+    const out = await enrichImportCover(deps({ enabled: false }));
+    expect(out).toEqual({ coverUrl: COMPOSITE });
+    expect(store.openRetrievalAttempt).not.toHaveBeenCalled();
+    expect(updateCover).not.toHaveBeenCalled();
   });
 
   it("does nothing (no Apify call) when the cover is already clean", async () => {

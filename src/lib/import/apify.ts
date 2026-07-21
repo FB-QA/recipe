@@ -38,7 +38,10 @@ export async function fetchInstagram(url: string, external?: AbortSignal): Promi
         resultsLimit: 1,
         addParentData: false,
       }),
-      signal: withTimeout(15_000),
+      // Deliberately NOT the external signal: if the caller aborts mid-start, Apify
+      // may already have created a paid run, and we need its id captured so the
+      // `finally` can abort it. Honour cancellation AFTER the id is known.
+      signal: AbortSignal.timeout(15_000),
     });
     if (!startRes.ok) return null;
 
@@ -51,7 +54,7 @@ export async function fetchInstagram(url: string, external?: AbortSignal): Promi
     let status = run.data.status as string;
     let usageUsd = 0;
     while (Date.now() < deadline) {
-      if (external?.aborted) return null; // caller (e.g. a save) cancelled — stop polling.
+      if (external?.aborted) return null; // caller (e.g. a save) cancelled — the finally aborts the run.
       await sleep(3_000);
       const poll = await fetch(`${BASE}/actor-runs/${runId}?token=${token}`, {
         signal: withTimeout(10_000),

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth/session";
-import { isCompositeReelCover } from "@/lib/import/config";
+import { isCompositeReelCover, importConfig } from "@/lib/import/config";
 import {
   readById,
   loadPrices,
@@ -29,10 +29,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const row = await readById(user.id, id);
   if (!row) return NextResponse.json({ coverUrl: null }, { status: 404 });
 
-  // Cheap idempotent early-out — skip the price/ledger/Apify work when there is
-  // nothing to enrich (already clean, already saved, or not a composite Reel).
+  // Cheap early-out — skip the price/ledger/Apify work when there is nothing to
+  // enrich: the operator kill switch (IMPORT_REEL_COVER_ENRICH) is off, or the cover
+  // is already clean / the import already saved / it isn't a composite Reel.
+  const config = importConfig();
   const currentCover = row.extracted?.source?.coverImageUrl ?? null;
-  if (row.state !== "ready_for_review" || !isCompositeReelCover(currentCover)) {
+  if (!config.reelCoverEnrich || row.state !== "ready_for_review" || !isCompositeReelCover(currentCover)) {
     return NextResponse.json({ coverUrl: currentCover });
   }
 
@@ -43,6 +45,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const result = await enrichImportCover({
+      enabled: config.reelCoverEnrich,
       row,
       prices,
       store,

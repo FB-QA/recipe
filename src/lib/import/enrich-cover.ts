@@ -14,6 +14,8 @@ import type { ImportRequest, SourceResolver } from "./schema";
  * real store, resolver and DB update; tests wire fakes.
  */
 export interface CoverEnrichDeps {
+  /** The `IMPORT_REEL_COVER_ENRICH` switch — when false, no paid request runs. */
+  enabled: boolean;
   row: ImportRow;
   prices: PriceRow[];
   store: Pick<ImportStore, "openRetrievalAttempt" | "closeRetrievalAttempt">;
@@ -28,11 +30,12 @@ export interface CoverEnrichDeps {
 export async function enrichImportCover(deps: CoverEnrichDeps): Promise<{ coverUrl: string | null }> {
   const currentCover = deps.row.extracted?.source?.coverImageUrl ?? null;
 
-  // Only enrich an Instagram import still sitting in review whose cover is the
-  // composite. Anything else (already clean, already saved, website) is a no-op —
-  // no Apify call, no charge. This also makes the endpoint safely idempotent.
+  // Only enrich when the switch is on AND it's an Instagram import still in review
+  // whose cover is the composite. Anything else (disabled, already clean, already
+  // saved, website) is a no-op — no Apify call, no charge. `enabled` is the operator
+  // kill switch (IMPORT_REEL_COVER_ENRICH) for an incident or rollback.
   const isInstagram = Boolean(deps.row.source_kind?.startsWith("instagram"));
-  if (!isInstagram || deps.row.state !== "ready_for_review" || !isCompositeReelCover(currentCover)) {
+  if (!deps.enabled || !isInstagram || deps.row.state !== "ready_for_review" || !isCompositeReelCover(currentCover)) {
     return { coverUrl: currentCover };
   }
 
