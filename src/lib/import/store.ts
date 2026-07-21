@@ -1,6 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { storeCoverFromUrl } from "@/lib/recipes/cover";
-import { importConfig } from "./config";
+import { importConfig, isCompositeReelCover } from "./config";
 import type { AiAttemptClose, ImportStore, RetrievalAttemptClose } from "./engine";
 import type { PriceRow } from "./pricing";
 import type {
@@ -286,12 +286,31 @@ export function createImportStore(prices: PriceRow[]): ImportStore {
  * filters by `user_id`. A failure here never blocks the recipe save.
  */
 export async function markImportSaved(importId: string, recipeId: string, userId: string): Promise<void> {
-  await svc()
+  const db = svc();
+  await db
     .from("recipe_imports")
     .update({ state: "saved", recipe_id: recipeId })
     .eq("id", importId)
     .eq("user_id", userId)
     .eq("state", "ready_for_review");
+
+  // The import row is the source of truth for the cover — the deferred enrichment may
+  // have swapped in the clean image while the form still submitted its stale composite
+  // `importCoverUrl`. Read the cover AFTER the flip has serialized (so any enrichment
+  // that patched the import while it was in review is now visible) and, if it is clean,
+  // upsert it onto the recipe — overwriting the composite the save just stored. Any
+  // enrichment that finishes AFTER this point sees `saved` and is handled by
+  // applyEnrichedCover's saved branch. So a paid clean cover is never stranded.
+  const { data } = await db
+    .from("recipe_imports")
+    .select("extracted")
+    .eq("id", importId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const cover = (data as { extracted: ExtractedRecipe | null } | null)?.extracted?.source?.coverImageUrl ?? null;
+  if (cover && !isCompositeReelCover(cover)) {
+    await storeCoverFromUrl(db.storage, userId, recipeId, cover);
+  }
 }
 
 /**
