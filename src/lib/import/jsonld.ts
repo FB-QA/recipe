@@ -1,4 +1,7 @@
 import type { AiExtractedRecipe, ExtractedIngredient, ExtractedNutrition, ExtractedRecipeStep } from "./schema";
+import { parseWprmIngredientGroups } from "./wprm";
+
+type IngredientGroup = AiExtractedRecipe["ingredientGroups"][number];
 
 /**
  * schema.org/Recipe JSON-LD parser — the deterministic, zero-cost rung of the
@@ -110,6 +113,44 @@ function yieldValue(text: string | null): number | null {
   return m ? Number(m[0]) : null;
 }
 
+/**
+ * Ingredient sections for the deterministic path. schema.org has none, so we recover
+ * WP Recipe Maker's groups from the HTML when present; otherwise everything goes in
+ * one unnamed group. WPRM is trusted only when it carries at least one NAMED section
+ * and its ingredient count is close to the JSON-LD list's — a wildly different count
+ * means a bad parse, so we fall back rather than ship garbage.
+ */
+function buildIngredientGroups(html: string, flat: string[], title: string): IngredientGroup[] {
+  const wprm = parseWprmIngredientGroups(html, title);
+  if (wprm && wprm.some((g) => g.name)) {
+    const total = wprm.reduce((n, g) => n + g.ingredients.length, 0);
+    // Lower bound floors at 1, not 2 — a valid one-ingredient recipe in a named
+    // section (total === flat === 1) is an exact match, not a suspicious parse.
+    const lo = Math.max(1, Math.floor(flat.length * 0.5));
+    // Upper bound below 2× so a second same-sized recipe card's ingredients (which
+    // would double the count) is rejected rather than silently merged in.
+    if (total >= lo && total <= Math.ceil(flat.length * 1.4)) {
+      let position = 0;
+      return wprm.map((g, gi) => ({
+        temporaryId: `wprm-g${gi}`,
+        name: g.name,
+        position: gi,
+        optional: false,
+        ingredients: g.ingredients.map((t) => toIngredient(t, position++)),
+      }));
+    }
+  }
+  return [
+    {
+      temporaryId: "jsonld-g0",
+      name: null, // single unnamed group: renders no heading (§18)
+      position: 0,
+      optional: false,
+      ingredients: flat.map(toIngredient),
+    },
+  ];
+}
+
 function toIngredient(displayText: string, position: number): ExtractedIngredient {
   return {
     temporaryId: `jsonld-i${position}`,
@@ -177,15 +218,7 @@ export function extractRecipeFromHtml(html: string): AiExtractedRecipe | null {
       prepTimeMinutes: durationToMinutes(firstString(node.prepTime)),
       cookTimeMinutes: durationToMinutes(firstString(node.cookTime)),
       totalTimeMinutes: durationToMinutes(firstString(node.totalTime)),
-      ingredientGroups: [
-        {
-          temporaryId: "jsonld-g0",
-          name: null, // single unnamed group: renders no heading (§18)
-          position: 0,
-          optional: false,
-          ingredients: ingredients.map(toIngredient),
-        },
-      ],
+      ingredientGroups: buildIngredientGroups(html, ingredients, title),
       steps,
       tips: [],
       servingSuggestions: [],
