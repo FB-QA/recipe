@@ -3,12 +3,12 @@ import { describe, it, expect, vi } from "vitest";
 import { MeasurementToggle } from "./measurement-toggle";
 
 describe("MeasurementToggle", () => {
-  it("offers three measurement systems (no ambiguous 'Imperial'/UK target)", () => {
+  it("offers three measurement systems (no separate UK/Ireland target)", () => {
     render(<MeasurementToggle value="original" onChange={() => {}} />);
-    for (const label of ["Original", "Metric", "US custom"]) {
+    for (const label of ["Original", "Metric", "Imperial"]) {
       expect(screen.getByRole("option", { name: label })).toBeInTheDocument();
     }
-    expect(screen.queryByRole("option", { name: /UK|Imperial/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /UK|Ireland/i })).not.toBeInTheDocument();
   });
 
   it("has an accessible label and reflects the selected value", () => {
