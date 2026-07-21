@@ -103,8 +103,8 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     approximate: false,
   };
 
-  if (!Number.isFinite(quantity) || quantity < 0) {
-    return { ...base, error: "INVALID_QUANTITY", explanation: "Quantity must be a non-negative number." };
+  if (!Number.isFinite(quantity)) {
+    return { ...base, error: "INVALID_QUANTITY", explanation: "Quantity must be a finite number." };
   }
 
   const dimension = fromDef.dimension;
@@ -114,6 +114,12 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
       error: "UNSUPPORTED_CONVERSION",
       warning: "This quantity is kept as written.",
     };
+  }
+
+  // Negatives are meaningless for weight/volume/length but legitimate for
+  // temperature (a −18°C freezer, −40°F). Only reject them off-temperature.
+  if (quantity < 0 && dimension !== "temperature") {
+    return { ...base, error: "INVALID_QUANTITY", explanation: "Quantity must be non-negative." };
   }
 
   // Resolve the target unit.
@@ -163,7 +169,7 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     approximate: crossSystem || (dimension === "temperature" && toUnit === "gas_mark"),
   };
 
-  if (quantityMax != null && Number.isFinite(quantityMax) && quantityMax >= 0) {
+  if (quantityMax != null && Number.isFinite(quantityMax) && (quantityMax >= 0 || dimension === "temperature")) {
     const maxConverted = convertOne(quantityMax, fromUnit, toUnit, dimension, sourceRegion, req.targetSystem);
     if (maxConverted !== undefined) result.convertedQuantityMax = maxConverted;
   }

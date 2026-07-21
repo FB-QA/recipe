@@ -147,4 +147,30 @@ repros committed in `measurement.falsify.test.ts`, all green.
    returns a safe low-confidence result rather than fabricate a value
    (principle 5, "never invent"). Captured as a committed repro and flagged for
    the Phase 4 parser-hardening story if real imports show comma-decimal
-   quantities. No other bugs found.
+   quantities.
+
+## QA verdict  (Priya hat — independent pass, all agent duties performed solo)
+
+Read cold, not derived from the verify/falsify suites. Regressions in
+`measurement.qa.test.ts` (7 tests).
+
+**Defect found and fixed — negative temperatures rejected.** `convert()` gated
+`quantity < 0` for every dimension, so a `−18°C` freezer / `−40°F` chill
+instruction returned `INVALID_QUANTITY` instead of converting. The verify pass
+only tested oven temperatures, so the gap was invisible. Fix: negatives allowed
+for `temperature` only; still rejected for weight/volume/length; non-finite
+still rejected everywhere. Range-max guard fixed to match.
+
+| AC | Verdict |
+|----|---------|
+| AC1 unit normalisation | PASS |
+| AC2 quantity parsing | PASS |
+| AC3 exact weight | PASS |
+| AC4 regional volume | PASS |
+| AC5 temperature | PASS *(after negative-temp fix)* |
+| AC6 length / dimensions | PASS |
+| AC7 dimension safety | PASS |
+| AC8 friendly formatting | PASS |
+
+**Final:** 96 tests (76 verify + 13 falsify + 7 QA), tsc + lint clean, full
+repo suite green. No other defects. Foundation is sound.
