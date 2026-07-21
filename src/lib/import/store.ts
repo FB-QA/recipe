@@ -1,5 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import { importConfig } from "./config";
+import { storeCoverFromUrl } from "@/lib/recipes/cover";
+import { APIFY_COVER_RESOLVER_ID } from "./enrich-cover";
+import { importConfig, isCompositeReelCover } from "./config";
 import type { AiAttemptClose, ImportStore, RetrievalAttemptClose } from "./engine";
 import type { PriceRow } from "./pricing";
 import type {
@@ -284,13 +286,135 @@ export function createImportStore(prices: PriceRow[]): ImportStore {
  * `state` guard acts as a CAS so it can't clobber a failed/cancelled row, and it
  * filters by `user_id`. A failure here never blocks the recipe save.
  */
-export async function markImportSaved(importId: string, recipeId: string, userId: string): Promise<void> {
-  await svc()
+export async function markImportSaved(
+  importId: string,
+  recipeId: string,
+  userId: string,
+  coverKept: boolean,
+): Promise<void> {
+  const db = svc();
+  const { data: pre } = await db
     .from("recipe_imports")
-    .update({ state: "saved", recipe_id: recipeId })
+    .select("extracted")
+    .eq("id", importId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const extracted = (pre as { extracted: ExtractedRecipe | null } | null)?.extracted ?? null;
+
+  // When the user did NOT keep the imported cover (they chose their own image, or
+  // removed it), clear the import's cover to null. The deferred enrichment reads that
+  // field as "the cover to apply to the recipe", so clearing it stops a run finishing
+  // after save from overwriting the user's choice (or resurrecting a removed cover).
+  const nextExtracted =
+    !coverKept && extracted?.source
+      ? { ...extracted, source: { ...extracted.source, coverImageUrl: null } }
+      : extracted;
+
+  await db
+    .from("recipe_imports")
+    .update({ state: "saved", recipe_id: recipeId, extracted: nextExtracted })
     .eq("id", importId)
     .eq("user_id", userId)
     .eq("state", "ready_for_review");
+
+  // Kept-cover race: the enrichment may have swapped in the clean image while the form
+  // still submitted the composite. If the import's authoritative cover is now clean,
+  // upsert it onto the recipe, overwriting the composite the save stored. A composite
+  // means enrichment hasn't landed yet — a clean cover arriving later is handled by
+  // applyEnrichedCover's saved branch.
+  const cover = nextExtracted?.source?.coverImageUrl ?? null;
+  if (coverKept && cover && !isCompositeReelCover(cover)) {
+    await storeCoverFromUrl(db.storage, userId, recipeId, cover);
+  }
+}
+
+/**
+ * The next retrieval-attempt number for an import — the deferred cover enrichment
+ * runs in its own request, so it can't share the engine's in-memory counter.
+ */
+export async function nextRetrievalAttemptNumber(importId: string): Promise<number> {
+  const { count } = await svc()
+    .from("source_retrieval_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("recipe_import_id", importId);
+  return (count ?? 0) + 1;
+}
+
+/**
+ * Whether a deferred cover enrichment has already been attempted for this import —
+ * a prior `apify_cover` ledger row, succeeded OR failed. The route consults this so a
+ * failed run (which leaves the cover composite, keeping the enrich predicate true)
+ * can't be re-started — and re-paid — every time the review is reopened. At-most-once.
+ */
+export async function hasCoverEnrichmentAttempt(importId: string): Promise<boolean> {
+  const { count } = await svc()
+    .from("source_retrieval_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("recipe_import_id", importId)
+    .eq("resolver_id", APIFY_COVER_RESOLVER_ID);
+  return (count ?? 0) > 0;
+}
+
+/**
+ * Apply the result of a deferred cover enrichment, wherever the import now is.
+ *
+ * Called for EVERY completed attempt — a clean cover, or `coverUrl = null` for a
+ * failed/no-clean one — so the import's `total_cost_micro_usd` always reconciles with
+ * the retrieval ledger (which already recorded the paid attempt) and no cost is
+ * silently dropped when the row is saved mid-run.
+ *
+ * - **Still in review** → patch the clean cover onto the import's `extracted`; the
+ *   review preview picks it up.
+ * - **Already saved** (the Apify run finished *after* the user hit Save to shelf) →
+ *   upsert the clean cover onto the SAVED recipe, so a run we already paid to start
+ *   is not wasted.
+ * - Either way the cost is added ATOMICALLY via the `import_transition` RPC
+ *   (`total_cost_micro_usd = total_cost_micro_usd + p_cost_delta`, in the database),
+ *   with `p_expected = p_next = <current state>` as a same-state CAS guard so
+ *   overlapping runs (a retry, or the review open in two tabs) each add their own
+ *   cost rather than clobbering one another.
+ */
+export async function applyEnrichedCover(
+  userId: string,
+  importId: string,
+  coverUrl: string | null,
+  costDeltaMicroUsd: number,
+): Promise<void> {
+  const db = svc();
+  const { data } = await db
+    .from("recipe_imports")
+    .select("extracted, state, recipe_id")
+    .eq("id", importId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const row = data as
+    | { extracted: ExtractedRecipe | null; state: ImportState | null; recipe_id: string | null }
+    | null;
+  if (!row?.state) return;
+
+  // Cover swap onto the import applies only while it is still in review; the RPC
+  // replaces `extracted` wholesale, so patch just the cover onto the current value.
+  let extracted = row.extracted;
+  if (row.state === "ready_for_review" && coverUrl && row.extracted) {
+    extracted = { ...row.extracted, source: { ...row.extracted.source, coverImageUrl: coverUrl } };
+  } else if (row.state === "saved" && row.recipe_id && coverUrl) {
+    // The run outran the save — land the clean cover on the recipe itself, but ONLY
+    // if the user kept the imported cover. markImportSaved clears the import cover to
+    // null when they chose their own image or removed it, so a null here means "don't
+    // touch the recipe's cover".
+    if (row.extracted?.source?.coverImageUrl != null) {
+      await storeCoverFromUrl(db.storage, userId, row.recipe_id, coverUrl);
+    }
+  }
+
+  // Same-state atomic write: reconcile the ledger cost (and, in review, the cover).
+  await db.rpc("import_transition", {
+    p_id: importId,
+    p_expected: row.state,
+    p_next: row.state,
+    p_extracted: extracted,
+    p_cost_delta: costDeltaMicroUsd,
+  });
 }
 
 export const config = importConfig;

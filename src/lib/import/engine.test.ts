@@ -237,58 +237,6 @@ describe("AC8 — retry transient once-per-rule; correct schema-invalid exactly 
     expect(f.ai).toHaveLength(1);
   });
 
-  it("enriches a play-button Reel cover with a clean Apify image, and costs the extra call", async () => {
-    const f = fakeStore();
-    const compositeCover = "https://scontent.cdninstagram.com/x.jpg?stp=cmp1_dst-jpg_e35_s640x640";
-    const cleanCover = "https://scontent.cdninstagram.com/x.jpg?stp=dst-jpg_e15_tt6";
-    const direct = resolverReturning({
-      evidence: evidence({
-        sourceType: "instagram_reel", postType: "reel", retrievalStatus: "partial",
-        caption: "500g chicken, 250g orzo. Method: brown, simmer 12 min.",
-        media: [{ id: "og", position: 0, modality: "image", mimeType: null, sourceUrl: compositeCover, storagePath: null, width: null, height: null, durationSeconds: null }],
-      }),
-    }, "instagram_direct");
-    const enricher = vi.fn().mockResolvedValue({
-      evidence: evidence({ media: [{ id: "apify", position: 0, modality: "image", mimeType: null, sourceUrl: cleanCover, storagePath: null, width: null, height: null, durationSeconds: null }] }),
-      cost: { providerId: "apify", serviceId: "instagram_scraper", unitsUsed: 1, unitType: "result", rawUsage: {} },
-    });
-    const out = await runImportPipeline(
-      { ...req, sourceKind: "instagram_reel" },
-      baseDeps({
-        chain: chainOf([direct]),
-        provider: stubProvider({ ok: true, recipe: RECIPE, usage: EMPTY_USAGE }),
-        store: f.store,
-        config: { ...baseDeps({}).config, apifyToken: "t" },
-        coverEnricher: enricher,
-      }),
-    );
-    expect(enricher).toHaveBeenCalledOnce();
-    expect(out.kind).toBe("ready");
-    if (out.kind === "ready") expect(out.recipe.source.coverImageUrl).toBe(cleanCover);
-    const coverAttempt = f.retrieval.find((r) => r.resolverId === "apify_cover");
-    expect(coverAttempt?.status).toBe("succeeded");
-    expect(coverAttempt?.costMicroUsd).toBe(2_700);
-  });
-
-  it("does not enrich a clean (non-composite) Reel cover — no extra paid call", async () => {
-    const f = fakeStore();
-    const clean = "https://scontent.cdninstagram.com/x.jpg?stp=dst-jpg_e15";
-    const direct = resolverReturning({
-      evidence: evidence({
-        sourceType: "instagram_reel", postType: "reel", retrievalStatus: "partial",
-        caption: "500g chicken, 250g orzo. Method: brown, simmer 12 min.",
-        media: [{ id: "og", position: 0, modality: "image", mimeType: null, sourceUrl: clean, storagePath: null, width: null, height: null, durationSeconds: null }],
-      }),
-    }, "instagram_direct");
-    const enricher = vi.fn();
-    await runImportPipeline({ ...req, sourceKind: "instagram_reel" }, baseDeps({
-      chain: chainOf([direct]), provider: stubProvider({ ok: true, recipe: RECIPE, usage: EMPTY_USAGE }),
-      store: f.store, config: { ...baseDeps({}).config, apifyToken: "t" }, coverEnricher: enricher,
-    }));
-    expect(enricher).not.toHaveBeenCalled();
-    expect(f.retrieval.find((r) => r.resolverId === "apify_cover")).toBeUndefined();
-  });
-
   it("classifies not_a_recipe from the model status without inventing a draft", async () => {
     const f = fakeStore();
     // Caption clears the deterministic gate (has quantity + method signal), but
