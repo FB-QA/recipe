@@ -18,15 +18,24 @@ export interface WprmIngredientGroup {
   ingredients: string[];
 }
 
-const AMP = /&amp;/g;
+// Named punctuation entities common in recipe titles and ingredient text. Left
+// undecoded, a name like `&ndash;` leaks its literal "ndash" into a comparison key
+// (breaking title matching) or into the shown text. `&amp;` is applied last so a
+// double-encoded "&amp;ndash;" still resolves.
+const NAMED_ENTITIES: Record<string, string> = {
+  "&ndash;": "–", "&mdash;": "—", "&hellip;": "…",
+  "&rsquo;": "'", "&lsquo;": "'", "&rdquo;": '"', "&ldquo;": '"',
+  "&deg;": "°", "&times;": "×", "&frac12;": "½", "&frac14;": "¼", "&frac34;": "¾",
+};
 const decodeEntities = (s: string): string =>
   s
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&(?:ndash|mdash|hellip|rsquo|lsquo|rdquo|ldquo|deg|times|frac12|frac14|frac34);/g, (m) => NAMED_ENTITIES[m])
     .replace(/&nbsp;/g, " ")
     .replace(/&quot;/g, '"')
     .replace(/&#0?39;|&apos;/g, "'")
-    .replace(AMP, "&");
+    .replace(/&amp;/g, "&");
 
 const stripTags = (s: string): string => decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 
@@ -53,8 +62,14 @@ function ingredientText(liInner: string): string {
  * recipe. Pages with no further container (e.g. test fixtures) run to the end.
  */
 /** Collapse a recipe name to a comparison key: entity-decoded, alphanumerics only.
- *  So the JSON-LD title ("… - …", ASCII hyphen) matches WPRM's name ("… &ndash; …"). */
-const normName = (s: string): string => decodeEntities(s).toLowerCase().replace(/[^a-z0-9]+/g, "");
+ *  So the JSON-LD title ("… - …", ASCII hyphen) matches WPRM's name ("… &ndash; …").
+ *  Any entity `decodeEntities` didn't resolve is dropped whole, so a leftover named
+ *  entity can't leak its letters (e.g. "ndash") into the key. */
+const normName = (s: string): string =>
+  decodeEntities(s)
+    .replace(/&[a-z0-9]+;/gi, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 
 /**
  * Bound parsing to the ingredient groups of the recipe `extractRecipeFromHtml`

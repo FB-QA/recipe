@@ -136,9 +136,14 @@ describe("parseWprmIngredientGroups", () => {
     expect(parseWprmIngredientGroups(html, "Main Curry")).toEqual([{ name: "Spices", ingredients: ["cumin"] }]);
   });
 
-  it("matches the recipe name despite punctuation (hyphen vs en-dash)", () => {
-    // Real case: JSON-LD title has an ASCII hyphen, WPRM name has &ndash;.
-    const html = recipeCard("Pad See Ew &ndash; Thai Noodles", "Sauce", "soy sauce");
+  it("matches the recipe name despite punctuation (hyphen vs en-dash), WITH a second card", () => {
+    // The selected card's name uses `&ndash;`; the JSON-LD title has a hyphen. A
+    // SECOND distinct card is present, so this only works if the entity decodes —
+    // otherwise the name mismatch bails to flat. (A single-card fixture would mask
+    // the bug via the single-recipe fallback.)
+    const html =
+      recipeCard("Something Else Entirely", "Bits", "flour") +
+      recipeCard("Pad See Ew &ndash; Thai Noodles", "Sauce", "soy sauce");
     expect(parseWprmIngredientGroups(html, "Pad See Ew - Thai Noodles")).toEqual([
       { name: "Sauce", ingredients: ["soy sauce"] },
     ]);
