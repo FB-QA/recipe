@@ -12,13 +12,15 @@ import { ChevronDownIcon } from "@/components/icons";
 export const MEASUREMENT_OPTIONS: { value: MeasurementSystem; label: string }[] = [
   { value: "original", label: "Original" },
   { value: "metric", label: "Metric" },
-  { value: "us", label: "US customary" },
+  { value: "us", label: "US custom" },
 ];
 
 /**
  * The recipe measurement selector — a compact native <select> styled to match
  * the portion stepper. Native on purpose: full keyboard + screen-reader support
- * for free, and it never crowds a four-option segmented control on mobile.
+ * for free. The visible label doubles as a width sizer so the pill HUGS the
+ * current value (a native select otherwise stretches to its widest option,
+ * leaving "Metric" left-aligned with dead space).
  */
 export function MeasurementToggle({
   value,
@@ -27,21 +29,27 @@ export function MeasurementToggle({
   value: MeasurementSystem;
   onChange: (value: MeasurementSystem) => void;
 }) {
+  const label = MEASUREMENT_OPTIONS.find((o) => o.value === value)?.label ?? "Original";
   return (
-    <label className="relative flex items-center rounded-full border border-line bg-surface">
+    <label className="relative inline-flex min-h-[44px] items-center rounded-full border border-line bg-surface text-[13px] font-semibold text-ink">
       <span className="sr-only">Measurement units</span>
+      {/* Visible value that also sizes the pill to the current selection. */}
+      <span aria-hidden className="whitespace-nowrap py-1 pl-3.5 pr-8">
+        {label}
+      </span>
+      {/* Transparent native select overlaid for interaction + a11y. */}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as MeasurementSystem)}
-        className="h-9 min-h-[44px] appearance-none rounded-full bg-transparent py-1 pl-3.5 pr-8 text-[13px] font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-basil"
+        className="absolute inset-0 cursor-pointer appearance-none rounded-full bg-transparent text-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-basil"
       >
         {MEASUREMENT_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
+          <option key={o.value} value={o.value} className="text-ink">
             {o.label}
           </option>
         ))}
       </select>
-      <ChevronDownIcon size={15} className="pointer-events-none absolute right-3 text-ink-3" />
+      <ChevronDownIcon size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-3" />
     </label>
   );
 }
