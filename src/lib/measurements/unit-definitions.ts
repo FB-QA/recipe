@@ -81,7 +81,3 @@ export const GAS_MARK_TABLE: { gasMark: number; celsius: number; fahrenheit: num
   { gasMark: 8, celsius: 230, fahrenheit: 450 },
   { gasMark: 9, celsius: 240, fahrenheit: 475 },
 ];
-
-export function dimensionOf(unit: MeasurementUnit) {
-  return UNIT_DEFINITIONS[unit].dimension;
-}

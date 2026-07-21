@@ -7,19 +7,14 @@
  * overrides (Phase 6). Spec: docs/spec/measurement-conversion.md.
  */
 
+// Public API — exactly what consumers outside this folder use. Engine internals
+// (regional profiles, gas-mark table, friendly-unit primitives) stay module-
+// private and are imported directly where needed.
 export * from "./measurement-types";
-export { UNIT_DEFINITIONS, GAS_MARK_TABLE, dimensionOf } from "./unit-definitions";
-export { REGIONAL_VOLUME_ML, DEFAULT_UNIT_REGION, SYSTEM_REGION, regionalMl } from "./regional-profiles";
+export { UNIT_DEFINITIONS } from "./unit-definitions";
+export { SYSTEM_REGION } from "./regional-profiles";
 export { normalizeUnit } from "./unit-normalizer";
-export { parseQuantity, parseDimensions } from "./quantity-parser";
-export type { ParsedDimensions } from "./quantity-parser";
+export { parseQuantity, UNICODE_FRACTION_CHARS } from "./quantity-parser";
 export { convert } from "./measurement-converter";
-export { selectSystemUnit, pickUsVolumeUnit } from "./target-units";
-export {
-  friendlyFraction,
-  formatQuantityValue,
-  selectFriendlyMass,
-  selectFriendlyVolume,
-  roundForDisplay,
-  practicalTinInches,
-} from "./quantity-formatter";
+export { selectSystemUnit } from "./target-units";
+export { formatQuantityValue } from "./quantity-formatter";

@@ -23,14 +23,18 @@ const scaleOf = (token: string): MeasurementUnit => (token[0].toLowerCase() === 
 /** Parse a captured number, normalising a Unicode minus to ASCII. */
 const num = (s: string): number => Number(s.replace(/−/g, "-"));
 
+// Oven dials move in ~25°F / ~5°C steps, but only in oven range; below it
+// (freezer/chill temps) a finer 5° step keeps the −40°C/−40°F crossover exact.
+const OVEN_MIN_FAHRENHEIT = 200;
+const OVEN_STEP_FAHRENHEIT = 25;
+const FINE_STEP = 5;
+
 /** Convert one temperature to a number, rounded to oven-dial increments. */
 function convertTempNum(value: number, from: MeasurementUnit, to: MeasurementUnit): number | null {
   const r = convert({ quantity: value, fromUnit: from, toUnit: to });
   if (r.error || r.convertedQuantity == null) return null;
   const c = r.convertedQuantity;
-  // Oven-dial rounding (°F→25) applies only in oven range; freezer/chill temps
-  // round to nearest 5 so a −40°C crossover stays −40°F (not −50°F).
-  const step = to === "fahrenheit" ? (Math.abs(c) >= 200 ? 25 : 5) : 5;
+  const step = to === "fahrenheit" && Math.abs(c) >= OVEN_MIN_FAHRENHEIT ? OVEN_STEP_FAHRENHEIT : FINE_STEP;
   return Math.round(c / step) * step;
 }
 

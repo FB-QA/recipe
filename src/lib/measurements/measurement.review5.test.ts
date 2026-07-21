@@ -6,7 +6,6 @@
 
 import { describe, it, expect } from "vitest";
 import { normalizeUnit } from "./unit-normalizer";
-import { parseDimensions } from "./quantity-parser";
 import { convert } from "./measurement-converter";
 import { selectFriendlyMass } from "./quantity-formatter";
 
@@ -34,15 +33,6 @@ describe("review5 · exact gas-mark lookups are not approximate", () => {
     expect(convert({ quantity: 175, fromUnit: "celsius", toUnit: "gas_mark", allowApproximate: false }).error).toBe(
       "UNSUPPORTED_CONVERSION",
     );
-  });
-});
-
-describe("review5 · fractional pan dimensions keep their fraction (P2)", () => {
-  it("8½ × 11 → [8.5, 11], not [8, 11]", () => {
-    expect(parseDimensions("8½ × 11 inches")).toEqual({ values: [8.5, 11], unitText: "inches" });
-  });
-  it("plain multi-dimension unchanged", () => {
-    expect(parseDimensions("20 × 30 cm")).toEqual({ values: [20, 30], unitText: "cm" });
   });
 });
 

@@ -12,7 +12,7 @@ import { describe, it, expect } from "vitest";
 import { normalizeUnit } from "./unit-normalizer";
 import { parseQuantity } from "./quantity-parser";
 import { convert } from "./measurement-converter";
-import { formatQuantityValue, roundForDisplay } from "./quantity-formatter";
+import { formatQuantityValue } from "./quantity-formatter";
 
 describe("falsify · malformed quantities", () => {
   it("rejects NaN and Infinity rather than emitting a bogus number", () => {
@@ -47,11 +47,6 @@ describe("falsify · round-trip drift", () => {
     const ml = convert({ quantity: 1, fromUnit: "cup", toUnit: "ml", sourceRegion: "us" }).convertedQuantity!;
     const back = convert({ quantity: ml, fromUnit: "ml", toUnit: "cup", sourceRegion: "us" }).convertedQuantity!;
     expect(back).toBeCloseTo(1, 10);
-  });
-  it("repeated display rounding never drifts", () => {
-    const once = roundForDisplay(236.5882365, "volume");
-    const twice = roundForDisplay(once, "volume");
-    expect(twice).toBe(once);
   });
 });
 

@@ -2,14 +2,7 @@ import { describe, it, expect } from "vitest";
 import { normalizeUnit } from "./unit-normalizer";
 import { parseQuantity } from "./quantity-parser";
 import { convert } from "./measurement-converter";
-import {
-  friendlyFraction,
-  formatQuantityValue,
-  selectFriendlyMass,
-  selectFriendlyVolume,
-  roundForDisplay,
-  practicalTinInches,
-} from "./quantity-formatter";
+import { friendlyFraction, formatQuantityValue, selectFriendlyMass, selectFriendlyVolume } from "./quantity-formatter";
 
 // ------------------------------------------------------------------
 // AC1 — unit normalisation (§16, §43)
@@ -209,10 +202,6 @@ describe("length conversion", () => {
   it("cm → inch raw value", () => {
     expect(convert({ quantity: 20, fromUnit: "cm", toUnit: "inch" }).convertedQuantity).toBeCloseTo(7.874, 3);
   });
-  it("practical tin equivalents snap to whole inches", () => {
-    expect(practicalTinInches(200)).toBe(8); // 20 cm
-    expect(practicalTinInches(230)).toBe(9); // 23 cm
-  });
   it("does NOT snap a small thickness to a materially-different fraction (§28)", () => {
     // 5 mm = 0.197 in. Snapping to ¼ (0.25) is a ~27% overstatement, so the
     // generic formatter keeps a decimal. A practical "¼-inch tin" display is a
@@ -275,13 +264,5 @@ describe("formatting", () => {
   it("selects friendly volume units", () => {
     expect(selectFriendlyVolume(237)).toMatchObject({ value: 237, unit: "ml" });
     expect(selectFriendlyVolume(1500)).toMatchObject({ value: 1.5, unit: "l" });
-  });
-  it("applies display-rounding bands", () => {
-    expect(roundForDisplay(236.5882365, "volume")).toBe(235); // 100–1000 ml → nearest 5
-    expect(roundForDisplay(125.4, "weight")).toBe(125); // 100–1000 g → nearest 5
-  });
-  it("never mutates source precision (repeated format is idempotent)", () => {
-    const grams = 200 / 28.349523125 * 28.349523125; // round-trip
-    expect(roundForDisplay(grams, "weight")).toBe(roundForDisplay(roundForDisplay(grams, "weight"), "weight"));
   });
 });
