@@ -5,7 +5,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseDimensions } from "./quantity-parser";
 import { convert } from "./measurement-converter";
 
 describe("review6 · gas-mark ranges: either endpoint off-table ⇒ approximate", () => {
@@ -25,25 +24,5 @@ describe("review6 · gas-mark ranges: either endpoint off-table ⇒ approximate"
       convert({ quantity: 180, quantityMax: 185, fromUnit: "celsius", toUnit: "gas_mark", allowApproximate: false })
         .error,
     ).toBe("UNSUPPORTED_CONVERSION");
-  });
-});
-
-describe("review6 · compact hyphenated dimensions parse (P2)", () => {
-  it("'8-inch' → [8]", () => {
-    expect(parseDimensions("8-inch")).toEqual({ values: [8], unitText: "inch" });
-  });
-  it("'8½-inch' keeps the fraction", () => {
-    expect(parseDimensions("8½-inch")).toEqual({ values: [8.5], unitText: "inch" });
-  });
-  it("multi-dimension and plain single still parse", () => {
-    expect(parseDimensions("20 × 30 cm")).toEqual({ values: [20, 30], unitText: "cm" });
-    expect(parseDimensions("20 cm")).toEqual({ values: [20], unitText: "cm" });
-  });
-
-  // Documented limitation: a hyphen-separated dimension RANGE ("20-30 cm") is
-  // not an AC6 form (AC6 is single or × multi-dimension). It returns no values
-  // — safe (caller keeps the original), never a fabricated dimension.
-  it("hyphen dimension range yields no values (safe, not fabricated)", () => {
-    expect(parseDimensions("20-30 cm")).toEqual({ values: [], unitText: "cm" });
   });
 });

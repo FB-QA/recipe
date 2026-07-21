@@ -3,9 +3,10 @@
 import type { Dispatch, SetStateAction } from "react";
 import { FoodImage } from "@/components/food-icons";
 import { AddToListSheet } from "@/components/grocery/add-to-list-sheet";
-import { MinusIcon, PlusIcon } from "@/components/icons";
-import { scaleIngredientText } from "@/lib/recipes/scale";
+import { CookControls } from "./cook-controls";
+import { renderIngredientAmount } from "@/lib/recipes/ingredient-amount";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
+import type { MeasurementRegion, MeasurementSystem } from "@/lib/measurements";
 
 export interface IngredientGroupView {
   id: string;
@@ -22,6 +23,9 @@ export function IngredientsSection({
   target,
   setTarget,
   scale,
+  system,
+  setSystem,
+  sourceRegion,
 }: {
   recipeId: string;
   ingredients: IngredientLike[];
@@ -33,6 +37,9 @@ export function IngredientsSection({
   target: number;
   setTarget: Dispatch<SetStateAction<number>>;
   scale: number;
+  system: MeasurementSystem;
+  setSystem: (value: MeasurementSystem) => void;
+  sourceRegion?: MeasurementRegion;
 }) {
   const sections: IngredientGroupView[] =
     groups && groups.length > 0 ? groups : [{ id: "all", name: null, ingredients }];
@@ -40,33 +47,9 @@ export function IngredientsSection({
 
   return (
     <section>
-      <div className="mt-5 mb-3 flex items-center justify-between">
+      <div className="mt-5 mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">Ingredients</h2>
-        {base !== null && (
-          <div className="flex items-center gap-2 rounded-full border border-line bg-surface px-1.5 py-1">
-            <button
-              type="button"
-              aria-label="Fewer portions"
-              onClick={() => setTarget((t) => Math.max(1, t - 1))}
-              disabled={target <= 1}
-              className="grid h-7 w-7 place-items-center rounded-full text-ink-2 disabled:opacity-40"
-            >
-              <MinusIcon size={16} />
-            </button>
-            <span className="min-w-[68px] text-center text-[13px] font-semibold text-ink">
-              {formatServings(target)}
-            </span>
-            <button
-              type="button"
-              aria-label="More portions"
-              onClick={() => setTarget((t) => Math.min(50, t + 1))}
-              disabled={target >= 50}
-              className="grid h-7 w-7 place-items-center rounded-full text-ink-2 disabled:opacity-40"
-            >
-              <PlusIcon size={16} />
-            </button>
-          </div>
-        )}
+        <CookControls base={base} target={target} setTarget={setTarget} system={system} setSystem={setSystem} />
       </div>
 
       <div className="flex flex-col gap-4">
@@ -78,20 +61,26 @@ export function IngredientsSection({
               </h3>
             )}
             <ul className="overflow-hidden rounded-card border border-line bg-surface">
-              {section.ingredients.map((ing) => (
+              {section.ingredients.map((ing) => {
+                const rendered = renderIngredientAmount(ing, { scale, targetSystem: system, sourceRegion });
+                return (
                 <li
                   key={ing.id}
                   className="flex items-center gap-3 border-b border-line-2 px-4 py-3 text-[14px] last:border-b-0"
                 >
                   <FoodImage text={ing.name ?? ing.display_text} size={22} className="flex-none text-ink-3" />
-                  <span className="text-ink-2">{scaleIngredientText(ing.display_text, scale)}</span>
+                  <span className="text-ink-2">
+                    {rendered.text}
+                    {rendered.approximate && <span className="sr-only"> (approximate conversion)</span>}
+                  </span>
                   {ing.optional && (
                     <span className="ml-auto flex-none rounded-full bg-surface-2 px-2 py-0.5 text-[10.5px] font-semibold text-ink-3">
                       optional
                     </span>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         ))}
@@ -107,8 +96,4 @@ export function IngredientsSection({
       </div>
     </section>
   );
-}
-
-function formatServings(n: number): string {
-  return `${n} portion${n === 1 ? "" : "s"}`;
 }

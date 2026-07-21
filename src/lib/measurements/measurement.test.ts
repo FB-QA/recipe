@@ -2,14 +2,7 @@ import { describe, it, expect } from "vitest";
 import { normalizeUnit } from "./unit-normalizer";
 import { parseQuantity } from "./quantity-parser";
 import { convert } from "./measurement-converter";
-import {
-  friendlyFraction,
-  formatQuantityValue,
-  selectFriendlyMass,
-  selectFriendlyVolume,
-  roundForDisplay,
-  practicalTinInches,
-} from "./quantity-formatter";
+import { formatQuantityValue, selectFriendlyMass, selectFriendlyVolume } from "./quantity-formatter";
 
 // ------------------------------------------------------------------
 // AC1 — unit normalisation (§16, §43)
@@ -209,13 +202,12 @@ describe("length conversion", () => {
   it("cm → inch raw value", () => {
     expect(convert({ quantity: 20, fromUnit: "cm", toUnit: "inch" }).convertedQuantity).toBeCloseTo(7.874, 3);
   });
-  it("practical tin equivalents snap to whole inches", () => {
-    expect(practicalTinInches(200)).toBe(8); // 20 cm
-    expect(practicalTinInches(230)).toBe(9); // 23 cm
-  });
-  it("small thickness snaps to a friendly fraction", () => {
+  it("does NOT snap a small thickness to a materially-different fraction (§28)", () => {
+    // 5 mm = 0.197 in. Snapping to ¼ (0.25) is a ~27% overstatement, so the
+    // generic formatter keeps a decimal. A practical "¼-inch tin" display is a
+    // dedicated tin/length formatter's job (Phase 5), not friendlyFraction.
     const inches = convert({ quantity: 5, fromUnit: "mm", toUnit: "inch" }).convertedQuantity!;
-    expect(formatQuantityValue(inches)).toBe("¼");
+    expect(formatQuantityValue(inches)).toBe("0.2");
   });
 });
 
@@ -257,13 +249,21 @@ describe("formatting", () => {
     [0.5, "½"],
     [2 / 3, "⅔"],
     [0.75, "¾"],
-  ])("friendlyFraction(%d) = %s", (v, expected) => {
-    expect(friendlyFraction(v)).toBe(expected);
+  ])("formatQuantityValue(%d) = %s", (v, expected) => {
+    expect(formatQuantityValue(v)).toBe(expected);
   });
   it("formats mixed numbers", () => {
     expect(formatQuantityValue(1.5)).toBe("1½");
     expect(formatQuantityValue(2.25)).toBe("2¼");
     expect(formatQuantityValue(3)).toBe("3");
+  });
+  it("rounds an over-precise value to a friendly whole/fraction (200g → 7 oz)", () => {
+    expect(formatQuantityValue(7.0548)).toBe("7"); // was "7.05"
+    expect(formatQuantityValue(8.818)).toBe("8⅞");
+    expect(formatQuantityValue(4.409)).toBe("4⅜");
+  });
+  it("does NOT snap a value that would change materially (§28)", () => {
+    expect(formatQuantityValue(0.2029)).toBe("0.2"); // 1 ml as US tsp — not "¼"
   });
   it("selects friendly mass units", () => {
     expect(selectFriendlyMass(3)).toMatchObject({ value: 3, unit: "g" });
@@ -272,13 +272,5 @@ describe("formatting", () => {
   it("selects friendly volume units", () => {
     expect(selectFriendlyVolume(237)).toMatchObject({ value: 237, unit: "ml" });
     expect(selectFriendlyVolume(1500)).toMatchObject({ value: 1.5, unit: "l" });
-  });
-  it("applies display-rounding bands", () => {
-    expect(roundForDisplay(236.5882365, "volume")).toBe(235); // 100–1000 ml → nearest 5
-    expect(roundForDisplay(125.4, "weight")).toBe(125); // 100–1000 g → nearest 5
-  });
-  it("never mutates source precision (repeated format is idempotent)", () => {
-    const grams = 200 / 28.349523125 * 28.349523125; // round-trip
-    expect(roundForDisplay(grams, "weight")).toBe(roundForDisplay(roundForDisplay(grams, "weight"), "weight"));
   });
 });

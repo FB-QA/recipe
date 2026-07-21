@@ -1,11 +1,11 @@
 /**
  * Quantity formatter — turn full-precision values into cook-friendly display:
- * friendly fractions, friendly unit selection, and the spec's display-rounding
- * bands. Formatting reads the source value; it never rounds a rounded value.
+ * friendly fractions and friendly unit selection. Formatting reads the source
+ * value; it never rounds a rounded value.
  * Spec: docs/spec/measurement-conversion.md §27, §28.
  */
 
-import type { MeasurementDimension, MeasurementUnit } from "./measurement-types";
+import type { MeasurementUnit } from "./measurement-types";
 
 /** Decimal → glyph, ordered; thirds included alongside halves/quarters/eighths. */
 const FRACTION_GLYPHS: { value: number; glyph: string }[] = [
@@ -20,45 +20,58 @@ const FRACTION_GLYPHS: { value: number; glyph: string }[] = [
   { value: 7 / 8, glyph: "⅞" },
 ];
 
-/** Nearest friendly fraction glyph for a 0..1 value, or "" if none is close. */
-export function friendlyFraction(fraction: number, tolerance = 0.08): string {
-  let best = "";
-  let bestDist = tolerance;
-  for (const f of FRACTION_GLYPHS) {
-    const dist = Math.abs(fraction - f.value);
-    if (dist <= bestDist) {
-      best = f.glyph;
-      bestDist = dist;
-    }
-  }
-  return best;
-}
+// Snap targets for the fractional part: a whole (0), each glyph, or the next
+// whole (1). "" means no glyph — round to the whole number.
+const SNAP_TARGETS: { value: number; glyph: string }[] = [
+  { value: 0, glyph: "" },
+  ...FRACTION_GLYPHS,
+  { value: 1, glyph: "" },
+];
 
-/** Format a value as "1½", "¼", "3", or a plain decimal when no fraction fits. */
+/**
+ * Format a value as "1½", "¼", "7", or a plain decimal. Snaps to the nearest
+ * friendly value (a whole or a familiar fraction) ONLY when that doesn't
+ * materially change the quantity — the tolerance is relative to the WHOLE value
+ * (§28). So 7.0548 oz → "7" (a 0.7% nudge), but 0.2029 tsp does NOT become "¼"
+ * (a 23% overstatement) and falls back to a decimal.
+ */
 export function formatQuantityValue(value: number): string {
   if (!Number.isFinite(value)) return "";
   const sign = value < 0 ? "-" : "";
   const abs = Math.abs(value);
+  if (abs < 1e-9) return "0";
   const whole = Math.floor(abs + 1e-9);
   const frac = abs - whole;
 
-  const glyph = frac > 1e-9 ? friendlyFraction(frac) : "";
-  if (glyph) {
-    return whole > 0 ? `${sign}${whole}${glyph}` : `${sign}${glyph}`;
+  let best = SNAP_TARGETS[0];
+  let bestDist = Infinity;
+  for (const t of SNAP_TARGETS) {
+    const d = Math.abs(frac - t.value);
+    if (d < bestDist) {
+      bestDist = d;
+      best = t;
+    }
   }
-  if (frac <= 1e-9) return `${sign}${whole}`;
-  // No friendly fraction fits — fall back to a trimmed decimal.
-  return `${sign}${Number(abs.toFixed(2))}`;
-}
-
-function roundTo(value: number, step: number): number {
-  return Math.round(value / step) * step;
+  // Relative tolerance (with a small absolute floor for tiny values).
+  if (bestDist <= Math.max(0.02, 0.04 * abs)) {
+    const w = best.value === 1 ? whole + 1 : whole;
+    // Never snap a genuinely nonzero value down to a bare "0" — that erases a
+    // real (if small) quantity. Fall through to a significant-figure decimal.
+    if (!(w === 0 && !best.glyph)) {
+      if (best.glyph) return w > 0 ? `${sign}${w}${best.glyph}` : `${sign}${best.glyph}`;
+      return `${sign}${w}`;
+    }
+  }
+  // Two significant figures keeps sub-1 values readable without collapsing to 0
+  // (0.01 stays "0.01"); toFixed(2) alone would round 0.01 → "0.00".
+  const decimal = abs >= 1 ? Number(abs.toFixed(2)) : Number(abs.toPrecision(2));
+  return `${sign}${decimal}`;
 }
 
 /**
  * Choose a friendly mass unit for a value in grams. Selection only — the value
  * is converted to the chosen unit but NOT rounded here (rounding sub-milligram
- * masses to zero would drop a real quantity); callers apply roundForDisplay.
+ * masses to zero would drop a real quantity); callers round for display.
  */
 export function selectFriendlyMass(grams: number): { value: number; unit: MeasurementUnit } {
   if (grams < 1) return { value: grams * 1000, unit: "mg" };
@@ -72,32 +85,3 @@ export function selectFriendlyVolume(ml: number): { value: number; unit: Measure
   return { value: ml, unit: "ml" };
 }
 
-/** Apply the spec's display-rounding band for a dimension. Idempotent. */
-export function roundForDisplay(value: number, dimension: MeasurementDimension): number {
-  const abs = Math.abs(value);
-  if (dimension === "weight") {
-    if (abs < 10) return roundTo(value, 0.5);
-    if (abs < 100) return roundTo(value, 1);
-    if (abs < 1000) return roundTo(value, 5);
-    return roundTo(value, 50); // 0.05 kg
-  }
-  if (dimension === "volume") {
-    if (abs < 10) return roundTo(value, 0.5);
-    if (abs < 100) return roundTo(value, 1);
-    if (abs < 1000) return roundTo(value, 5);
-    return roundTo(value, 50); // 0.05 L
-  }
-  if (dimension === "temperature") return roundTo(value, 5);
-  return Number(value.toFixed(2));
-}
-
-/** Common round tin sizes, in inches. */
-const COMMON_TIN_INCHES = [6, 7, 8, 9, 10, 11, 12];
-
-/** Nearest practical whole-inch tin size for a length in millimetres. */
-export function practicalTinInches(mm: number): number {
-  const inches = mm / 25.4;
-  return COMMON_TIN_INCHES.reduce((best, cur) =>
-    Math.abs(cur - inches) < Math.abs(best - inches) ? cur : best,
-  );
-}

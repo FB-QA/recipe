@@ -150,6 +150,20 @@ export const ChevronLeftIcon = (p: IconProps) => (
   </svg>
 );
 
+export const ChevronDownIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
+// Two-way swap — the "convert measurements" affordance.
+export const ConvertIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="M4 8h13m-3-3 3 3-3 3" />
+    <path d="M20 16H7m3-3-3 3 3 3" />
+  </svg>
+);
+
 export const CloseIcon = (p: IconProps) => (
   <svg {...base(p)} aria-hidden>
     <path d="M6 6l12 12M18 6 6 18" />

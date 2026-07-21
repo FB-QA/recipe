@@ -31,6 +31,28 @@ describe("scaleIngredientText", () => {
     expect(scaleIngredientText("2 x 125g chicken", 2)).toBe("4 x 125g chicken");
   });
 
+  it("scales BOTH endpoints of a leading range", () => {
+    expect(scaleIngredientText("1–2 tbsp oil", 2)).toBe("2–4 tbsp oil");
+    expect(scaleIngredientText("1-2 tbsp oil", 2)).toBe("2-4 tbsp oil");
+    expect(scaleIngredientText("1 to 2 cloves garlic", 2)).toBe("2 to 4 cloves garlic");
+    expect(scaleIngredientText("200–250 g flour", 2)).toBe("400–500 g flour");
+  });
+
+  it("scales a range that starts with a modifier, preserving the modifier", () => {
+    expect(scaleIngredientText("about 1–2 tbsp oil", 2)).toBe("about 2–4 tbsp oil");
+  });
+
+  it("scales mixed numbers as a whole (not just the integer part)", () => {
+    expect(scaleIngredientText("1½ cups flour", 2)).toBe("3 cups flour");
+    expect(scaleIngredientText("1 1/2 cups flour", 2)).toBe("3 cups flour");
+    expect(scaleIngredientText("2½ cups", 2)).toBe("5 cups");
+  });
+
+  it("scales a mixed-number range on both endpoints (modifier preserved)", () => {
+    expect(scaleIngredientText("1½–2½ cups", 2)).toBe("3–5 cups");
+    expect(scaleIngredientText("about 1½–2½ cups", 2)).toBe("about 3–5 cups");
+  });
+
   it("leaves numberless lines and factor-1 unchanged", () => {
     expect(scaleIngredientText("salt to taste", 3)).toBe("salt to taste");
     expect(scaleIngredientText("2 eggs", 1)).toBe("2 eggs");
