@@ -5,7 +5,7 @@ import { MeasurementToggle } from "./measurement-toggle";
 describe("MeasurementToggle", () => {
   it("offers three measurement systems (no separate UK/Ireland target)", () => {
     render(<MeasurementToggle value="original" onChange={() => {}} />);
-    for (const label of ["Original", "Metric", "Imperial"]) {
+    for (const label of ["Original", "Metric", "US"]) {
       expect(screen.getByRole("option", { name: label })).toBeInTheDocument();
     }
     expect(screen.queryByRole("option", { name: /UK|Ireland/i })).not.toBeInTheDocument();

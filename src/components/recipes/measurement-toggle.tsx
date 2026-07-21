@@ -3,16 +3,15 @@
 import type { MeasurementSystem } from "@/lib/measurements";
 import { ChevronDownIcon, ConvertIcon } from "@/components/icons";
 
-// Three options only. The non-metric target is labelled "Imperial" (the familiar
-// everyday word for non-metric), though the values it produces are US customary
-// (US cup 236 ml, US pint 473 ml, oz/lb/°F) — a true imperial pint is 568 ml.
+// Three options only. The non-metric target is labelled "US" — accurate, since
+// the values it produces are US customary (US cup 236 ml, US pint 473 ml, oz/lb/°F).
 // "UK/Ireland" is NOT a separate target (its output equals Metric today); it is
 // retained internally as a SOURCE region so imperial pints are read correctly.
 // Spec: docs/spec/measurement-conversion.md §20.
 export const MEASUREMENT_OPTIONS: { value: MeasurementSystem; label: string }[] = [
   { value: "original", label: "Original" },
   { value: "metric", label: "Metric" },
-  { value: "us", label: "Imperial" },
+  { value: "us", label: "US" },
 ];
 
 // Every possible CLOSED-state label. "Original" shows as the "Convert"
