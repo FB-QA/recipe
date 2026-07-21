@@ -172,6 +172,14 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   const displayText = reduceMeasurementGroups(ing.display_text, system === "us" ? "us" : "metric");
   const scaled = () => scaleIngredientText(displayText, opts.scale);
 
+  // A leading "N × M<unit>" multiplier ("2 x 125g") is a COUNT of items with a
+  // per-item size — the leading number has no unit of its own, so converting it
+  // (pairing the count with the per-item unit) is meaningless. Keep the original,
+  // scaled line; the count scales with portions via scaleIngredientText.
+  if (/^\s*\d+(?:\.\d+)?\s*[×x]\s*\d/i.test(displayText)) {
+    return { text: scaled(), status: "unsupported_conversion", approximate: false, sourceText };
+  }
+
   // 1. Resolve the original quantity/range + unit + name. A real v2 range stores
   //    quantity_value: null with quantity_min/max populated, so the lower bound
   //    comes from quantity_min. One legacy parse fills any missing piece.

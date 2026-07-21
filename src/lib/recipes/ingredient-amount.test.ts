@@ -299,6 +299,25 @@ describe("renderIngredientAmount", () => {
     expect(us.text).toBe("7 oz dried noodles"); // no "200g /"
   });
 
+  it("does not convert a 'N × M<unit>' multiplier (2 x 125g stays; count scales)", () => {
+    // The importer stores quantity_value: 2 (the count) with unit null; the "g"
+    // belongs to 125, not the count — converting would give a nonsense 0.07 oz.
+    const dt = "2 x 125g chicken breasts";
+    const us = renderIngredientAmount(ing({ display_text: dt, name: "chicken breasts", quantity_value: 2, unit: null }), {
+      scale: 1,
+      targetSystem: "us",
+      sourceRegion: "metric",
+    });
+    expect(us.text).toBe("2 x 125g chicken breasts");
+    expect(us.text).not.toMatch(/oz/);
+    // The leading count still scales with portions.
+    const doubled = renderIngredientAmount(ing({ display_text: dt, name: "chicken breasts", quantity_value: 2, unit: null }), {
+      scale: 2,
+      targetSystem: "metric",
+    });
+    expect(doubled.text).toBe("4 x 125g chicken breasts");
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),
