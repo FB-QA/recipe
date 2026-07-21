@@ -156,9 +156,11 @@ describe("renderIngredientAmount", () => {
       { scale: 1, targetSystem: "us" },
     );
     expect(r.status).toBe("converted");
-    // Not "1⅛ lb about 500g chicken" — the modifier + amount are stripped.
-    expect(r.text).toMatch(/lb chicken$/);
-    expect(r.text).not.toMatch(/about|500/);
+    // The NAME is clean ("chicken") and the original amount is not re-emitted
+    // (no "1⅛ lb about 500g chicken"); the "about" modifier is kept on the
+    // converted amount, not dropped.
+    expect(r.text).toBe("about 1⅛ lb chicken");
+    expect(r.text).not.toMatch(/500/);
   });
 
   it("preserves the preparation field through conversion", () => {
@@ -324,6 +326,77 @@ describe("renderIngredientAmount", () => {
       targetSystem: "metric",
     });
     expect(doubled.text).toBe("4 x 125g chicken breasts");
+  });
+
+  it("does not convert a leading-article package size ('a 14 oz can')", () => {
+    // The article is a count of a fixed-size package, not "1 oz" to convert.
+    const r = renderIngredientAmount(
+      ing({ display_text: "a 14 oz can tomatoes", quantity_value: null, unit: null, name: null }),
+      { scale: 1, targetSystem: "metric" },
+    );
+    expect(r.text).toBe("a 14 oz can tomatoes");
+    expect(r.text).not.toMatch(/28|g can/);
+  });
+
+  it("does not render a tiny weight as 0 in the target unit", () => {
+    // 0.1 g → US oz would round to "0 oz"; keep the source so it isn't erased.
+    const r = renderIngredientAmount(
+      ing({ display_text: "0.1 g xanthan gum", quantity_value: 0.1, unit: "g", name: "xanthan gum" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.text).toBe("0.1 g xanthan gum");
+    expect(r.text).not.toMatch(/\b0 oz\b/);
+  });
+
+  it("keeps a quantity modifier ('about') on the converted amount", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "about 1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),
+      { scale: 1, targetSystem: "metric", sourceRegion: "metric" },
+    );
+    expect(r.text).toMatch(/^about \d/);
+    expect(r.text).toMatch(/flour$/);
+  });
+
+  it("recognises a hyphenated unit alias and a region-qualified unit", () => {
+    const flOz = renderIngredientAmount(
+      ing({ display_text: "8 fl-oz milk", quantity_value: null, unit: null, name: null }),
+      { scale: 1, targetSystem: "us", sourceRegion: "us" },
+    );
+    expect(flOz.status).toBe("converted"); // "fl-oz" resolved, not unrecognised_unit
+    const usCup = renderIngredientAmount(
+      ing({ display_text: "1 US cup flour", quantity_value: null, unit: null, name: null }),
+      { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+    );
+    expect(usCup.status).toBe("converted"); // "US cup" qualifier stripped → cup
+  });
+
+  it("converts a temperature-unit ingredient without portion-scaling it", () => {
+    const metric = renderIngredientAmount(
+      ing({ display_text: "60°C water", quantity_value: 60, unit: "°C", name: "water" }),
+      { scale: 2, targetSystem: "metric" },
+    );
+    expect(metric.text).toBe("60°C water"); // same scale, not "120°C"
+    const us = renderIngredientAmount(
+      ing({ display_text: "60°C water", quantity_value: 60, unit: "°C", name: "water" }),
+      { scale: 2, targetSystem: "us" },
+    );
+    expect(us.text).toMatch(/140.*°F water/); // converted, not doubled
+  });
+
+  it("reduces a structured range on an unchanged unit without corrupting it", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "100–200 g flour", quantity_value: null, quantity_min: 100, quantity_max: 200, unit: "g", name: "flour" }),
+      { scale: 2, targetSystem: "metric" },
+    );
+    expect(r.text).toBe("200–400 g flour"); // not "between 200 and 200 g"
+  });
+
+  it("scales every 'or' alternative of a reduced dual annotation", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "200g / 7 oz dried noodles, or 15 oz / 450g fresh noodles", quantity_value: null, unit: null, name: null }),
+      { scale: 2, targetSystem: "metric" },
+    );
+    expect(r.text).toBe("400g dried noodles, or 900g fresh noodles");
   });
 
   it("always exposes the original source text", () => {

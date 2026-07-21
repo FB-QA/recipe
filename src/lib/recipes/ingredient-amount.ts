@@ -128,8 +128,12 @@ function parseLegacyIngredient(text: string): {
   for (const n of [2, 1]) {
     if (tokens.length < n) continue;
     const phrase = tokens.slice(0, n).join(" ");
-    if (/^[a-zA-Z. ]+$/.test(phrase) && normalizeUnit(phrase).unit !== "unknown") {
-      unit = phrase;
+    // Strip a region qualifier ("US cup" → "cup") and accept the symbol/hyphen
+    // unit forms ("°C", "fl-oz") that normalizeUnit understands but a plain
+    // alpha-only guard would reject.
+    const candidate = phrase.replace(/^(?:us|metric|imperial)\s+/i, "");
+    if (/^[a-zA-Z.°\- ]+$/.test(candidate) && normalizeUnit(candidate).unit !== "unknown") {
+      unit = candidate;
       name = tokens.slice(n).join(" ");
       break;
     }
@@ -184,6 +188,27 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
     );
     const count = formatQuantityValue(Number(mult[1]) * opts.scale);
     return { text: `${count} x ${perItem.text}`, status: perItem.status, approximate: perItem.approximate, sourceText };
+  }
+
+  // A leading article + number ("a 14 oz can tomatoes") is a COUNT of a fixed-
+  // size package, not an amount to convert — converting would treat the article
+  // "1" as "1 oz" (→ 28 g). Leave the line to the text scaler.
+  if (/^\s*an?\s+\d/i.test(displayText)) {
+    return { text: scaled(), status: "fallback_text_scaling", approximate: false, sourceText };
+  }
+
+  // A pre-written dual annotation ("200g / 7 oz", or two "/"-groups joined by
+  // "or") was already reduced to the target system above, so the author's own
+  // target amount is in hand. Scale THAT text rather than recomputing from the
+  // structured value — recomputing would override the author's rounding (at 2×,
+  // "14 oz" would drift to "14⅛ oz"). Each "or"-separated alternative carries its
+  // own amount, so scale them independently ("200g …, or 450g …" → both scaled).
+  if (displayText !== ing.display_text) {
+    const text = displayText
+      .split(/(\s*,?\s+or\s+)/i)
+      .map((part, i) => (i % 2 === 0 ? scaleIngredientText(part, opts.scale) : part))
+      .join("");
+    return { text, status: "converted", approximate: false, sourceText };
   }
 
   // 1. Resolve the original quantity/range + unit + name. A real v2 range stores
@@ -262,18 +287,36 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
     return fallback("unsupported_conversion");
   }
 
-  // No unit change ⇒ already in the target unit (e.g. grams stay grams in
-  // Metric). Keep the ORIGINAL line's formatting rather than rebuilding it,
-  // which would only reflow "50g" → "50 g" for no real change. The value is
-  // already the correct target-system value, so status stays "converted".
+  // No unit change ⇒ already in the target unit.
   if (result.convertedUnit === norm.unit) {
+    // A temperature is a SETTING, never scaled; same unit ⇒ same scale, so keep
+    // the source temperature text verbatim (never "60°C" → "120°C" at 2×).
+    if (dimension === "temperature") {
+      return { text: displayText, status: "converted", approximate: false, sourceText };
+    }
+    // Grams-stay-grams etc.: keep the ORIGINAL formatting rather than reflowing
+    // "50g" → "50 g". But a region-sensitive unit whose code is unchanged (metric
+    // cup → US cup) still changed VALUE (250 ml vs 236 ml), and a structured range
+    // needs proper formatting — both must fall through to render the real value.
+    if (!isRegionSensitive(norm.unit) && max == null) {
+      return { text: scaled(), status: "converted", approximate: false, sourceText };
+    }
+  }
+
+  // A weight too small for the target unit (0.1 g → 0 oz) would render "0" and
+  // vanish — keep the source unit so a real quantity is not erased.
+  if (roundDisplay(result.convertedQuantity) === 0 && result.convertedQuantity !== 0) {
     return { text: scaled(), status: "converted", approximate: false, sourceText };
   }
 
   const amount = formatConverted(result);
+  // Retain a leading quantity modifier ("about", "roughly") on the converted
+  // amount — dropping it would present a hedged amount as exact.
+  const modifier = displayText.match(LEADING_MODIFIER)?.[0]?.trim();
+  const amountText = modifier ? `${modifier} ${amount}` : amount;
   // Preserve a separate preparation field ("toasted") — a cooking instruction.
   const prep = ing.preparation?.trim();
   const namePart = name && prep ? `${name}, ${prep}` : name || prep || "";
-  const text = namePart ? `${amount} ${namePart}` : amount;
+  const text = namePart ? `${amountText} ${namePart}` : amountText;
   return { text, status: "converted", approximate: false, sourceText };
 }
