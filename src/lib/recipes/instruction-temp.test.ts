@@ -96,4 +96,48 @@ describe("convertInstructionTemps", () => {
   it("leaves a range already in the target scale untouched", () => {
     expect(convertInstructionTemps("Bake at 180–200°C.", "metric")).toBe("Bake at 180–200°C.");
   });
+
+  it("converts a word-separated 'to' range across both endpoints", () => {
+    expect(convertInstructionTemps("Bake at 180 to 200°C.", "us")).toBe("Bake at 350 to 400°F.");
+  });
+
+  it("keeps the sign on the FIRST endpoint of a negative range", () => {
+    // -20°C = -4°F, -10°C = 14°F. Must not strand a stray '-' → '-70–15°F'.
+    expect(convertInstructionTemps("Freeze at -20–-10°C.", "us")).toBe("Freeze at -4–14°F.");
+  });
+
+  it("converts an explicit single-digit temperature (with a degree sign)", () => {
+    expect(convertInstructionTemps("Chill the dough to 5°C.", "us")).toBe("Chill the dough to 41°F.");
+  });
+
+  it("does NOT read a bare single-digit 'c' (cups) as a temperature", () => {
+    expect(convertInstructionTemps("Add 5 c flour.", "us")).toBe("Add 5 c flour.");
+  });
+
+  it("converts a written-out degree unit ('350 degrees Fahrenheit')", () => {
+    expect(convertInstructionTemps("Bake at 350 degrees Fahrenheit.", "metric")).toBe("Bake at 175°C.");
+  });
+
+  it("does not oven-round a non-oven temperature (100°C is ~212°F, not 200°F)", () => {
+    expect(convertInstructionTemps("Heat the water to 100°C.", "us")).toBe("Heat the water to 212°F.");
+  });
+
+  it("does not match the fractional tail of a decimal temperature", () => {
+    // "37.50°C" must not convert its "50" → "37.120°F".
+    expect(convertInstructionTemps("Heat to 37.50°C.", "us")).toBe("Heat to 37.50°C.");
+  });
+
+  it("does NOT collapse a dual a full dial step apart (keeps both)", () => {
+    // 180°C ≈ 350°F, but 375°F is one dial step hotter — a different setting.
+    expect(convertInstructionTemps("Bake at 180°C (375°F).", "us")).toBe("Bake at 350°F (375°F).");
+  });
+
+  it("collapses a gas-mark dual instead of contradicting it", () => {
+    expect(convertInstructionTemps("Bake at Gas Mark 4 / 350°F.", "metric")).toBe("Bake at 180°C.");
+    expect(convertInstructionTemps("Bake at Gas Mark 4 (350°F).", "us")).toBe("Bake at 350°F.");
+  });
+
+  it("leaves a spaced-fraction gas mark unchanged (no '180°C 1/2')", () => {
+    expect(convertInstructionTemps("Bake at Gas Mark 4 1/2.", "metric")).toBe("Bake at Gas Mark 4 1/2.");
+  });
 });
