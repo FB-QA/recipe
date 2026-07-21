@@ -83,23 +83,24 @@ function isRegionSensitive(unit: MeasurementUnit): boolean {
   return def.dimension === "volume" && def.canonicalMultiplier == null;
 }
 
-/** Leading modifier words to step over when locating the unit ("about 500g"). */
-const LEADING_MODIFIER = /^(?:about|approximately|approx|roughly|generous|heaped|rounded|level|scant)\s+/i;
+// Leading quantity modifiers ("about 500g", "heaped 1 tbsp") — one source of
+// truth, reused by the modifier-strip and the bounded-slice patterns below.
+const MODIFIER_WORDS = String.raw`about|approximately|approx|roughly|generous|heaped|rounded|level|scant`;
+// The leading numeric span: optional "N×" multiplier, then digits/decimals/typed
+// and unicode fractions. Uses the SAME fraction set the quantity parser accepts,
+// so a legacy row like "⅕ cup oil" is stripped consistently — it always converts
+// or intentionally falls back, never fails on a fraction gap.
+const NUMERIC_SPAN = String.raw`(?:\d+\s*[×x]\s*)?[\d\s.,/–—${UNICODE_FRACTION_CHARS}+-]+`;
 
-// The leading numeric span (optional "N×" multiplier, digits, decimals, typed
-// and unicode fractions). Uses the SAME fraction set the quantity parser
-// accepts, so a legacy row like "⅕ cup oil" is stripped consistently — it
-// always converts or intentionally falls back, never fails on a fraction gap.
-const LEADING_NUMERIC = new RegExp(String.raw`^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—${UNICODE_FRACTION_CHARS}+-]+`, "i");
+/** Leading modifier words to step over when locating the unit ("about 500g"). */
+const LEADING_MODIFIER = new RegExp(`^(?:${MODIFIER_WORDS})\\s+`, "i");
+const LEADING_NUMERIC = new RegExp(`^\\s*${NUMERIC_SPAN}`, "i");
 
 // A bounded leading-quantity slice: optional modifiers/article, then the number
 // span. Parsing ONLY this slice (not the whole line) stops trailing name
 // pollution — a "/ all-purpose flour" alternative, a hyphen in "all-purpose" —
 // from corrupting the quantity parse.
-const LEADING_QUANTITY_SLICE = new RegExp(
-  String.raw`^(?:(?:about|approximately|approx|roughly|generous|heaped|rounded|level|scant|an?)\s+)*(?:\d+\s*[×x]\s*)?[\d\s.,/–—${UNICODE_FRACTION_CHARS}+-]+`,
-  "i",
-);
+const LEADING_QUANTITY_SLICE = new RegExp(`^(?:(?:${MODIFIER_WORDS}|an?)\\s+)*${NUMERIC_SPAN}`, "i");
 
 /**
  * ONE legacy parser for a raw ingredient line — the amount/range, the unit and

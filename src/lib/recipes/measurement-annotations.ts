@@ -12,7 +12,8 @@ import { UNICODE_FRACTION_CHARS } from "@/lib/measurements";
 const METRIC_UNITS = String.raw`kilograms?|grams?|milligrams?|millilit(?:re|er)s?|lit(?:re|er)s?|kg|mg|ml|g|l`;
 const US_UNITS = String.raw`fl\.?\s*oz|fluid\s+ounces?|ounces?|pounds?|oz|lbs?|cups?|tablespoons?|tbsps?|teaspoons?|tsps?|pints?|quarts?|gallons?`;
 const UNIT = `${METRIC_UNITS}|${US_UNITS}`;
-const METRIC_UNIT_MATCH = /^(kilograms?|grams?|milligrams?|millilit(?:re|er)s?|lit(?:re|er)s?|kg|mg|ml|g|l)$/;
+// Derived from METRIC_UNITS — one source of truth for the metric vocabulary.
+const METRIC_UNIT_MATCH = new RegExp(`^(?:${METRIC_UNITS})$`);
 // An amount: a whole number with a unicode fraction ("1½"), a mixed/decimal/typed
 // fraction ("1 1/2", "1.5", "1/2"), or a bare unicode fraction ("½"). The
 // unicode-mixed form is FIRST so "1½" is taken whole, never split into "1" + "½".

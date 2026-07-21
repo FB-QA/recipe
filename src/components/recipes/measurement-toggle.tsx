@@ -14,10 +14,16 @@ export const MEASUREMENT_OPTIONS: { value: MeasurementSystem; label: string }[] 
   { value: "us", label: "US" },
 ];
 
-// Every possible CLOSED-state label. "Original" shows as the "Convert"
-// placeholder. All are stacked invisibly in the label cell so it reserves the
-// pixel-widest — the pill never resizes as the selection changes.
-const DISPLAY_LABELS = MEASUREMENT_OPTIONS.map((o) => (o.value === "original" ? "Convert" : o.label));
+// The "Original" (no-conversion) state shows this placeholder instead of a label.
+const PLACEHOLDER = "Convert";
+
+/** The closed-state label for a system: the placeholder for "original", else its label. */
+const labelFor = (value: MeasurementSystem): string =>
+  value === "original" ? PLACEHOLDER : (MEASUREMENT_OPTIONS.find((o) => o.value === value)?.label ?? PLACEHOLDER);
+
+// Every possible CLOSED-state label, stacked invisibly in the label cell so it
+// reserves the pixel-widest — the pill never resizes as the selection changes.
+const DISPLAY_LABELS = MEASUREMENT_OPTIONS.map((o) => labelFor(o.value));
 
 /**
  * The recipe measurement selector — a compact, FIXED-WIDTH native <select>.
@@ -33,8 +39,7 @@ export function MeasurementToggle({
   value: MeasurementSystem;
   onChange: (value: MeasurementSystem) => void;
 }) {
-  // "Original" is the default/no-conversion state → show the "Convert" placeholder.
-  const display = value === "original" ? "Convert" : (MEASUREMENT_OPTIONS.find((o) => o.value === value)?.label ?? "Convert");
+  const display = labelFor(value);
   return (
     <label className="relative inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-line bg-surface pl-3 pr-2.5 text-[13px] font-semibold text-ink">
       <span className="sr-only">Measurement units</span>

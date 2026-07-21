@@ -24,14 +24,17 @@ const scaleOf = (token: string): MeasurementUnit => (token[0].toLowerCase() === 
 /** Parse a captured number, normalising a Unicode minus to ASCII. */
 const num = (s: string): number => Number(s.replace(/−/g, "-"));
 
-// Oven dials move in 25°F / 5°C steps, but ONLY within real oven ranges. Outside
-// them (boiling water, warm liquids, freezer temps) that stepping distorts the
-// value — 100°C → 212°F must NOT snap to 200°F — so round to the whole degree.
+// Oven dials move in these steps, but ONLY within real oven ranges. Outside them
+// (boiling water, warm liquids, freezer temps) that stepping distorts the value
+// — 100°C → 212°F must NOT snap to 200°F — so round to the whole degree there.
 const OVEN_BAND_F: readonly [number, number] = [250, 550];
 const OVEN_BAND_C: readonly [number, number] = [120, 290];
+const OVEN_STEP_F = 25;
+const OVEN_STEP_C = 5;
+const WHOLE_DEGREE = 1;
 
 // Two cross-scale temps are the same setting if they land within this many °F of
-// each other (a rounding artifact); a full oven dial step (25°F) is not.
+// each other (a rounding artifact); a full oven dial step (OVEN_STEP_F) is not.
 const DUAL_EQUIV_TOLERANCE_F = 15;
 
 /** Convert one temperature to a number, rounded to oven-dial steps in the oven band. */
@@ -41,7 +44,7 @@ function convertTempNum(value: number, from: MeasurementUnit, to: MeasurementUni
   const c = r.convertedQuantity;
   const [lo, hi] = to === "fahrenheit" ? OVEN_BAND_F : OVEN_BAND_C;
   const inOvenBand = Math.abs(c) >= lo && Math.abs(c) <= hi;
-  const step = inOvenBand ? (to === "fahrenheit" ? 25 : 5) : 1;
+  const step = inOvenBand ? (to === "fahrenheit" ? OVEN_STEP_F : OVEN_STEP_C) : WHOLE_DEGREE;
   return Math.round(c / step) * step;
 }
 
@@ -50,17 +53,19 @@ function convertTemp(value: number, from: MeasurementUnit, to: MeasurementUnit):
   return n == null ? null : `${n}${symbol(to)}`;
 }
 
-// A single temperature. NUMBER: 2–3 digits (a degree sign optional, so "180C"
+// The scale word/letter and the (optional) degree/word marker — one source of
+// truth, shared by every temperature pattern below.
+const SCALE = String.raw`celsius|fahrenheit|[cf]`;
+const DEG = String.raw`°\s*|degrees?\s*`;
+// A single temperature. NUMBER: 2–4 digits (a degree sign optional, so "180C"
 // works), OR a single digit that MUST carry a degree sign — "5°C" converts, but
 // "5 c sugar" (cups) does not. The leading (?<![\d.]) boundary stops a decimal
-// tail ("37.50°C") matching its "50" as a fresh temperature. UNIT accepts a
-// symbol, the word "degree(s)", or nothing, before c / f / celsius / fahrenheit.
+// tail ("37.50°C") matching its "50" as a fresh temperature. UNIT captures the
+// degree/word marker separately so a callback can tell a real temperature from a
+// bare lowercase "c"/"f" (the cup abbreviation "10 c flour"); uppercase "C"/"F"
+// and the spelled-out words are unambiguous even without a degree ("180 C").
 const NUM = String.raw`(?<![\d.])([-−]?\d{2,4}|[-−]?\d(?=\s*°))`;
-// UNIT captures the degree/word marker separately so a callback can tell a real
-// temperature from a bare lowercase "c"/"f". A bare, no-degree lowercase "c" is
-// the cup abbreviation ("10 c flour"), NOT Celsius; uppercase "C"/"F" and the
-// spelled-out words are unambiguous even without a degree ("180 C", "180 celsius").
-const UNIT = String.raw`\s*(°\s*|degrees?\s*)?(celsius|fahrenheit|[cf])\b`;
+const UNIT = String.raw`\s*(${DEG})?(${SCALE})\b`;
 const TEMP = NUM + UNIT;
 
 /** A no-degree bare lowercase "c"/"f" is a unit abbreviation (cups), not a temp. */
@@ -70,7 +75,7 @@ const isBareLowerLetter = (deg: string | undefined, unit: string): boolean =>
 // A temperature RANGE (5 groups: lo, separator, hi, degree-marker, unit), across a
 // dash or the word "to". The first endpoint takes an optional sign so a negative
 // range ("-20–-10°C") keeps it. Shared by the single-range and dual-range passes.
-const RANGE = String.raw`([-−]?\d{2,4})\s*(–|—|-|\bto\b)\s*([-−]?\d{2,4})\s*(°\s*|degrees?\s*)?(celsius|fahrenheit|[cf])\b`;
+const RANGE = String.raw`([-−]?\d{2,4})\s*(–|—|-|\bto\b)\s*([-−]?\d{2,4})\s*(${DEG})?(${SCALE})\b`;
 
 export function convertInstructionTemps(text: string, system: ConcreteSystem): string {
   const toUnit: MeasurementUnit = system === "us" ? "fahrenheit" : "celsius";
@@ -108,7 +113,7 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   // equivalents — collapse to the single target-scale value off the gas mark.
   out = out.replace(
     new RegExp(
-      String.raw`gas\s*mark\s*(¼|½|¾|\d+)\s*(?:\(\s*|\/\s*|\bor\b\s*)([-−]?\d{2,4})\s*(?:°|degrees?)?\s*(celsius|fahrenheit|[cf])\b\s*\)?`,
+      String.raw`gas\s*mark\s*(¼|½|¾|\d+)\s*(?:\(\s*|\/\s*|\bor\b\s*)([-−]?\d{2,4})\s*(?:${DEG})?(${SCALE})\b\s*\)?`,
       "gi",
     ),
     (m, g, n2, u2) => {
@@ -127,8 +132,8 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   // "350–400°F / 350–400°F" (US) or two disagreeing ranges (Metric). Analogous to
   // the scalar collapseDual: only genuine opposite-scale equivalents collapse.
   const collapseDualRange = (
-    m: string, a1: string, s1sep: string, b1: string, d1: string, u1: string,
-    a2: string, s2sep: string, b2: string, d2: string, u2: string,
+    m: string, a1: string, _sep1: string, b1: string, d1: string, u1: string,
+    a2: string, _sep2: string, b2: string, d2: string, u2: string,
   ): string => {
     if (isBareLowerLetter(d1, u1) || isBareLowerLetter(d2, u2)) return m;
     const s1 = scaleOf(u1);
