@@ -124,7 +124,9 @@ function buildIngredientGroups(html: string, flat: string[], title: string): Ing
   const wprm = parseWprmIngredientGroups(html, title);
   if (wprm && wprm.some((g) => g.name)) {
     const total = wprm.reduce((n, g) => n + g.ingredients.length, 0);
-    const lo = Math.max(2, Math.floor(flat.length * 0.5));
+    // Lower bound floors at 1, not 2 — a valid one-ingredient recipe in a named
+    // section (total === flat === 1) is an exact match, not a suspicious parse.
+    const lo = Math.max(1, Math.floor(flat.length * 0.5));
     // Upper bound below 2× so a second same-sized recipe card's ingredients (which
     // would double the count) is rejected rather than silently merged in.
     if (total >= lo && total <= Math.ceil(flat.length * 1.4)) {

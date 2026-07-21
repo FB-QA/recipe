@@ -18,23 +18,25 @@ export interface WprmIngredientGroup {
   ingredients: string[];
 }
 
-// Named punctuation entities common in recipe titles and ingredient text. Left
-// undecoded, a name like `&ndash;` leaks its literal "ndash" into a comparison key
-// (breaking title matching) or into the shown text. `&amp;` is applied last so a
-// double-encoded "&amp;ndash;" still resolves.
+// Named entities common in recipe titles and ingredient text — punctuation,
+// spaces/quotes, and the full set of HTML vulgar-fraction names (recipes lean on
+// these for quantities). Left undecoded, a name like `&ndash;` leaks its literal
+// "ndash" into a comparison key (breaking title matching) or into the shown text,
+// and `&frac13;` would import as literal entity text instead of ⅓.
 const NAMED_ENTITIES: Record<string, string> = {
   "&ndash;": "–", "&mdash;": "—", "&hellip;": "…",
-  "&rsquo;": "'", "&lsquo;": "'", "&rdquo;": '"', "&ldquo;": '"',
-  "&deg;": "°", "&times;": "×", "&frac12;": "½", "&frac14;": "¼", "&frac34;": "¾",
+  "&rsquo;": "'", "&lsquo;": "'", "&rdquo;": '"', "&ldquo;": '"', "&quot;": '"', "&apos;": "'", "&nbsp;": " ",
+  "&deg;": "°", "&times;": "×",
+  "&frac12;": "½", "&frac13;": "⅓", "&frac14;": "¼", "&frac15;": "⅕", "&frac16;": "⅙", "&frac18;": "⅛",
+  "&frac23;": "⅔", "&frac25;": "⅖", "&frac34;": "¾", "&frac35;": "⅗", "&frac38;": "⅜",
+  "&frac45;": "⅘", "&frac56;": "⅚", "&frac58;": "⅝", "&frac78;": "⅞",
 };
+const NAMED_RE = new RegExp(Object.keys(NAMED_ENTITIES).join("|"), "g");
 const decodeEntities = (s: string): string =>
   s
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
-    .replace(/&(?:ndash|mdash|hellip|rsquo|lsquo|rdquo|ldquo|deg|times|frac12|frac14|frac34);/g, (m) => NAMED_ENTITIES[m])
-    .replace(/&nbsp;/g, " ")
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;|&apos;/g, "'")
+    .replace(NAMED_RE, (m) => NAMED_ENTITIES[m])
     .replace(/&amp;/g, "&");
 
 const stripTags = (s: string): string => decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();

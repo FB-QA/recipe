@@ -72,6 +72,20 @@ describe("parseWprmIngredientGroups", () => {
     ]);
   });
 
+  it("decodes the full set of named vulgar-fraction entities in quantities", () => {
+    const html = `
+      <div class="wprm-recipe-ingredient-group">
+        <h4 class="wprm-recipe-ingredient-group-name">Base</h4>
+        <ul>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-amount">&frac13;</span><span class="wprm-recipe-ingredient-name">cup sugar</span></li>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-amount">&frac18;</span><span class="wprm-recipe-ingredient-name">tsp salt</span></li>
+        </ul>
+      </div>`;
+    expect(parseWprmIngredientGroups(html)).toEqual([
+      { name: "Base", ingredients: ["⅓ cup sugar", "⅛ tsp salt"] },
+    ]);
+  });
+
   it("keeps an unnamed leading group's ingredients rather than dropping them", () => {
     const html = `
       <div class="wprm-recipe-ingredient-group">

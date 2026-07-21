@@ -95,6 +95,19 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.ingredientGroups[0].name).toBeNull();
   });
 
+  it("keeps a named section for a valid one-ingredient recipe (exact count match)", () => {
+    const recipe = { ...RECIPE, recipeIngredient: ["1 whole chicken"] };
+    const wprm = `
+      <div class="wprm-recipe-ingredient-group">
+        <h4 class="wprm-recipe-ingredient-group-name">The bird</h4>
+        <ul><li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-amount">1</span><span class="wprm-recipe-ingredient-name">whole chicken</span></li></ul>
+      </div>`;
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify(recipe)}</script></head><body>${wprm}</body></html>`;
+    const r = extractRecipeFromHtml(html);
+    expect(r!.ingredientGroups.map((g) => g.name)).toEqual(["The bird"]);
+    expect(r!.ingredientGroups[0].ingredients.map((i) => i.originalText)).toEqual(["1 whole chicken"]);
+  });
+
   it("splits newline-joined string instructions and keeps step order", () => {
     const r = extractRecipeFromHtml(
       withJsonLd({ ...RECIPE, recipeInstructions: "Step one.\nStep two.\nStep three." }),
