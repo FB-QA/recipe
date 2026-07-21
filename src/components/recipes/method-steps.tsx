@@ -112,7 +112,9 @@ export function MethodSteps({
                   {body}
                 </button>
               ) : (
-                <div className="flex gap-3.5 px-2 py-1">{body}</div>
+                // Match the tappable button's -mx-2 px-2 box so the step
+                // numbers line up whether or not a step is tappable.
+                <div className="flex gap-3.5 -mx-2 px-2 py-1">{body}</div>
               )}
             </li>
           );
