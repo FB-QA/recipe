@@ -175,7 +175,10 @@ export async function createRecipe(
   const importId = String(formData.get("importId") ?? "").trim();
   if (importId) {
     try {
-      await markImportSaved(importId, recipe.id, user.id);
+      // `importCoverUrl` is non-empty only when the user kept the imported cover
+      // (the form clears it for replace/remove) — the signal the deferred cover
+      // enrichment uses to know it may still update the saved recipe's cover.
+      await markImportSaved(importId, recipe.id, user.id, Boolean(importCoverUrl));
     } catch {
       // Non-fatal: the recipe is saved; only the import→recipe link didn't stick.
     }

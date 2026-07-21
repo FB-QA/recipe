@@ -285,30 +285,44 @@ export function createImportStore(prices: PriceRow[]): ImportStore {
  * `state` guard acts as a CAS so it can't clobber a failed/cancelled row, and it
  * filters by `user_id`. A failure here never blocks the recipe save.
  */
-export async function markImportSaved(importId: string, recipeId: string, userId: string): Promise<void> {
+export async function markImportSaved(
+  importId: string,
+  recipeId: string,
+  userId: string,
+  coverKept: boolean,
+): Promise<void> {
   const db = svc();
-  await db
-    .from("recipe_imports")
-    .update({ state: "saved", recipe_id: recipeId })
-    .eq("id", importId)
-    .eq("user_id", userId)
-    .eq("state", "ready_for_review");
-
-  // The import row is the source of truth for the cover — the deferred enrichment may
-  // have swapped in the clean image while the form still submitted its stale composite
-  // `importCoverUrl`. Read the cover AFTER the flip has serialized (so any enrichment
-  // that patched the import while it was in review is now visible) and, if it is clean,
-  // upsert it onto the recipe — overwriting the composite the save just stored. Any
-  // enrichment that finishes AFTER this point sees `saved` and is handled by
-  // applyEnrichedCover's saved branch. So a paid clean cover is never stranded.
-  const { data } = await db
+  const { data: pre } = await db
     .from("recipe_imports")
     .select("extracted")
     .eq("id", importId)
     .eq("user_id", userId)
     .maybeSingle();
-  const cover = (data as { extracted: ExtractedRecipe | null } | null)?.extracted?.source?.coverImageUrl ?? null;
-  if (cover && !isCompositeReelCover(cover)) {
+  const extracted = (pre as { extracted: ExtractedRecipe | null } | null)?.extracted ?? null;
+
+  // When the user did NOT keep the imported cover (they chose their own image, or
+  // removed it), clear the import's cover to null. The deferred enrichment reads that
+  // field as "the cover to apply to the recipe", so clearing it stops a run finishing
+  // after save from overwriting the user's choice (or resurrecting a removed cover).
+  const nextExtracted =
+    !coverKept && extracted?.source
+      ? { ...extracted, source: { ...extracted.source, coverImageUrl: null } }
+      : extracted;
+
+  await db
+    .from("recipe_imports")
+    .update({ state: "saved", recipe_id: recipeId, extracted: nextExtracted })
+    .eq("id", importId)
+    .eq("user_id", userId)
+    .eq("state", "ready_for_review");
+
+  // Kept-cover race: the enrichment may have swapped in the clean image while the form
+  // still submitted the composite. If the import's authoritative cover is now clean,
+  // upsert it onto the recipe, overwriting the composite the save stored. A composite
+  // means enrichment hasn't landed yet — a clean cover arriving later is handled by
+  // applyEnrichedCover's saved branch.
+  const cover = nextExtracted?.source?.coverImageUrl ?? null;
+  if (coverKept && cover && !isCompositeReelCover(cover)) {
     await storeCoverFromUrl(db.storage, userId, recipeId, cover);
   }
 }
@@ -368,8 +382,13 @@ export async function applyEnrichedCover(
   if (row.state === "ready_for_review" && coverUrl && row.extracted) {
     extracted = { ...row.extracted, source: { ...row.extracted.source, coverImageUrl: coverUrl } };
   } else if (row.state === "saved" && row.recipe_id && coverUrl) {
-    // The run outran the save — land the clean cover on the recipe itself.
-    await storeCoverFromUrl(db.storage, userId, row.recipe_id, coverUrl);
+    // The run outran the save — land the clean cover on the recipe itself, but ONLY
+    // if the user kept the imported cover. markImportSaved clears the import cover to
+    // null when they chose their own image or removed it, so a null here means "don't
+    // touch the recipe's cover".
+    if (row.extracted?.source?.coverImageUrl != null) {
+      await storeCoverFromUrl(db.storage, userId, row.recipe_id, coverUrl);
+    }
   }
 
   // Same-state atomic write: reconcile the ledger cost (and, in review, the cover).
