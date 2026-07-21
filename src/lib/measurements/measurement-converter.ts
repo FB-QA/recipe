@@ -214,8 +214,13 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
   // that does not land on a gas-mark row and must snap to the nearest setting.
   // An exact table hit (180°C → Gas 4) is exact; a system-targeted weight/
   // temperature/length/volume conversion is an exact formula/unit change.
+  // For a range → gas_mark, EITHER endpoint snapping off-table makes the whole
+  // result approximate, not just the lower bound.
   const gasMarkTarget = dimension === "temperature" && toUnit === "gas_mark";
-  const approximate = gasMarkTarget && !isExactGasMark(quantity, fromUnit);
+  const approximate =
+    gasMarkTarget &&
+    (!isExactGasMark(quantity, fromUnit) ||
+      (quantityMax != null && !isExactGasMark(quantityMax, fromUnit)));
 
   // Honour an explicit allowApproximate:false — a caller enforcing an
   // exact-only display policy must not be handed an approximate result.

@@ -151,12 +151,16 @@ export function parseDimensions(input: string): ParsedDimensions {
   // The unit is the last alphabetic run (or a trailing inch mark).
   const unitMatch = raw.match(/([a-zA-Z]+|")\s*$/);
   const unitText = unitMatch ? unitMatch[1] : null;
-  const body = unitMatch ? raw.slice(0, raw.length - unitMatch[0].length) : raw;
+  // Drop the unit, then any separator (the `-` of "8-inch", trailing hyphens/
+  // dashes) left dangling where the unit used to be.
+  const body = (unitMatch ? raw.slice(0, raw.length - unitMatch[0].length) : raw)
+    .replace(/[-‐-―−\s]+$/, "")
+    .trim();
   // Split on the dimension separator (×, x, *), then evaluate each segment as a
   // full quantity so mixed/fraction dimensions ("8½ × 11") keep their fraction.
   const values = body
     .split(/\s*[×x*]\s*/i)
-    .map((seg) => seg.trim())
+    .map((seg) => seg.replace(/^[-‐-―−]+|[-‐-―−]+$/g, "").trim())
     .filter(Boolean)
     .map(evalNumeric)
     .filter((v): v is number => v !== null);
