@@ -8,7 +8,14 @@ import type { MethodStep } from "./method-steps";
 vi.mock("@/components/grocery/add-to-list-sheet", () => ({ AddToListSheet: () => null }));
 vi.mock("@/components/food-icons", () => ({ FoodImage: () => null }));
 vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? <div data-testid="sheet">{children}</div> : null),
+  Sheet: ({ open, title, headerActions, children }: { open: boolean; title?: string; headerActions?: React.ReactNode; children: React.ReactNode }) =>
+    open ? (
+      <div data-testid="sheet">
+        {title}
+        {headerActions}
+        {children}
+      </div>
+    ) : null,
 }));
 
 const combobox = () => screen.getByRole("combobox", { name: /measurement units/i });

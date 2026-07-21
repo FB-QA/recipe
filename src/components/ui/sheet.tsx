@@ -14,6 +14,7 @@ export function Sheet({
   onClose,
   onBack,
   title,
+  headerActions,
   tall,
   onExitComplete,
   children,
@@ -22,6 +23,8 @@ export function Sheet({
   onClose: () => void;
   onBack?: () => void;
   title?: string;
+  /** Right-aligned controls on the title row (e.g. cook controls). */
+  headerActions?: React.ReactNode;
   /** Let the sheet grow to near-full height (for long flows like import review). */
   tall?: boolean;
   /** Fires once the close animation finishes — hosts navigate here so the
@@ -85,7 +88,7 @@ export function Sheet({
           transition={reduce ? { duration: DUR.fast } : springSoft}
         >
           <div aria-hidden className="mx-auto mb-3 mt-1 h-1 w-9 rounded-full bg-line" />
-          {(title || onBack) && (
+          {(title || onBack || headerActions) && (
             <div className="mb-3 flex items-center gap-1.5">
               {onBack && (
                 <button
@@ -100,6 +103,7 @@ export function Sheet({
               {title && (
                 <h2 className="text-[19px] font-extrabold tracking-[-0.01em] text-ink">{title}</h2>
               )}
+              {headerActions && <div className="ml-auto flex-none">{headerActions}</div>}
             </div>
           )}
           {children}

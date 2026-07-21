@@ -122,41 +122,34 @@ export function MethodSteps({
       <Sheet
         open={active !== null}
         onClose={() => setOpenIdx(null)}
-        title={active ? `Step ${(openIdx ?? 0) + 1} ingredients` : undefined}
+        title={active ? `Step ${(openIdx ?? 0) + 1}` : undefined}
+        headerActions={
+          // Portions + measurement controls on the title row — adjust while
+          // cooking without scrolling back up. They drive the shared recipe
+          // state, so the list and every step stay in sync.
+          active && setTarget && setSystem ? (
+            <CookControls base={base} target={target} setTarget={setTarget} system={system} setSystem={setSystem} />
+          ) : undefined
+        }
       >
         {active && (
-          <>
-            {/* Portions + measurement controls, right here — adjust while cooking
-                without scrolling back up. They drive the shared recipe state, so
-                the list and every step stay in sync. */}
-            {setTarget && setSystem && (
-              <CookControls
-                base={base}
-                target={target}
-                setTarget={setTarget}
-                system={system}
-                setSystem={setSystem}
-                className="mb-3 justify-end"
-              />
-            )}
-            <ul className="flex flex-col gap-1 pb-2">
-              {active.ingredients.map((ing) => {
+          <ul className="flex flex-col gap-1 pb-2">
+            {active.ingredients.map((ing) => {
               const rendered = renderIngredientAmount(ing, { scale, targetSystem: system, sourceRegion });
               return (
-              <li
-                key={ing.id}
-                className="flex items-center gap-3 border-b border-line-2 py-2.5 text-[15px] text-ink last:border-b-0"
-              >
-                <FoodImage text={ing.name ?? ing.display_text} size={24} className="flex-none text-ink-3" />
-                <span>
-                  {rendered.text}
-                  {rendered.approximate && <span className="sr-only"> (approximate conversion)</span>}
-                </span>
-              </li>
+                <li
+                  key={ing.id}
+                  className="flex items-center gap-3 border-b border-line-2 py-2.5 text-[15px] text-ink last:border-b-0"
+                >
+                  <FoodImage text={ing.name ?? ing.display_text} size={24} className="flex-none text-ink-3" />
+                  <span>
+                    {rendered.text}
+                    {rendered.approximate && <span className="sr-only"> (approximate conversion)</span>}
+                  </span>
+                </li>
               );
             })}
-            </ul>
-          </>
+          </ul>
         )}
       </Sheet>
     </>
