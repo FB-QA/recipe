@@ -19,6 +19,7 @@ export function classifyProviderError(code: ProviderErrorCode): RetryClass {
       return "retry";
     case "schema_invalid":
       return "correct_once";
+    case "bad_request":
     case "invalid_credentials":
     case "safety_block":
     case "unsupported":

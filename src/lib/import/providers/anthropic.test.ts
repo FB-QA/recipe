@@ -108,6 +108,10 @@ describe("createAnthropicProvider", () => {
     expect(await status(529)).toBe("provider_error");
     expect(await status(500)).toBe("provider_error");
     expect(await status(401)).toBe("invalid_credentials");
+    // A 400 means WE sent an invalid request (e.g. a schema over the union cap) —
+    // a permanent fault, distinct from a transient provider error, so it must not
+    // be retried and must not read as "service busy".
+    expect(await status(400)).toBe("bad_request");
   });
 
   it("maps a refusal stop to safety_block", async () => {

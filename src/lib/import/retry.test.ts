@@ -15,6 +15,10 @@ describe("classifyProviderError — §20 retry rules", () => {
     expect(classifyProviderError("unsupported")).toBe("no_retry");
   });
 
+  it("never retries a malformed request — a 400 will only 400 again", () => {
+    expect(classifyProviderError("bad_request")).toBe("no_retry");
+  });
+
   it("grants schema-invalid output exactly one correction", () => {
     expect(classifyProviderError("schema_invalid")).toBe("correct_once");
   });

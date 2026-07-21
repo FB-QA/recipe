@@ -260,7 +260,11 @@ export function createAnthropicProvider(options?: {
             ? ("rate_limited" as const)
             : res.status === 401 || res.status === 403
               ? ("invalid_credentials" as const)
-              : ("provider_error" as const);
+              : // A 400 is our own malformed request (bad schema, oversize prompt) —
+                // permanent, not the transient trouble "provider_error" implies.
+                res.status === 400
+                ? ("bad_request" as const)
+                : ("provider_error" as const);
         return {
           ok: false,
           errorCode,
