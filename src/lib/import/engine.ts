@@ -611,6 +611,9 @@ export function providerErrorToFailure(code: string | undefined): ImportFailureR
     case "rate_limited": return "ai_rate_limited";
     case "safety_block": return "ai_safety_block";
     case "schema_invalid": return "ai_output_invalid";
+    // A rejected request produced no usable draft — surface that honestly with a
+    // paste/manual fallback, not the transient "service is busy" of ai_provider_error.
+    case "bad_request": return "ai_output_invalid";
     case "invalid_credentials": return "ai_provider_error";
     case "unsupported": return "ai_provider_error";
     case "timeout":

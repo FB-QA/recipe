@@ -369,6 +369,8 @@ export type ProviderErrorCode =
   | "connection_failed"
   | "rate_limited"
   | "provider_error"
+  /** HTTP 400 — the request WE sent was invalid. Permanent; never retried. */
+  | "bad_request"
   | "invalid_credentials"
   | "safety_block"
   | "schema_invalid"

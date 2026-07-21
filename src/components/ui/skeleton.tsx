@@ -1,4 +1,4 @@
-import { SHELF_GRID, CARD_SHELL, CARD_COVER_H } from "@/components/recipes/recipe-card";
+import { SHELF_GRID, CARD_SHELL, CARD_COVER_H, CARD_TITLE_BOX } from "@/components/recipes/recipe-card";
 
 const LINE_MAX_WIDTH = 92; // widest line, %
 const LINE_WIDTH_STEP = 14; // narrower per cycle position, %
@@ -62,7 +62,12 @@ export function ShelfSkeleton({ count = SKELETON_COUNT.shelfCards }: { count?: n
         <div key={n} className={CARD_SHELL}>
           <Skeleton className={`${CARD_COVER_H} rounded-none`} />
           <div className="flex flex-col gap-2 px-3 pb-3.5 pt-2.5">
-            <Skeleton className="h-[14.5px] w-[85%]" />
+            {/* Reserve the real title's two-line box (CARD_TITLE_BOX) so a
+                single-line card does not grow when the placeholder resolves. */}
+            <div className={`${CARD_TITLE_BOX} flex flex-col gap-1.5`}>
+              <Skeleton className="h-[13px] w-[85%]" />
+              <Skeleton className="h-[13px] w-[55%]" />
+            </div>
             <Skeleton className="h-3 w-1/2" />
           </div>
         </div>
