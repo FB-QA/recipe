@@ -125,7 +125,9 @@ function buildIngredientGroups(html: string, flat: string[]): IngredientGroup[] 
   if (wprm && wprm.some((g) => g.name)) {
     const total = wprm.reduce((n, g) => n + g.ingredients.length, 0);
     const lo = Math.max(2, Math.floor(flat.length * 0.5));
-    if (total >= lo && total <= flat.length * 2) {
+    // Upper bound below 2× so a second same-sized recipe card's ingredients (which
+    // would double the count) is rejected rather than silently merged in.
+    if (total >= lo && total <= Math.ceil(flat.length * 1.4)) {
       let position = 0;
       return wprm.map((g, gi) => ({
         temporaryId: `wprm-g${gi}`,

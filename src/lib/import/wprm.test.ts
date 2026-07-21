@@ -86,4 +86,35 @@ describe("parseWprmIngredientGroups", () => {
       { name: "Topping", ingredients: ["sugar"] },
     ]);
   });
+
+  it("keeps an unnamed group that FOLLOWS a named one as its own section", () => {
+    // The wrapper is the boundary — an unheaded group must not merge into the
+    // previous named one (Codex finding on wprm.ts).
+    const html = `
+      <div class="wprm-recipe-ingredient-group">
+        <h4 class="wprm-recipe-ingredient-group-name">Main</h4>
+        <ul><li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-name">beef</span></li></ul>
+      </div>
+      <div class="wprm-recipe-ingredient-group">
+        <ul><li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-name">oil</span></li></ul>
+      </div>`;
+    expect(parseWprmIngredientGroups(html)).toEqual([
+      { name: "Main", ingredients: ["beef"] },
+      { name: null, ingredients: ["oil"] },
+    ]);
+  });
+
+  it("parses only the first recipe when the page has two WPRM cards", () => {
+    // A related-recipe / print variant lives in a second ingredients-container;
+    // its groups must not leak into the first recipe (Codex finding on jsonld.ts).
+    const card = (name: string, ing: string) => `
+      <div class="wprm-recipe-ingredients-container">
+        <div class="wprm-recipe-ingredient-group">
+          <h4 class="wprm-recipe-ingredient-group-name">${name}</h4>
+          <ul><li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-name">${ing}</span></li></ul>
+        </div>
+      </div>`;
+    const groups = parseWprmIngredientGroups(card("First", "flour") + card("Second", "sugar"));
+    expect(groups).toEqual([{ name: "First", ingredients: ["flour"] }]);
+  });
 });
