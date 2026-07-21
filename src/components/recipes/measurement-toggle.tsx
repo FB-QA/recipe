@@ -1,7 +1,7 @@
 "use client";
 
 import type { MeasurementSystem } from "@/lib/measurements";
-import { ChevronDownIcon } from "@/components/icons";
+import { ChevronDownIcon, ConvertIcon } from "@/components/icons";
 
 // Three options only. "UK/Ireland" is intentionally NOT offered as a target:
 // its output today is identical to Metric (g/kg, ml/L, °C), and an "Imperial"
@@ -15,12 +15,16 @@ export const MEASUREMENT_OPTIONS: { value: MeasurementSystem; label: string }[] 
   { value: "us", label: "US custom" },
 ];
 
+// The widest label — reserves a FIXED width so the pill never resizes as the
+// selection changes.
+const WIDEST_LABEL = MEASUREMENT_OPTIONS.reduce((a, b) => (b.label.length > a.length ? b.label : a), "Convert");
+
 /**
- * The recipe measurement selector — a compact native <select> styled to match
- * the portion stepper. Native on purpose: full keyboard + screen-reader support
- * for free. The visible label doubles as a width sizer so the pill HUGS the
- * current value (a native select otherwise stretches to its widest option,
- * leaving "Metric" left-aligned with dead space).
+ * The recipe measurement selector — a compact, FIXED-WIDTH native <select>.
+ * Native on purpose: full keyboard + screen-reader support for free. Shows a
+ * "Convert" placeholder (icon + word) until a system is chosen, then the chosen
+ * system — and never changes size (an invisible widest-label sizer reserves the
+ * width, so nothing shifts on selection). Mobile-first: one-hand tap target.
  */
 export function MeasurementToggle({
   value,
@@ -29,14 +33,23 @@ export function MeasurementToggle({
   value: MeasurementSystem;
   onChange: (value: MeasurementSystem) => void;
 }) {
-  const label = MEASUREMENT_OPTIONS.find((o) => o.value === value)?.label ?? "Original";
+  // "Original" is the default/no-conversion state → show the "Convert" placeholder.
+  const display = value === "original" ? "Convert" : (MEASUREMENT_OPTIONS.find((o) => o.value === value)?.label ?? "Convert");
   return (
-    <label className="relative inline-flex min-h-[44px] items-center rounded-full border border-line bg-surface text-[13px] font-semibold text-ink">
+    <label className="relative inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-line bg-surface pl-3 pr-2.5 text-[13px] font-semibold text-ink">
       <span className="sr-only">Measurement units</span>
-      {/* Visible value that also sizes the pill to the current selection. */}
-      <span aria-hidden className="whitespace-nowrap py-1 pl-3.5 pr-8">
-        {label}
+      <ConvertIcon size={15} className="flex-none text-ink-3" />
+      {/* Fixed-width label box: the invisible widest label reserves the width; the
+          current label renders in the same grid cell so nothing shifts. */}
+      <span className="grid">
+        <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-nowrap">
+          {WIDEST_LABEL}
+        </span>
+        <span aria-hidden className="col-start-1 row-start-1 whitespace-nowrap">
+          {display}
+        </span>
       </span>
+      <ChevronDownIcon size={14} className="flex-none text-ink-3" />
       {/* Transparent native select overlaid for interaction + a11y. */}
       <select
         value={value}
@@ -49,7 +62,6 @@ export function MeasurementToggle({
           </option>
         ))}
       </select>
-      <ChevronDownIcon size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-3" />
     </label>
   );
 }
