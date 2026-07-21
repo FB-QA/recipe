@@ -173,11 +173,17 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   const scaled = () => scaleIngredientText(displayText, opts.scale);
 
   // A leading "N × M<unit>" multiplier ("2 x 125g") is a COUNT of items with a
-  // per-item size — the leading number has no unit of its own, so converting it
-  // (pairing the count with the per-item unit) is meaningless. Keep the original,
-  // scaled line; the count scales with portions via scaleIngredientText.
-  if (/^\s*\d+(?:\.\d+)?\s*[×x]\s*\d/i.test(displayText)) {
-    return { text: scaled(), status: "unsupported_conversion", approximate: false, sourceText };
+  // per-item size. The count has no unit of its own, so never pair it with the
+  // per-item unit. Instead: scale the count with portions, and convert the
+  // per-item part ("125g" → US "4½ oz") on its own. Metric keeps "2 x 125g".
+  const mult = displayText.match(/^\s*(\d+(?:\.\d+)?)\s*[×x]\s*(.+)$/i);
+  if (mult) {
+    const perItem = renderIngredientAmount(
+      { display_text: mult[2], name: null, unit: null, quantity_value: null, quantity_min: null, quantity_max: null, preparation: ing.preparation },
+      { scale: 1, targetSystem: system, sourceRegion: opts.sourceRegion },
+    );
+    const count = formatQuantityValue(Number(mult[1]) * opts.scale);
+    return { text: `${count} x ${perItem.text}`, status: perItem.status, approximate: perItem.approximate, sourceText };
   }
 
   // 1. Resolve the original quantity/range + unit + name. A real v2 range stores

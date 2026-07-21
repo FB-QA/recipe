@@ -299,18 +299,26 @@ describe("renderIngredientAmount", () => {
     expect(us.text).toBe("7 oz dried noodles"); // no "200g /"
   });
 
-  it("does not convert a 'N × M<unit>' multiplier (2 x 125g stays; count scales)", () => {
-    // The importer stores quantity_value: 2 (the count) with unit null; the "g"
-    // belongs to 125, not the count — converting would give a nonsense 0.07 oz.
+  it("converts the per-item size of a 'N × M<unit>' multiplier, not the count", () => {
+    // Importer stores quantity_value: 2 (the count) with unit null. The count
+    // never pairs with the "g" (that belongs to 125) — no nonsense 0.07 oz. The
+    // per-item weight converts; the count stays and scales.
     const dt = "2 x 125g chicken breasts";
     const us = renderIngredientAmount(ing({ display_text: dt, name: "chicken breasts", quantity_value: 2, unit: null }), {
       scale: 1,
       targetSystem: "us",
       sourceRegion: "metric",
     });
-    expect(us.text).toBe("2 x 125g chicken breasts");
-    expect(us.text).not.toMatch(/oz/);
-    // The leading count still scales with portions.
+    expect(us.text).toMatch(/^2 x .*oz chicken breasts$/); // "2 x 4⅜ oz chicken breasts"
+    expect(us.text).not.toMatch(/0\.07|125g/);
+
+    const metric = renderIngredientAmount(ing({ display_text: dt, name: "chicken breasts", quantity_value: 2, unit: null }), {
+      scale: 1,
+      targetSystem: "metric",
+    });
+    expect(metric.text).toBe("2 x 125g chicken breasts"); // stays metric
+
+    // The leading count scales with portions.
     const doubled = renderIngredientAmount(ing({ display_text: dt, name: "chicken breasts", quantity_value: 2, unit: null }), {
       scale: 2,
       targetSystem: "metric",
