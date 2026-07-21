@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { enrichImportCover, type CoverEnrichDeps } from "./enrich-cover";
+import { enrichImportCover, shouldEnrichCover, type CoverEnrichDeps } from "./enrich-cover";
 import type { ImportRow } from "./store";
 import type { SourceResolverResult } from "./schema";
 
@@ -84,6 +84,24 @@ beforeEach(() => {
     closeRetrievalAttempt: vi.fn(async () => {}),
   };
   updateCover = vi.fn(async () => {});
+});
+
+describe("shouldEnrichCover — the single enrich-or-not rule (route + enrichment share it)", () => {
+  it("is true only for an enabled, in-review Instagram import with a composite cover", () => {
+    expect(shouldEnrichCover(rowWith(COMPOSITE), true)).toBe(true);
+  });
+  it("is false when the kill switch is off", () => {
+    expect(shouldEnrichCover(rowWith(COMPOSITE), false)).toBe(false);
+  });
+  it("is false for an already-clean cover", () => {
+    expect(shouldEnrichCover(rowWith(CLEAN), true)).toBe(false);
+  });
+  it("is false once the import has left review", () => {
+    expect(shouldEnrichCover(rowWith(COMPOSITE, { state: "saved" }), true)).toBe(false);
+  });
+  it("is false for a non-Instagram (website) import", () => {
+    expect(shouldEnrichCover(rowWith(COMPOSITE, { source_kind: "website" }), true)).toBe(false);
+  });
 });
 
 describe("enrichImportCover — replaces a composite Reel cover with the clean one", () => {

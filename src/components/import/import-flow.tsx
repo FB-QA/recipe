@@ -20,6 +20,8 @@ import type { ImportResult, ExtractedRecipe } from "@/lib/import/schema";
 
 const EXTRACTING_STEPS = ["Reading the recipe…", "Pulling out ingredients & steps…", "Tidying it up…"];
 const STEP_INTERVAL_MS = 1200;
+/** Cap the background cover fetch so the shimmer never spins forever (spec Q3). */
+const COVER_ENRICH_TIMEOUT_MS = 20_000;
 
 const IDLE: ImportResult = { phase: "processing", importId: "", state: "created" };
 
@@ -169,7 +171,7 @@ function Review({
     if (!isCompositeReelCover(initialCover)) return;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    const cap = setTimeout(() => ctrl.abort(), 20_000); // Q3: never spin forever.
+    const cap = setTimeout(() => ctrl.abort(), COVER_ENRICH_TIMEOUT_MS);
     (async () => {
       try {
         const res = await fetch(`/api/imports/${importId}/cover`, { method: "POST", signal: ctrl.signal });

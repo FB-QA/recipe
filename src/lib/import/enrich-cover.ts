@@ -27,15 +27,30 @@ export interface CoverEnrichDeps {
   updateCover: (coverUrl: string, costMicroUsd: number) => Promise<void>;
 }
 
+/**
+ * The single rule for whether a deferred cover enrichment should run: the operator
+ * switch (`IMPORT_REEL_COVER_ENRICH`) is on, it's an Instagram import still in
+ * review, and its cover is the play-button composite. Anything else (disabled,
+ * already clean, already saved, a website import) is a no-op — no Apify call, no
+ * charge. Shared by the route's cheap early-out and the enrichment itself, so the
+ * predicate lives in exactly one place.
+ */
+export function shouldEnrichCover(
+  row: Pick<ImportRow, "state" | "source_kind" | "extracted">,
+  enabled: boolean,
+): boolean {
+  const cover = row.extracted?.source?.coverImageUrl ?? null;
+  return (
+    enabled &&
+    Boolean(row.source_kind?.startsWith("instagram")) &&
+    row.state === "ready_for_review" &&
+    isCompositeReelCover(cover)
+  );
+}
+
 export async function enrichImportCover(deps: CoverEnrichDeps): Promise<{ coverUrl: string | null }> {
   const currentCover = deps.row.extracted?.source?.coverImageUrl ?? null;
-
-  // Only enrich when the switch is on AND it's an Instagram import still in review
-  // whose cover is the composite. Anything else (disabled, already clean, already
-  // saved, website) is a no-op — no Apify call, no charge. `enabled` is the operator
-  // kill switch (IMPORT_REEL_COVER_ENRICH) for an incident or rollback.
-  const isInstagram = Boolean(deps.row.source_kind?.startsWith("instagram"));
-  if (!deps.enabled || !isInstagram || deps.row.state !== "ready_for_review" || !isCompositeReelCover(currentCover)) {
+  if (!shouldEnrichCover(deps.row, deps.enabled)) {
     return { coverUrl: currentCover };
   }
 

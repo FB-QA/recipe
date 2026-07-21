@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth/session";
-import { isCompositeReelCover, importConfig } from "@/lib/import/config";
+import { importConfig } from "@/lib/import/config";
 import {
   readById,
   loadPrices,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/import/store";
 import { createApifyResolver } from "@/lib/import/resolvers/apify";
 import { fetchInstagram } from "@/lib/import/apify";
-import { enrichImportCover } from "@/lib/import/enrich-cover";
+import { enrichImportCover, shouldEnrichCover } from "@/lib/import/enrich-cover";
 import type { RecipeImportSourceType } from "@/lib/import/schema";
 
 /**
@@ -29,12 +29,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const row = await readById(user.id, id);
   if (!row) return NextResponse.json({ coverUrl: null }, { status: 404 });
 
-  // Cheap early-out — skip the price/ledger/Apify work when there is nothing to
-  // enrich: the operator kill switch (IMPORT_REEL_COVER_ENRICH) is off, or the cover
-  // is already clean / the import already saved / it isn't a composite Reel.
+  // Cheap early-out on the shared predicate — skip the price/ledger/Apify work
+  // entirely when there is nothing to enrich (switch off, cover already clean,
+  // import already saved, or not an Instagram composite).
   const config = importConfig();
   const currentCover = row.extracted?.source?.coverImageUrl ?? null;
-  if (!config.reelCoverEnrich || row.state !== "ready_for_review" || !isCompositeReelCover(currentCover)) {
+  if (!shouldEnrichCover(row, config.reelCoverEnrich)) {
     return NextResponse.json({ coverUrl: currentCover });
   }
 
