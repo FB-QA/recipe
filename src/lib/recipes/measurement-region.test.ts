@@ -83,6 +83,20 @@ describe("detectSourceRegion", () => {
     expect(detectSourceRegion({ units: ["cup", "tbsp"], instructions: ["Mix 1 cup flour with 2 tbsp sugar."] })).toBeUndefined();
   });
 
+  it("does NOT read a cup abbreviation ('1 c') as a Celsius cue", () => {
+    // "1 c milk" is a US cup, not 1°C. A US recipe (°F) that also writes "1 c"
+    // must stay US, not collapse to undefined on a phantom °F+°C conflict.
+    expect(detectSourceRegion({ units: ["cup"], instructions: ["Bake at 350°F.", "Add 1 c milk."] })).toBe("us");
+  });
+
+  it("reads kilograms in unstructured text as a metric cue", () => {
+    expect(detectSourceRegion({ units: [null], instructions: ["Weigh 1 kg flour."] })).toBe("metric");
+  });
+
+  it("reads milligrams in unstructured text as a metric cue", () => {
+    expect(detectSourceRegion({ units: [null], instructions: ["Add 100 mg saffron threads."] })).toBe("metric");
+  });
+
   it("is null-safe on empty input", () => {
     expect(detectSourceRegion({ units: [], instructions: [] })).toBeUndefined();
     expect(detectSourceRegion({ units: [null, undefined as never], instructions: [""] })).toBeUndefined();

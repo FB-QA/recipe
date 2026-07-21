@@ -25,7 +25,10 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
     .map((u) => u.toLowerCase().trim());
 
   const hasFahrenheit = /\d\s*°?\s*f\b/.test(text) || /°f/.test(text) || /fahrenheit/.test(text);
-  const hasCelsius = /\d\s*°?\s*c\b/.test(text) || /°c/.test(text) || /celsius/.test(text);
+  // Celsius must carry a degree sign or the word "celsius": a bare "c" collides
+  // with the US cup abbreviation ("1 c milk"), which would otherwise fake a °F+°C
+  // conflict and drop a genuine US recipe to undefined.
+  const hasCelsius = /°\s*c\b/.test(text) || /celsius/.test(text);
   // A BARE "pint" is ambiguous (US 473 ml vs UK/IE 568 ml), so it is not a
   // signal. Only an explicitly "imperial pint" is a strong UK/IE cue.
   const hasImperialPint = /\bimperial\s+pints?\b/.test(text);
@@ -35,8 +38,11 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
   const hasUsQualifier = /\bus\s+(?:cups?|pints?|fl\.?\s*oz|fluid\s+ounces?|tbsps?|tablespoons?|tsps?|teaspoons?|gallons?|quarts?)\b|\bus\s+customary\b/.test(text);
   const hasMetricQualifier = /\bmetric\s+(?:cups?|tbsps?|tablespoons?|tsps?|teaspoons?)\b/.test(text);
   const hasMetricWeight =
-    units.some((u) => ["g", "kg", "gram", "grams", "kilogram", "kilograms"].includes(u)) ||
-    /\d\s*g\b|\bgrams?\b/.test(text);
+    units.some((u) =>
+      ["g", "kg", "mg", "gram", "grams", "kilogram", "kilograms", "milligram", "milligrams"].includes(u),
+    ) ||
+    // \d\s*(?:m|k)?g\b matches g / kg / mg after a number ("500 g", "1 kg", "100 mg").
+    /\d\s*(?:m|k)?g\b|\bgrams?\b|\bkilograms?\b|\bmilligrams?\b/.test(text);
   const hasMetricLength = /\d\s*mm\b|\d\s*cm\b/.test(text);
   // Grams or mm/cm ⇒ a metric-family recipe: US recipes weigh in oz/lb and
   // measure in inches, never grams/mm. This holds even with no oven temperature
