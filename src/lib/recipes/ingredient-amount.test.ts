@@ -399,6 +399,14 @@ describe("renderIngredientAmount", () => {
     expect(r.text).toBe("400g dried noodles, or 900g fresh noodles");
   });
 
+  it("scales BOTH members of a dual annotation in Original mode", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "200g / 7 oz noodles", quantity_value: null, unit: null, name: null }),
+      { scale: 2, targetSystem: "original" },
+    );
+    expect(r.text).toBe("400g / 14 oz noodles"); // not "400g / 7 oz noodles"
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),

@@ -46,3 +46,17 @@ export function scaleIngredientText(text: string, factor: number): string {
     return formatQuantityValue(value * factor);
   });
 }
+
+/**
+ * Scale every measurement in an annotated ingredient line — each "/"-separated
+ * member and each "or" alternative — so a dual annotation ("200g / 7 oz") or a
+ * multi-option line scales all its equivalents, not just the first. Segments split
+ * on a SPACED separator only, so a typed fraction ("1/2") is never cut.
+ */
+export function scaleAnnotatedText(text: string, factor: number): string {
+  if (!Number.isFinite(factor) || factor === 1) return text;
+  return text
+    .split(/(\s+\/\s+|\s*,?\s+or\s+)/i)
+    .map((segment, i) => (i % 2 === 0 ? scaleIngredientText(segment, factor) : segment))
+    .join("");
+}

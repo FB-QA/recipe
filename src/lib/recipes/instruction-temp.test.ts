@@ -158,4 +158,9 @@ describe("convertInstructionTemps", () => {
     // A genuine equivalent still collapses.
     expect(convertInstructionTemps("Bake at Gas Mark 4 / 350°F.", "us")).toBe("Bake at 350°F.");
   });
+
+  it("collapses an equivalent dual-scale RANGE instead of contradicting it", () => {
+    expect(convertInstructionTemps("Bake at 180–200°C / 350–400°F.", "us")).toBe("Bake at 350–400°F.");
+    expect(convertInstructionTemps("Bake at 180–200°C / 350–400°F.", "metric")).toBe("Bake at 180–200°C.");
+  });
 });

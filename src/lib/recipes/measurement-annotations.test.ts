@@ -57,6 +57,10 @@ describe("reduceMeasurementGroups", () => {
     expect(reduceMeasurementGroups("240 millilitres / 8 fluid ounces milk", "us")).toBe("8 fluid ounces milk");
   });
 
+  it("reduces a dual annotation with a period on an abbreviation ('1 tbsp.')", () => {
+    expect(reduceMeasurementGroups("1 tbsp. / 15 ml oil", "metric")).toBe("15 ml oil");
+  });
+
   it("reduces a dual annotation whose members are ranges", () => {
     expect(reduceMeasurementGroups("200–250 g / 7–9 oz chicken", "us")).toBe("7–9 oz chicken");
     expect(reduceMeasurementGroups("200–250 g / 7–9 oz chicken", "metric")).toBe("200–250 g chicken");

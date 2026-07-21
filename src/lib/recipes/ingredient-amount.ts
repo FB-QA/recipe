@@ -13,7 +13,7 @@ import {
   type MeasurementUnit,
   type ConversionResult,
 } from "@/lib/measurements";
-import { scaleIngredientText } from "./scale";
+import { scaleIngredientText, scaleAnnotatedText } from "./scale";
 import { reduceMeasurementGroups } from "./measurement-annotations";
 
 /**
@@ -164,9 +164,10 @@ function formatConverted(result: ConversionResult): string {
 export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOptions): RenderedIngredientAmount {
   const sourceText = ing.display_text;
 
-  // "Original" — scale the imported line, do not convert.
+  // "Original" — scale the imported line, do not convert. Every member of a dual
+  // annotation ("200g / 7 oz") scales, not just the first.
   if (opts.targetSystem === "original") {
-    return { text: scaleIngredientText(ing.display_text, opts.scale), status: "original", approximate: false, sourceText };
+    return { text: scaleAnnotatedText(ing.display_text, opts.scale), status: "original", approximate: false, sourceText };
   }
   const system = opts.targetSystem;
 
@@ -199,16 +200,11 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
 
   // A pre-written dual annotation ("200g / 7 oz", or two "/"-groups joined by
   // "or") was already reduced to the target system above, so the author's own
-  // target amount is in hand. Scale THAT text rather than recomputing from the
-  // structured value — recomputing would override the author's rounding (at 2×,
-  // "14 oz" would drift to "14⅛ oz"). Each "or"-separated alternative carries its
-  // own amount, so scale them independently ("200g …, or 450g …" → both scaled).
+  // target amount is in hand. Scale THAT text (every "or" alternative included)
+  // rather than recomputing from the structured value — recomputing would
+  // override the author's rounding (at 2×, "14 oz" would drift to "14⅛ oz").
   if (displayText !== ing.display_text) {
-    const text = displayText
-      .split(/(\s*,?\s+or\s+)/i)
-      .map((part, i) => (i % 2 === 0 ? scaleIngredientText(part, opts.scale) : part))
-      .join("");
-    return { text, status: "converted", approximate: false, sourceText };
+    return { text: scaleAnnotatedText(displayText, opts.scale), status: "converted", approximate: false, sourceText };
   }
 
   // 1. Resolve the original quantity/range + unit + name. A real v2 range stores

@@ -67,6 +67,11 @@ const TEMP = NUM + UNIT;
 const isBareLowerLetter = (deg: string | undefined, unit: string): boolean =>
   !deg && (unit === "c" || unit === "f");
 
+// A temperature RANGE (5 groups: lo, separator, hi, degree-marker, unit), across a
+// dash or the word "to". The first endpoint takes an optional sign so a negative
+// range ("-20–-10°C") keeps it. Shared by the single-range and dual-range passes.
+const RANGE = String.raw`([-−]?\d{2,4})\s*(–|—|-|\bto\b)\s*([-−]?\d{2,4})\s*(°\s*|degrees?\s*)?(celsius|fahrenheit|[cf])\b`;
+
 export function convertInstructionTemps(text: string, system: ConcreteSystem): string {
   const toUnit: MeasurementUnit = system === "us" ? "fahrenheit" : "celsius";
   let out = text;
@@ -117,22 +122,43 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
     },
   );
 
-  // Ranges — both endpoints convert together (never a mixed "180–400°F"), across
-  // a dash or the word "to". The first endpoint takes an optional sign so a
-  // negative range ("-20–-10°C") keeps it instead of stranding a stray "-".
-  out = out.replace(
-    new RegExp(String.raw`(?<![\d.])([-−]?\d{2,4})\s*(–|—|-|\bto\b)\s*([-−]?\d{2,4})\s*(°\s*|degrees?\s*)?(celsius|fahrenheit|[cf])\b`, "gi"),
-    (m, a, sep, b, deg, u) => {
-      if (isBareLowerLetter(deg, u)) return m; // "1–2 c" is cups, not a temp range
-      const from = scaleOf(u);
-      if (from === toUnit) return m;
-      const lo = convertTempNum(num(a), from, toUnit);
-      const hi = convertTempNum(num(b), from, toUnit);
-      if (lo == null || hi == null) return m;
-      const sepOut = /to/i.test(sep) ? " to " : "–";
-      return `${lo}${sepOut}${hi}${symbol(toUnit)}`;
-    },
-  );
+  // Dual-scale RANGES ("180–200°C / 350–400°F") — collapse equivalents to one
+  // target-scale range before the single-range pass, so it never yields
+  // "350–400°F / 350–400°F" (US) or two disagreeing ranges (Metric). Analogous to
+  // the scalar collapseDual: only genuine opposite-scale equivalents collapse.
+  const collapseDualRange = (
+    m: string, a1: string, s1sep: string, b1: string, d1: string, u1: string,
+    a2: string, s2sep: string, b2: string, d2: string, u2: string,
+  ): string => {
+    if (isBareLowerLetter(d1, u1) || isBareLowerLetter(d2, u2)) return m;
+    const s1 = scaleOf(u1);
+    const s2 = scaleOf(u2);
+    if (s1 === s2) return m;
+    const fs = [convertTempNum(num(a1), s1, "fahrenheit"), convertTempNum(num(b1), s1, "fahrenheit"),
+                convertTempNum(num(a2), s2, "fahrenheit"), convertTempNum(num(b2), s2, "fahrenheit")];
+    if (fs.some((v) => v == null)) return m;
+    const [lo1, hi1, lo2, hi2] = fs as number[];
+    if (Math.abs(lo1 - lo2) >= DUAL_EQUIV_TOLERANCE_F || Math.abs(hi1 - hi2) >= DUAL_EQUIV_TOLERANCE_F) return m;
+    if (s1 === toUnit) return `${num(a1)}–${num(b1)}${symbol(toUnit)}`;
+    if (s2 === toUnit) return `${num(a2)}–${num(b2)}${symbol(toUnit)}`;
+    const lo = convertTempNum(num(a1), s1, toUnit);
+    const hi = convertTempNum(num(b1), s1, toUnit);
+    return lo != null && hi != null ? `${lo}–${hi}${symbol(toUnit)}` : m;
+  };
+  out = out.replace(new RegExp(`${RANGE}\\s*\\(\\s*${RANGE}\\s*\\)`, "gi"), collapseDualRange);
+  out = out.replace(new RegExp(`${RANGE}\\s*(?:\\/|\\bor\\b)\\s*${RANGE}`, "gi"), collapseDualRange);
+
+  // Single ranges — both endpoints convert together (never a mixed "180–400°F").
+  out = out.replace(new RegExp(`(?<![\\d.])${RANGE}`, "gi"), (m, a, sep, b, deg, u) => {
+    if (isBareLowerLetter(deg, u)) return m; // "1–2 c" is cups, not a temp range
+    const from = scaleOf(u);
+    if (from === toUnit) return m;
+    const lo = convertTempNum(num(a), from, toUnit);
+    const hi = convertTempNum(num(b), from, toUnit);
+    if (lo == null || hi == null) return m;
+    const sepOut = /to/i.test(sep) ? " to " : "–";
+    return `${lo}${sepOut}${hi}${symbol(toUnit)}`;
+  });
 
   // Single temperatures.
   out = out.replace(new RegExp(TEMP, "gi"), (m, n, deg, u) => {

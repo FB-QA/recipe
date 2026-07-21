@@ -17,8 +17,9 @@ const METRIC_UNIT_MATCH = /^(kilograms?|grams?|milligrams?|millilit(?:re|er)s?|l
 // fraction ("1 1/2", "1.5", "1/2"), or a bare unicode fraction ("½"). The
 // unicode-mixed form is FIRST so "1½" is taken whole, never split into "1" + "½".
 const AMOUNT = String.raw`(?:\d+\s*[${UNICODE_FRACTION_CHARS}]|\d+(?:\s+\d+\/\d+|\.\d+|\/\d+)?|[${UNICODE_FRACTION_CHARS}])`;
-// A measurement: an amount, an OPTIONAL range ("200–250 g", "7–9 oz"), then a unit.
-const MEAS = String.raw`${AMOUNT}(?:\s*[–—-]\s*${AMOUNT})?\s*(?:${UNIT})\b`;
+// A measurement: an amount, an OPTIONAL range ("200–250 g", "7–9 oz"), then a
+// unit with an optional trailing period on an abbreviation ("1 tbsp.").
+const MEAS = String.raw`${AMOUNT}(?:\s*[–—-]\s*${AMOUNT})?\s*(?:${UNIT})\b\.?`;
 // A group: two or more measurements joined by "/".
 const GROUP = new RegExp(`${MEAS}(?:\\s*\\/\\s*${MEAS})+`, "gi");
 const MEAS_GLOBAL = new RegExp(MEAS, "gi");
