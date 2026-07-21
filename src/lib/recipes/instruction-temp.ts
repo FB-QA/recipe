@@ -72,7 +72,7 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   // Gas marks (source only). The lookahead refuses a dash-range ("Gas Mark
   // 4–5", "Gas Mark 4.5–5"); an off-table decimal is captured whole and left
   // unchanged by convertTemp — never a partial "180°C.5".
-  out = out.replace(/gas\s*mark\s*(¼|½|¾|\d+(?:\.\d+)?)(?!\s*[–—-]\s*\d)/gi, (m, g) => {
+  out = out.replace(/gas\s*mark\s*(¼|½|¾|\d+(?:\.\d+)?)(?!\s*[–—-]\s*\d)(?![¼½¾])/gi, (m, g) => {
     return convertTemp(gasValue(g), "gas_mark", toUnit) ?? m;
   });
 

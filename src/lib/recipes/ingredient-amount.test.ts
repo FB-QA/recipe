@@ -170,6 +170,25 @@ describe("renderIngredientAmount", () => {
     expect(r.text).toMatch(/pecans, toasted$/);
   });
 
+  it("parses a multi-word legacy unit ('8 fl oz')", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "8 fl oz milk", quantity_value: null, unit: null, name: null }),
+      { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+    );
+    expect(r.status).toBe("converted"); // "fl oz" resolved, not just "fl"
+    expect(r.text).toMatch(/ml milk$/);
+  });
+
+  it("does NOT portion-scale a temperature ingredient", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "60°C water", quantity_value: 60, unit: "celsius", name: "water" }),
+      { scale: 2, targetSystem: "us" },
+    );
+    // 60°C → 140°F regardless of the 2× portion factor (not 120°C → 250°F).
+    expect(r.text).toMatch(/140\s*°F water$/);
+    expect(r.text).not.toMatch(/250/);
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),

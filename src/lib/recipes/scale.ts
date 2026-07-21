@@ -44,8 +44,10 @@ export function formatAmount(n: number): string {
 // Leading quantity: a fraction (a/b), a decimal/integer, or a unicode fraction.
 const QTY = String.raw`\d+\s*\/\s*\d+|\d+(?:\.\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞]`;
 const QTY_RE = new RegExp(`(${QTY})`);
-// A leading RANGE: two quantities joined by a dash or "to" ("1–2", "1 to 2").
-const RANGE_RE = new RegExp(String.raw`^(\s*)(${QTY})(\s*(?:[–—-]|\bto\b)\s*)(${QTY})`);
+// A leading RANGE: two quantities joined by a dash or "to" ("1–2", "1 to 2"),
+// optionally after a modifier ("about 1–2") which is preserved.
+const RANGE_MOD = String.raw`(?:about|approximately|approx|roughly|around|up\s+to)`;
+const RANGE_RE = new RegExp(String.raw`^(\s*(?:${RANGE_MOD}\s+)?)(${QTY})(\s*(?:[–—-]|\bto\b)\s*)(${QTY})`, "i");
 
 /**
  * Scale a quantity in an ingredient line by `factor`. A leading RANGE scales

@@ -31,17 +31,23 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
   const hasImperialPint = /\bimperial\s+pints?\b/.test(text);
   // Gas marks are a British/Irish oven convention — a strong UK/IE cue.
   const hasGasMark = /\bgas\s*mark\b/.test(text) || units.some((u) => u === "gas_mark");
+  // Explicit regional qualifiers on a unit ("1 US cup", "metric cup").
+  const hasUsQualifier = /\bus\s+(?:cups?|pints?|fl\.?\s*oz|fluid\s+ounces?|tbsps?|tablespoons?|tsps?|teaspoons?|gallons?|quarts?)\b|\bus\s+customary\b/.test(text);
+  const hasMetricQualifier = /\bmetric\s+(?:cups?|tbsps?|tablespoons?|tsps?|teaspoons?)\b/.test(text);
   const hasMetricWeight =
     units.some((u) => ["g", "kg", "gram", "grams", "kilogram", "kilograms"].includes(u)) ||
     /\d\s*g\b|\bgrams?\b/.test(text);
 
-  // Conflicting cues → we can't tell; don't guess. Both oven scales together, or
-  // a US cue (Fahrenheit) alongside a UK/IE cue (imperial pint or gas mark).
+  // Collapse to the distinct region cues; more than one distinct cue → we can't
+  // tell, so don't guess (leave region-sensitive units unchanged).
+  const usCue = hasFahrenheit || hasUsQualifier;
+  const ukCue = hasImperialPint || hasGasMark;
+  const metricCue = hasMetricQualifier;
   if (hasFahrenheit && hasCelsius) return undefined;
-  if (hasFahrenheit && (hasImperialPint || hasGasMark)) return undefined;
-  if (hasFahrenheit) return "us";
-  // UK/IE cues (either is strong; gas mark may co-occur with °C, still UK/IE).
-  if (hasImperialPint || hasGasMark) return "uk_ie";
+  if ([usCue, ukCue, metricCue].filter(Boolean).length > 1) return undefined;
+  if (usCue) return "us";
+  if (ukCue) return "uk_ie";
+  if (metricCue) return "metric";
   if (hasCelsius && hasMetricWeight) return "metric";
   return undefined;
 }

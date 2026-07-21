@@ -19,6 +19,14 @@ describe("detectSourceRegion", () => {
     expect(detectSourceRegion({ units: ["pint", "oz"], instructions: ["Add 1 pint stock."] })).toBeUndefined();
   });
 
+  it("recognises an explicit US qualifier ('1 US cup') as US", () => {
+    expect(detectSourceRegion({ units: ["cup"], instructions: ["Mix.", "1 US cup flour"] })).toBe("us");
+  });
+
+  it("stays undefined when a US qualifier conflicts with a UK cue", () => {
+    expect(detectSourceRegion({ units: ["cup"], instructions: ["1 US cup flour", "Bake at Gas Mark 4."] })).toBeUndefined();
+  });
+
   it("finds an imperial-pint cue in an ingredient line, not just the steps", () => {
     // page.tsx feeds ingredient display_text into the scan, since imports store
     // "imperial" in display_text while the unit is a bare "pint".

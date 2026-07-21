@@ -59,9 +59,10 @@ describe("convertInstructionTemps", () => {
     expect(convertInstructionTemps("Add 2 fresh eggs and 100 cloves.", "us")).toBe("Add 2 fresh eggs and 100 cloves.");
   });
 
-  it("does not partially convert an off-table decimal or range gas mark", () => {
+  it("does not partially convert an off-table decimal, range, or mixed-fraction gas mark", () => {
     expect(convertInstructionTemps("Gas Mark 4.5 for an hour.", "metric")).toBe("Gas Mark 4.5 for an hour.");
     expect(convertInstructionTemps("Gas Mark 4–5.", "metric")).toBe("Gas Mark 4–5.");
+    expect(convertInstructionTemps("Gas Mark 4½.", "metric")).toBe("Gas Mark 4½."); // not "180°C½"
   });
 
   it("still converts a valid gas mark ending a sentence", () => {

@@ -92,12 +92,19 @@ function parseLegacyIngredient(text: string): {
   while (LEADING_MODIFIER.test(rest)) rest = rest.replace(LEADING_MODIFIER, "");
   rest = rest.replace(/^(?:an?)\s+/i, "");
   rest = rest.replace(/^\s*(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/i, "").trim();
+  // Match the LONGEST supported unit phrase (up to two words), so multi-word
+  // units like "fl oz" resolve instead of capturing only "fl".
   let unit: string | null = null;
   let name = rest;
-  const um = rest.match(/^([a-zA-Z.]+)(?:\s+|$)/);
-  if (um && normalizeUnit(um[1]).unit !== "unknown") {
-    unit = um[1];
-    name = rest.slice(um[0].length).trim();
+  const tokens = rest.split(/\s+/).filter(Boolean);
+  for (const n of [2, 1]) {
+    if (tokens.length < n) continue;
+    const phrase = tokens.slice(0, n).join(" ");
+    if (/^[a-zA-Z. ]+$/.test(phrase) && normalizeUnit(phrase).unit !== "unknown") {
+      unit = phrase;
+      name = tokens.slice(n).join(" ");
+      break;
+    }
   }
   return { value: parsed.value, max: parsed.max, unit, name: name || text.trim() };
 }
@@ -155,8 +162,10 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   if (isRegionSensitive(norm.unit) && !opts.sourceRegion) return fallback("ambiguous_region");
 
   const dimension = UNIT_DEFINITIONS[norm.unit].dimension;
-  const scaledLo = value * opts.scale;
-  const scaledHi = max != null ? max * opts.scale : undefined;
+  // Temperatures are oven/liquid SETTINGS, not consumable amounts — never
+  // multiplied by the portion factor. Everything else scales from the original.
+  const scaledLo = dimension === "temperature" ? value : value * opts.scale;
+  const scaledHi = max == null ? undefined : dimension === "temperature" ? max : max * opts.scale;
 
   // 2. Convert. Temperatures go straight to the system's scale; everything else
   //    pivots through the canonical unit so the LIBRARY picks the friendly

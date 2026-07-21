@@ -38,6 +38,10 @@ describe("scaleIngredientText", () => {
     expect(scaleIngredientText("200–250 g flour", 2)).toBe("400–500 g flour");
   });
 
+  it("scales a range that starts with a modifier, preserving the modifier", () => {
+    expect(scaleIngredientText("about 1–2 tbsp oil", 2)).toBe("about 2–4 tbsp oil");
+  });
+
   it("leaves numberless lines and factor-1 unchanged", () => {
     expect(scaleIngredientText("salt to taste", 3)).toBe("salt to taste");
     expect(scaleIngredientText("2 eggs", 1)).toBe("2 eggs");
