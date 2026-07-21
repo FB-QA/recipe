@@ -4,6 +4,13 @@ export type IngredientLike = {
   quantity: string | null;
   unit: string | null;
   name: string | null;
+  // Structured fields (populated by the v2 importer). Optional so the manual
+  // flat form and legacy rows still satisfy the type; the measurement bridge
+  // uses them when present and legacy-parses the display text when not.
+  quantity_value?: number | null;
+  quantity_min?: number | null;
+  quantity_max?: number | null;
+  preparation?: string | null;
 };
 
 type IngredientParts = {

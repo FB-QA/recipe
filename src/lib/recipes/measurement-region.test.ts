@@ -1,0 +1,35 @@
+import { describe, it, expect } from "vitest";
+import { detectSourceRegion } from "./measurement-region";
+
+describe("detectSourceRegion", () => {
+  it("returns undefined when there is no strong signal (never guesses)", () => {
+    expect(detectSourceRegion({ units: ["cup", "cups"], instructions: ["Mix well."] })).toBeUndefined();
+  });
+
+  it("reads Fahrenheit in instructions as US", () => {
+    expect(detectSourceRegion({ units: ["cup"], instructions: ["Bake at 350°F."] })).toBe("us");
+    expect(detectSourceRegion({ units: [], instructions: ["Preheat oven to 400 F"] })).toBe("us");
+  });
+
+  it("reads an imperial pint as UK/Ireland", () => {
+    expect(detectSourceRegion({ units: ["pint", "oz"], instructions: ["Add 1 pint stock."] })).toBe("uk_ie");
+  });
+
+  it("reads clean metric (°C + grams, no Fahrenheit) as metric", () => {
+    expect(detectSourceRegion({ units: ["g", "ml"], instructions: ["Bake at 180°C."] })).toBe("metric");
+  });
+
+  it("stays undefined on a conflicting/mixed signal rather than guessing", () => {
+    // Both °F (US) and °C present → ambiguous.
+    expect(detectSourceRegion({ units: ["cup"], instructions: ["Bake at 180°C or 350°F."] })).toBeUndefined();
+  });
+
+  it("does not treat a lone gram as a region signal without a temperature", () => {
+    expect(detectSourceRegion({ units: ["g"], instructions: ["Weigh 200 g."] })).toBeUndefined();
+  });
+
+  it("is null-safe on empty input", () => {
+    expect(detectSourceRegion({ units: [], instructions: [] })).toBeUndefined();
+    expect(detectSourceRegion({ units: [null, undefined as never], instructions: [""] })).toBeUndefined();
+  });
+});

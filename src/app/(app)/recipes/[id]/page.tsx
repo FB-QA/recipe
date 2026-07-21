@@ -11,6 +11,7 @@ import { listedIngredientIds } from "@/lib/grocery/queries";
 import { CREATED_PARAM } from "@/lib/recipes/constants";
 import { ingredientsInStep, ingredientTerms } from "@/lib/recipes/highlight";
 import { attributionLabel } from "@/lib/recipes/handle";
+import { detectSourceRegion } from "@/lib/recipes/measurement-region";
 import {
   ChevronLeftIcon,
   PencilIcon,
@@ -31,6 +32,13 @@ export default async function RecipeDetailPage({
   const recipe = await getRecipe(id);
   if (!recipe) notFound();
   const addedIngredientIds = await listedIngredientIds(recipe.id);
+
+  // Detected once, server-side: region-sensitive units (cups, pints) convert
+  // only when a region is genuinely known, else they stay original.
+  const sourceRegion = detectSourceRegion({
+    units: recipe.ingredients.map((i) => i.unit),
+    instructions: recipe.steps.map((s) => s.instruction),
+  });
 
   const metrics = [
     { n: String(recipe.ingredients.length), l: "Ingredients" },
@@ -128,6 +136,7 @@ export default async function RecipeDetailPage({
           groups={recipe.ingredientGroups}
           servingsText={recipe.servings}
           addedIngredientIds={addedIngredientIds}
+          sourceRegion={sourceRegion}
           steps={recipe.steps.map((step) => {
             // One match per step drives BOTH the drawer and the bolded words, so
             // they can never disagree (a bolded word is always tappable).
@@ -143,6 +152,9 @@ export default async function RecipeDetailPage({
                 quantity: ing.quantity,
                 unit: ing.unit,
                 name: ing.name,
+                quantity_value: ing.quantity_value,
+                quantity_min: ing.quantity_min,
+                quantity_max: ing.quantity_max,
               })),
             };
           })}

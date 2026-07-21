@@ -1,0 +1,96 @@
+import { describe, it, expect } from "vitest";
+import { renderIngredientAmount, type AmountIngredient } from "./ingredient-amount";
+
+const ing = (o: Partial<AmountIngredient> & { display_text: string }): AmountIngredient => o;
+
+describe("renderIngredientAmount", () => {
+  it("Original scales the imported line without converting", () => {
+    const r = renderIngredientAmount(ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }), {
+      scale: 2,
+      targetSystem: "original",
+    });
+    expect(r.status).toBe("original");
+    expect(r.text).toBe("2 cup flour");
+    expect(r.approximate).toBe(false);
+  });
+
+  it("converts a known-region US cup to ml, exactly (not approximate)", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),
+      { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.approximate).toBe(false);
+    expect(r.text).toBe("237 ml flour");
+  });
+
+  it("preserves a region-sensitive unit as original when region is unknown", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),
+      { scale: 1, targetSystem: "metric", sourceRegion: undefined },
+    );
+    expect(r.status).toBe("ambiguous_region");
+    expect(r.text).toBe("1 cup flour"); // unchanged fallback
+  });
+
+  it("converts a region-independent weight without needing a region", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "8 oz butter", quantity_value: 8, unit: "oz", name: "butter" }),
+      { scale: 1, targetSystem: "metric" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.text).toBe("227 g butter");
+  });
+
+  it("scales THEN converts from the original value (no drift)", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "8 oz butter", quantity_value: 8, unit: "oz", name: "butter" }),
+      { scale: 2, targetSystem: "metric" },
+    );
+    // 16 oz → 453.6 g → friendly kg
+    expect(r.status).toBe("converted");
+    expect(r.text).toMatch(/^0?\.45 kg butter$|^454 g butter$|^0.45 kg butter$/);
+  });
+
+  it("converts a range, both ends", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "200–250 g flour", quantity_value: 200, quantity_max: 250, unit: "g", name: "flour" }),
+      { scale: 1, targetSystem: "us" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.text).toMatch(/–/); // a range dash
+    expect(r.text).toMatch(/oz flour$/);
+  });
+
+  it("falls back to text scaling when the quantity is missing", () => {
+    const r = renderIngredientAmount(ing({ display_text: "Salt to taste" }), { scale: 2, targetSystem: "metric" });
+    expect(r.status).toBe("missing_quantity");
+    expect(r.text).toBe("Salt to taste");
+  });
+
+  it("falls back on an unrecognised unit (count nouns)", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "2 eggs", quantity_value: 2, unit: null, name: "eggs" }),
+      { scale: 2, targetSystem: "metric" },
+    );
+    expect(r.status).toBe("unrecognised_unit");
+    expect(r.text).toBe("4 eggs");
+  });
+
+  it("legacy-parses a row with null structured fields", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "500 ml milk", quantity_value: null, unit: null, name: "milk" }),
+      { scale: 1, targetSystem: "metric" },
+    );
+    expect(r.status).toBe("converted");
+    expect(r.text).toMatch(/milk$/);
+  });
+
+  it("always exposes the original source text", () => {
+    const r = renderIngredientAmount(
+      ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),
+      { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+    );
+    expect(r.sourceText).toBe("1 cup flour");
+  });
+});

@@ -150,6 +150,12 @@ export const ChevronLeftIcon = (p: IconProps) => (
   </svg>
 );
 
+export const ChevronDownIcon = (p: IconProps) => (
+  <svg {...base(p)} aria-hidden>
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
 export const CloseIcon = (p: IconProps) => (
   <svg {...base(p)} aria-hidden>
     <path d="M6 6l12 12M18 6 6 18" />

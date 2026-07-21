@@ -1,0 +1,40 @@
+import type { MeasurementRegion } from "@/lib/measurements";
+
+/**
+ * Minimal, strong-signal-only source-region detection for Phase 2. This is NOT
+ * the full confidence-scored `RecipeMeasurementMetadata` (that's Phase 3, §9) —
+ * it asserts a region only on an unambiguous deterministic cue and returns
+ * `undefined` otherwise, so region-sensitive units (cup, pint, US spoons) are
+ * converted only when we genuinely know the region and preserved as original
+ * when we don't. Never guesses.
+ */
+export interface SourceRegionSignals {
+  /** Ingredient unit strings (raw, as stored). */
+  units: (string | null | undefined)[];
+  /** Instruction / step text, where oven temps and pints usually appear. */
+  instructions: (string | null | undefined)[];
+}
+
+export function detectSourceRegion(signals: SourceRegionSignals): MeasurementRegion | undefined {
+  const text = (signals.instructions ?? [])
+    .filter((s): s is string => Boolean(s))
+    .join(" \n ")
+    .toLowerCase();
+  const units = (signals.units ?? [])
+    .filter((u): u is string => Boolean(u))
+    .map((u) => u.toLowerCase().trim());
+
+  const hasFahrenheit = /\d\s*°?\s*f\b/.test(text) || /°f/.test(text) || /fahrenheit/.test(text);
+  const hasCelsius = /\d\s*°?\s*c\b/.test(text) || /°c/.test(text) || /celsius/.test(text);
+  const hasPint = /\bpints?\b/.test(text) || units.some((u) => u === "pint" || u === "pt" || u === "pints");
+  const hasMetricWeight =
+    units.some((u) => ["g", "kg", "gram", "grams", "kilogram", "kilograms"].includes(u)) ||
+    /\d\s*g\b|\bgrams?\b/.test(text);
+
+  // Both oven scales present → we can't tell; don't guess.
+  if (hasFahrenheit && hasCelsius) return undefined;
+  if (hasFahrenheit) return "us";
+  if (hasPint) return "uk_ie";
+  if (hasCelsius && hasMetricWeight) return "metric";
+  return undefined;
+}
