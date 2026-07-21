@@ -123,11 +123,15 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
   }
 
   // A range's upper bound gets the same validation as the primary quantity —
-  // a non-finite or illegally-negative max must fail the whole request, not
-  // slip through as a corrupt partial range.
+  // a non-finite, illegally-negative, or inverted max must fail the whole
+  // request, not slip through as a corrupt or back-to-front range. (Callers
+  // may pass stored range fields directly, without going via parseQuantity.)
   if (quantityMax != null) {
     if (!Number.isFinite(quantityMax) || (quantityMax < 0 && dimension !== "temperature")) {
       return { ...base, error: "INVALID_QUANTITY", explanation: "Range upper bound is not a valid quantity." };
+    }
+    if (quantityMax < quantity) {
+      return { ...base, error: "INVALID_QUANTITY", explanation: "Range upper bound is below the lower bound." };
     }
   }
 
@@ -177,7 +181,9 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
   }
 
   const one = convertOne(quantity, fromUnit, toUnit, dimension, sourceRegion, req.targetSystem);
-  if (one === undefined) {
+  // Guard both the "no path" case and numeric overflow (a huge input can push
+  // the result to ±Infinity) — never hand back a non-finite converted value.
+  if (one === undefined || !Number.isFinite(one)) {
     return { ...base, error: "UNSUPPORTED_CONVERSION", warning: "Conversion is not available." };
   }
 
@@ -206,9 +212,14 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
   };
 
   if (quantityMax != null) {
-    // Already validated finite + sign-legal above.
+    // Already validated finite + sign-legal + ordered above. Both ends must
+    // convert: if the upper bound has no path (or overflows), the whole range
+    // is unavailable rather than a corrupt lower-bound-only result.
     const maxConverted = convertOne(quantityMax, fromUnit, toUnit, dimension, sourceRegion, req.targetSystem);
-    if (maxConverted !== undefined) result.convertedQuantityMax = maxConverted;
+    if (maxConverted === undefined || !Number.isFinite(maxConverted)) {
+      return { ...base, error: "UNSUPPORTED_CONVERSION", warning: "The range upper bound could not be converted." };
+    }
+    result.convertedQuantityMax = maxConverted;
   }
 
   return result;

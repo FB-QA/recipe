@@ -26,11 +26,18 @@ const CASED_TOKENS: Record<string, { unit: MeasurementUnit; confidence: number }
   T: { unit: "tbsp", confidence: 0.7 },
 };
 
-/** Fold a token to a comparable key: lower-case, drop dots, collapse spaces. */
+/**
+ * Fold a token to a comparable key: NFKC (folds fullwidth/compatibility forms
+ * like `ｇ` and the fullwidth stop `．`), lower-case, unify Unicode hyphens/
+ * dashes to spaces, drop dots, and collapse whitespace (JS `\s` already covers
+ * NBSP and the other Unicode spaces). So `fl‑oz` and `tbsp．` normalise cleanly.
+ */
 function canonicalize(text: string): string {
   return text
+    .normalize("NFKC")
     .trim()
     .toLowerCase()
+    .replace(/[-‐-―−]/g, " ") // ASCII + Unicode hyphen/dash variants → space
     .replace(/\./g, "")
     .replace(/\s+/g, " ")
     .trim();
