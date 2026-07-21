@@ -22,6 +22,42 @@ export const CARD_SHELL =
   "block overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow)]";
 export const CARD_COVER_H = "h-[118px]";
 
+/**
+ * The title clamp and its reserved height are one decision. `line-clamp-2` gives
+ * the ellipsis; `min-h-[2lh]` reserves exactly two of THIS element's line-heights
+ * so a one-line title is the same height as a two-line one and the grid never
+ * staggers. The `lh` unit tracks whatever `leading-tight` resolves to — change the
+ * leading and the reserved height follows, with no second value to keep in sync.
+ */
+const CARD_TITLE =
+  "line-clamp-2 min-h-[2lh] text-[14.5px] font-bold leading-tight tracking-[-0.01em] text-ink [text-wrap:balance]";
+
+/**
+ * One meta item — an icon and its value — defined once rather than per stat, so the
+ * icon size and the icon/label spacing cannot drift between serves, ingredients, and
+ * cook time. Per-item layout (whether it may shrink) is passed in via `className`.
+ */
+const META_ICON_SIZE = 13;
+
+function MetaItem({
+  icon: Icon,
+  label,
+  className,
+  children,
+}: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className={`inline-flex items-center gap-1 ${className ?? ""}`} title={label}>
+      <Icon size={META_ICON_SIZE} className="shrink-0" />
+      {children}
+    </span>
+  );
+}
+
 export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
   const serves = parseServings(recipe.servings);
   return (
@@ -44,25 +80,26 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
         )}
       </CoverImage>
       <div className="px-3 pb-3.5 pt-2.5">
-        <h3 className="line-clamp-2 min-h-[2.5em] text-[14.5px] font-bold leading-tight tracking-[-0.01em] text-ink [text-wrap:balance]">
-          {recipe.title}
-        </h3>
+        <h3 className={CARD_TITLE}>{recipe.title}</h3>
         <div className="mt-2 flex items-center gap-3 text-xs font-medium text-ink-3">
           {serves !== null && (
-            <span className="inline-flex shrink-0 items-center gap-1" title={`Serves ${serves}`}>
-              <UserIcon size={13} /> {serves}
-            </span>
+            <MetaItem icon={UserIcon} label={`Serves ${serves}`} className="shrink-0">
+              {serves}
+            </MetaItem>
           )}
           {recipe.ingredientCount > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-1" title={`${recipe.ingredientCount} ingredients`}>
-              <ListIcon size={13} /> {recipe.ingredientCount}
-            </span>
+            <MetaItem
+              icon={ListIcon}
+              label={`${recipe.ingredientCount} ingredients`}
+              className="shrink-0"
+            >
+              {recipe.ingredientCount}
+            </MetaItem>
           )}
           {recipe.cook_time && (
-            <span className="inline-flex min-w-0 items-center gap-1" title={`Cook time ${recipe.cook_time}`}>
-              <ClockIcon size={13} className="shrink-0" />
+            <MetaItem icon={ClockIcon} label={`Cook time ${recipe.cook_time}`} className="min-w-0">
               <span className="truncate">{recipe.cook_time}</span>
-            </span>
+            </MetaItem>
           )}
         </div>
       </div>
