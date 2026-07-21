@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CoverImage } from "./cover-image";
-import { HeartIcon, UserIcon, ListIcon } from "@/components/icons";
+import { HeartIcon, UserIcon, ListIcon, ClockIcon } from "@/components/icons";
 import { parseServings } from "@/lib/recipes/scale";
 import { attributionLabel } from "@/lib/recipes/handle";
 import type { RecipeListItem } from "@/lib/recipes/queries";
@@ -44,18 +44,24 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
         )}
       </CoverImage>
       <div className="px-3 pb-3.5 pt-2.5">
-        <h3 className="text-[14.5px] font-bold leading-tight tracking-[-0.01em] text-ink [text-wrap:balance]">
+        <h3 className="line-clamp-2 min-h-[2.5em] text-[14.5px] font-bold leading-tight tracking-[-0.01em] text-ink [text-wrap:balance]">
           {recipe.title}
         </h3>
         <div className="mt-2 flex items-center gap-3 text-xs font-medium text-ink-3">
           {serves !== null && (
-            <span className="inline-flex items-center gap-1" title={`Serves ${serves}`}>
+            <span className="inline-flex shrink-0 items-center gap-1" title={`Serves ${serves}`}>
               <UserIcon size={13} /> {serves}
             </span>
           )}
           {recipe.ingredientCount > 0 && (
-            <span className="inline-flex items-center gap-1" title={`${recipe.ingredientCount} ingredients`}>
+            <span className="inline-flex shrink-0 items-center gap-1" title={`${recipe.ingredientCount} ingredients`}>
               <ListIcon size={13} /> {recipe.ingredientCount}
+            </span>
+          )}
+          {recipe.cook_time && (
+            <span className="inline-flex min-w-0 items-center gap-1" title={`Cook time ${recipe.cook_time}`}>
+              <ClockIcon size={13} className="shrink-0" />
+              <span className="truncate">{recipe.cook_time}</span>
             </span>
           )}
         </div>
