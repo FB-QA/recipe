@@ -46,11 +46,11 @@ function toCelsius(value: number, unit: MeasurementUnit): number | undefined {
   if (unit === "celsius") return value;
   if (unit === "fahrenheit") return ((value - 32) * 5) / 9;
   if (unit === "gas_mark") {
+    // Gas marks are discrete oven settings. An out-of-table source value
+    // (Gas 11, Gas 4.5) is unknown — return undefined so convert() reports it
+    // unavailable rather than inventing the nearest real setting.
     const exact = GAS_MARK_TABLE.find((r) => r.gasMark === value);
-    if (exact) return exact.celsius;
-    return GAS_MARK_TABLE.reduce((best, cur) =>
-      Math.abs(cur.gasMark - value) < Math.abs(best.gasMark - value) ? cur : best,
-    ).celsius;
+    return exact ? exact.celsius : undefined;
   }
   return undefined;
 }
@@ -122,6 +122,19 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     return { ...base, error: "INVALID_QUANTITY", explanation: "Quantity must be non-negative." };
   }
 
+  // "Original" means "do not convert" — return the value unchanged so a toggle
+  // switching back to Original gets a successful passthrough, not an error.
+  if (!req.toUnit && req.targetSystem === "original") {
+    return {
+      ...base,
+      convertedUnit: fromUnit,
+      convertedQuantity: quantity,
+      convertedQuantityMax: quantityMax,
+      confidence: "exact",
+      approximate: false,
+    };
+  }
+
   // Resolve the target unit.
   let toUnit = req.toUnit;
   if (!toUnit) {
@@ -161,12 +174,24 @@ export function convert(req: MeasurementConversionRequest): ConversionResult {
     return { ...base, error: "UNSUPPORTED_CONVERSION", warning: "Conversion is not available." };
   }
 
+  const approximate = crossSystem || (dimension === "temperature" && toUnit === "gas_mark");
+
+  // Honour an explicit allowApproximate:false — a caller enforcing an
+  // exact-only display policy must not be handed an approximate result.
+  if (approximate && req.allowApproximate === false) {
+    return {
+      ...base,
+      error: "UNSUPPORTED_CONVERSION",
+      warning: "Only an approximate conversion is available, and approximate results were disallowed.",
+    };
+  }
+
   const result: ConversionResult = {
     ...base,
     convertedUnit: toUnit,
     convertedQuantity: one,
     confidence: dimension === "temperature" && toUnit === "gas_mark" ? "high" : "exact",
-    approximate: crossSystem || (dimension === "temperature" && toUnit === "gas_mark"),
+    approximate,
   };
 
   if (quantityMax != null && Number.isFinite(quantityMax) && (quantityMax >= 0 || dimension === "temperature")) {

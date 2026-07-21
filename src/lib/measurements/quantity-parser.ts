@@ -57,25 +57,30 @@ function evalNumeric(expr: string): number | null {
   const cleaned = expandUnicodeFractions(expr).trim();
   if (!cleaned) return null;
   const tokens = cleaned.split(/\s+/).filter(Boolean);
-  let sum = 0;
-  let any = false;
+  const nums: number[] = [];
   for (const tok of tokens) {
     const frac = /^(\d+)\/(\d+)$/.exec(tok);
     if (frac) {
       const denom = Number(frac[2]);
       if (denom === 0) return null;
-      sum += Number(frac[1]) / denom;
-      any = true;
+      nums.push(Number(frac[1]) / denom);
       continue;
     }
     if (/^\d*\.?\d+$/.test(tok)) {
-      sum += Number(tok);
-      any = true;
+      nums.push(Number(tok));
       continue;
     }
     return null; // a non-numeric token means this isn't a pure quantity
   }
-  return any ? sum : null;
+  if (nums.length === 0) return null;
+  if (nums.length === 1) return nums[0];
+  // A mixed number is a leading value followed by fractional parts (each < 1).
+  // Two whole numbers side by side (e.g. "2 400" from "2 x 400g cans") is a
+  // compound quantity, not a mixed number — never fabricate a sum from it.
+  for (let i = 1; i < nums.length; i++) {
+    if (nums[i] >= 1) return null;
+  }
+  return nums.reduce((a, b) => a + b, 0);
 }
 
 export function parseQuantity(input: string): ParsedQuantity {
@@ -119,4 +124,25 @@ export function parseQuantity(input: string): ParsedQuantity {
   }
 
   return { value: null, max: null, text: raw, isRange: false, modifiers, confidence: 0.2 };
+}
+
+export interface ParsedDimensions {
+  /** Each dimension in the order written ("20 × 30" → [20, 30]). */
+  values: number[];
+  /** The trailing unit token as written ("cm", "inches"), for normalisation. */
+  unitText: string | null;
+}
+
+/**
+ * Parse a tin/pan dimension string — single ("20 cm", "8-inch") or multi
+ * ("20 × 30 cm", "8 x 12 inches"). The caller normalises `unitText` and
+ * converts each value with the scalar converter. Spec §11.
+ */
+export function parseDimensions(input: string): ParsedDimensions {
+  const raw = (input ?? "").trim();
+  if (!raw) return { values: [], unitText: null };
+  const values = (raw.match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
+  // The unit is the last alphabetic run (or a trailing inch mark).
+  const unitMatch = raw.match(/([a-zA-Z]+|")\s*$/);
+  return { values, unitText: unitMatch ? unitMatch[1] : null };
 }

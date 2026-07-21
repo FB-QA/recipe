@@ -33,7 +33,10 @@ function canonicalize(text: string): string {
 /** alias key → canonical unit. Single ambiguous letters are excluded on purpose. */
 const ALIAS_MAP: Record<string, MeasurementUnit> = (() => {
   const map: Record<string, MeasurementUnit> = {};
-  const skip = new Set(["c", "f", "t"]);
+  // Only `c` (cup/celsius) and `t` (tsp/tbsp) are genuinely ambiguous and are
+  // handled explicitly below. `f` is not ambiguous with any other unit, so it
+  // maps straight to fahrenheit via its alias.
+  const skip = new Set(["c", "t"]);
   for (const def of Object.values(UNIT_DEFINITIONS)) {
     for (const alias of [def.id, ...def.aliases]) {
       const key = canonicalize(alias);

@@ -31,8 +31,10 @@ describe("falsify · malformed quantities", () => {
 });
 
 describe("falsify · boundary lookups", () => {
-  it("clamps an out-of-range gas mark to the nearest table row", () => {
-    expect(convert({ quantity: 11, fromUnit: "gas_mark", toUnit: "celsius" }).convertedQuantity).toBe(240);
+  it("refuses an out-of-table gas mark rather than snapping to a real setting", () => {
+    const r = convert({ quantity: 11, fromUnit: "gas_mark", toUnit: "celsius" });
+    expect(r.convertedQuantity).toBeUndefined();
+    expect(r.confidence).toBe("unavailable");
   });
   it("survives an astronomically large weight without precision collapse", () => {
     const r = convert({ quantity: 1e9, fromUnit: "kg", toUnit: "g" });

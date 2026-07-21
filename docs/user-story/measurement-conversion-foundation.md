@@ -172,5 +172,42 @@ still rejected everywhere. Range-max guard fixed to match.
 | AC7 dimension safety | PASS |
 | AC8 friendly formatting | PASS |
 
-**Final:** 96 tests (76 verify + 13 falsify + 7 QA), tsc + lint clean, full
-repo suite green. No other defects. Foundation is sound.
+**Final (pre-review):** 96 tests, tsc + lint clean, full repo suite green.
+
+## PR #21 review response (Codex + Claude automated review)
+
+Triaged 9 findings. **6 fixed, 2 rejected with reasoning, 1 already fixed.**
+Regressions in `measurement.review.test.ts` (15 tests). Suite now **111**
+(76 verify + 13 falsify + 7 QA + 15 review); full repo 395; tsc + lint clean.
+
+Fixed:
+- **C2 (P1)** compound quantities — `"2 x 400g cans"` summed to `402`. Parser
+  now only treats `int + fractional-parts` as a mixed number; two whole numbers
+  side-by-side yield null, never a fabricated sum.
+- **C1 (P1)** out-of-table gas marks — `Gas 11`/`Gas 4.5` snapped to a real
+  setting and claimed `exact`. Gas mark *as source* is now exact-table-only →
+  unavailable otherwise. (Gas mark as *target* keeps nearest-lookup, marked
+  approximate — mapping a continuous temp onto the discrete scale is valid.)
+- **CL2** bare `f`/`F` → `unknown`; was an unintended entry in the alias skip
+  set. Now maps to fahrenheit (`f` isn't ambiguous with anything).
+- **C6** `targetSystem: "original"` returned an error; now an identity
+  passthrough so the toggle's Original position works.
+- **C3** `allowApproximate` was ignored; `convert` now refuses an approximate
+  result when a caller sets `allowApproximate: false`.
+- **C4** multi-dimension (`20 × 30 cm`) — was against my own AC6 and unmet.
+  Added `parseDimensions`; each value converts through the scalar converter.
+
+Rejected (documented in the review test file):
+- **C5** "negative sign preserved" — `parseQuantity("-5")` already returns
+  `null` (verified), not `5`. It does not fabricate. False positive.
+- **CL3** `friendlyFraction` tolerance — no absolute tolerance separates the
+  spec's wanted `5mm → ¼` (gap 0.053) from the unwanted `50ml-in-cups → ¼`
+  (gap 0.039); the value to reject is the *closer* one. It's a display-context
+  problem (don't render small volumes as cup-fractions) for Phase 2, not a
+  primitive-tolerance bug. Primitive kept.
+
+Already fixed before review landed: **CL1** negative temperatures (my QA pass,
+commit 2b68274 — Codex/Claude reviewed the earlier c1ed190).
+
+**Final:** foundation sound, independently reviewed, all confirmed findings
+resolved.
