@@ -55,10 +55,17 @@ export function formatQuantityValue(value: number): string {
   // Relative tolerance (with a small absolute floor for tiny values).
   if (bestDist <= Math.max(0.02, 0.04 * abs)) {
     const w = best.value === 1 ? whole + 1 : whole;
-    if (best.glyph) return w > 0 ? `${sign}${w}${best.glyph}` : `${sign}${best.glyph}`;
-    return `${sign}${w}`;
+    // Never snap a genuinely nonzero value down to a bare "0" — that erases a
+    // real (if small) quantity. Fall through to a significant-figure decimal.
+    if (!(w === 0 && !best.glyph)) {
+      if (best.glyph) return w > 0 ? `${sign}${w}${best.glyph}` : `${sign}${best.glyph}`;
+      return `${sign}${w}`;
+    }
   }
-  return `${sign}${Number(abs.toFixed(2))}`;
+  // Two significant figures keeps sub-1 values readable without collapsing to 0
+  // (0.01 stays "0.01"); toFixed(2) alone would round 0.01 → "0.00".
+  const decimal = abs >= 1 ? Number(abs.toFixed(2)) : Number(abs.toPrecision(2));
+  return `${sign}${decimal}`;
 }
 
 /**
