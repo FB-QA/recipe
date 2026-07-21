@@ -25,11 +25,12 @@ export function detectSourceRegion(signals: SourceRegionSignals): MeasurementReg
     .map((u) => u.toLowerCase().trim());
 
   const hasFahrenheit = /\d\s*°?\s*f\b/.test(text) || /°f/.test(text) || /fahrenheit/.test(text);
-  // Celsius: a degree sign, the word "celsius", or the no-degree "180 C" form
-  // (2+ digits — matching what convertInstructionTemps accepts). A bare
-  // single-digit "1 c" is the US cup abbreviation, NOT Celsius, so it is excluded
-  // — else it fakes a °F+°C conflict and drops a genuine US recipe to undefined.
-  const hasCelsius = /°\s*c\b/.test(text) || /celsius/.test(text) || /\d{2,4}\s*c\b/.test(text);
+  // Celsius: a degree sign, the word "celsius", or the no-degree "180 C" form.
+  // The bare-letter form needs 3+ digits: text is lowercased here so case can't
+  // tell "180 c" (Celsius) from "10 c"/"1 c" (the US cup abbreviation), but an
+  // oven Celsius is ≥100° while cup counts are small. Reading a cup count as
+  // Celsius would fake a °F+°C conflict or force a false metric region.
+  const hasCelsius = /°\s*c\b/.test(text) || /celsius/.test(text) || /\d{3,4}\s*c\b/.test(text);
   // A BARE "pint" is ambiguous (US 473 ml vs UK/IE 568 ml), so it is not a
   // signal. Only an explicitly "imperial pint" is a strong UK/IE cue.
   const hasImperialPint = /\bimperial\s+pints?\b/.test(text);

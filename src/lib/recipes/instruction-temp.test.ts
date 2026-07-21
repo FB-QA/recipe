@@ -145,4 +145,17 @@ describe("convertInstructionTemps", () => {
     // 1000°F = 537.8°C → 538. Must NOT match only "000°F" → a malformed "1-20°C".
     expect(convertInstructionTemps("Heat a pizza oven to 1000°F.", "metric")).toBe("Heat a pizza oven to 538°C.");
   });
+
+  it("does NOT read a multi-digit bare 'c' (cups) as Celsius", () => {
+    // "10 c flour" is 10 cups, not 10°C. Uppercase "180 C" is still Celsius.
+    expect(convertInstructionTemps("Add 10 c flour.", "us")).toBe("Add 10 c flour.");
+    expect(convertInstructionTemps("Bake at 180 C.", "us")).toBe("Bake at 350°F.");
+  });
+
+  it("does NOT collapse a gas-mark dual that is a mismatched setting", () => {
+    // Gas Mark 4 ≈ 350°F, but 375°F is Gas Mark 5 — convert each independently.
+    expect(convertInstructionTemps("Bake at Gas Mark 4 / 375°F.", "us")).toBe("Bake at 350°F / 375°F.");
+    // A genuine equivalent still collapses.
+    expect(convertInstructionTemps("Bake at Gas Mark 4 / 350°F.", "us")).toBe("Bake at 350°F.");
+  });
 });

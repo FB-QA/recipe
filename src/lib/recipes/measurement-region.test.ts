@@ -95,6 +95,11 @@ describe("detectSourceRegion", () => {
     expect(detectSourceRegion({ units: ["cup"], instructions: ["Bake at 180 C.", "Add 1 cup milk."] })).toBe("metric");
   });
 
+  it("does NOT read a multi-digit cup abbreviation ('10 c') as a Celsius cue", () => {
+    // "10 c flour" is 10 cups; only a plausible oven Celsius (3+ digits) counts.
+    expect(detectSourceRegion({ units: ["cup"], instructions: ["Add 10 c flour.", "Mix well."] })).toBeUndefined();
+  });
+
   it("reads kilograms in unstructured text as a metric cue", () => {
     expect(detectSourceRegion({ units: [null], instructions: ["Weigh 1 kg flour."] })).toBe("metric");
   });

@@ -56,8 +56,16 @@ function convertTemp(value: number, from: MeasurementUnit, to: MeasurementUnit):
 // tail ("37.50°C") matching its "50" as a fresh temperature. UNIT accepts a
 // symbol, the word "degree(s)", or nothing, before c / f / celsius / fahrenheit.
 const NUM = String.raw`(?<![\d.])([-−]?\d{2,4}|[-−]?\d(?=\s*°))`;
-const UNIT = String.raw`\s*(?:°|degrees?)?\s*(celsius|fahrenheit|[cf])\b`;
+// UNIT captures the degree/word marker separately so a callback can tell a real
+// temperature from a bare lowercase "c"/"f". A bare, no-degree lowercase "c" is
+// the cup abbreviation ("10 c flour"), NOT Celsius; uppercase "C"/"F" and the
+// spelled-out words are unambiguous even without a degree ("180 C", "180 celsius").
+const UNIT = String.raw`\s*(°\s*|degrees?\s*)?(celsius|fahrenheit|[cf])\b`;
 const TEMP = NUM + UNIT;
+
+/** A no-degree bare lowercase "c"/"f" is a unit abbreviation (cups), not a temp. */
+const isBareLowerLetter = (deg: string | undefined, unit: string): boolean =>
+  !deg && (unit === "c" || unit === "f");
 
 export function convertInstructionTemps(text: string, system: ConcreteSystem): string {
   const toUnit: MeasurementUnit = system === "us" ? "fahrenheit" : "celsius";
@@ -69,7 +77,8 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   // and mismatched cross-scale values ("180°C or 450°F", "180°C (375°F)" — a
   // full dial step apart) are NOT equivalents: return the match unchanged so the
   // single-temp pass converts each endpoint independently and neither disappears.
-  const collapseDual = (m: string, n1: string, u1: string, n2: string, u2: string): string => {
+  const collapseDual = (m: string, n1: string, d1: string, u1: string, n2: string, d2: string, u2: string): string => {
+    if (isBareLowerLetter(d1, u1) || isBareLowerLetter(d2, u2)) return m; // a "c"/"f" here is a unit, not a temp
     const s1 = scaleOf(u1);
     const s2 = scaleOf(u2);
     if (s1 === s2) return m; // same scale → two distinct settings, not equivalents
@@ -94,18 +103,27 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   // equivalents — collapse to the single target-scale value off the gas mark.
   out = out.replace(
     new RegExp(
-      String.raw`gas\s*mark\s*(¼|½|¾|\d+)\s*(?:\(\s*|\/\s*|\bor\b\s*)([-−]?\d{2,3})\s*(?:°|degrees?)?\s*(?:celsius|fahrenheit|[cf])\b\s*\)?`,
+      String.raw`gas\s*mark\s*(¼|½|¾|\d+)\s*(?:\(\s*|\/\s*|\bor\b\s*)([-−]?\d{2,4})\s*(?:°|degrees?)?\s*(celsius|fahrenheit|[cf])\b\s*\)?`,
       "gi",
     ),
-    (m, g) => convertTemp(gasValue(g), "gas_mark", toUnit) ?? m,
+    (m, g, n2, u2) => {
+      // Collapse ONLY when the gas mark and the paired temp are equivalents. A
+      // mismatch (Gas Mark 4 / 375°F — a different dial) is left for the single
+      // passes to convert independently, so an authored setting is never lost.
+      const gasF = convertTempNum(gasValue(g), "gas_mark", "fahrenheit");
+      const tempF = convertTempNum(num(n2), scaleOf(u2), "fahrenheit");
+      if (gasF == null || tempF == null || Math.abs(gasF - tempF) >= DUAL_EQUIV_TOLERANCE_F) return m;
+      return convertTemp(gasValue(g), "gas_mark", toUnit) ?? m;
+    },
   );
 
   // Ranges — both endpoints convert together (never a mixed "180–400°F"), across
   // a dash or the word "to". The first endpoint takes an optional sign so a
   // negative range ("-20–-10°C") keeps it instead of stranding a stray "-".
   out = out.replace(
-    new RegExp(String.raw`(?<![\d.])([-−]?\d{2,4})\s*(–|—|-|\bto\b)\s*([-−]?\d{2,4})\s*(?:°|degrees?)?\s*(celsius|fahrenheit|[cf])\b`, "gi"),
-    (m, a, sep, b, u) => {
+    new RegExp(String.raw`(?<![\d.])([-−]?\d{2,4})\s*(–|—|-|\bto\b)\s*([-−]?\d{2,4})\s*(°\s*|degrees?\s*)?(celsius|fahrenheit|[cf])\b`, "gi"),
+    (m, a, sep, b, deg, u) => {
+      if (isBareLowerLetter(deg, u)) return m; // "1–2 c" is cups, not a temp range
       const from = scaleOf(u);
       if (from === toUnit) return m;
       const lo = convertTempNum(num(a), from, toUnit);
@@ -117,7 +135,8 @@ export function convertInstructionTemps(text: string, system: ConcreteSystem): s
   );
 
   // Single temperatures.
-  out = out.replace(new RegExp(TEMP, "gi"), (m, n, u) => {
+  out = out.replace(new RegExp(TEMP, "gi"), (m, n, deg, u) => {
+    if (isBareLowerLetter(deg, u)) return m; // "10 c flour" is cups, not 10°C
     const from = scaleOf(u);
     if (from === toUnit) return m;
     return convertTemp(num(n), from, toUnit) ?? m;
