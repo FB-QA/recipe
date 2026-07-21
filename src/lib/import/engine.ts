@@ -1,4 +1,4 @@
-import { isCompositeReelCover, type ImportAiConfig } from "./config";
+import { type ImportAiConfig } from "./config";
 import { decideEvidence } from "./evidence";
 import { pickPrice, unitCostMicroUsd, type PriceRow } from "./pricing";
 import type { ResolverChain } from "./registry";
@@ -105,12 +105,6 @@ export interface EngineDeps {
   now?: () => number;
   sleepImpl?: (ms: number) => Promise<void>;
   rand?: () => number;
-  /**
-   * Optional: fetch a clean Reel cover (Apify displayUrl) when the direct cover
-   * is a play-button composite. Injected so the engine stays Apify-free and
-   * testable; the action layer wires the real Apify resolver.
-   */
-  coverEnricher?: (request: ImportRequest) => Promise<SourceResolverResult | null>;
 }
 
 export type EngineOutcome =
@@ -119,7 +113,7 @@ export type EngineOutcome =
 
 // ---- cost helpers (pure) ----
 
-function retrievalCost(prices: PriceRow[], result: SourceResolverResult): {
+export function retrievalCost(prices: PriceRow[], result: SourceResolverResult): {
   units: number | null; unitType: string | null; costMicroUsd: number; accuracy: "metered" | "estimated" | "none";
 } {
   const cost = result.cost;
@@ -338,51 +332,15 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
   }
   costAccum = 0;
 
-  // Reel cover enrichment: a direct-fetched Reel cover is a play-button
-  // composite; swap it for Apify's clean displayUrl. A costed attempt (W3).
-  let coverOverride: string | null = null;
-  const directCover = acceptedEvidence.media.find((m) => m.modality === "image")?.sourceUrl ?? null;
-  // The `cmp1` composite is Instagram's play-button video-cover transform — a
-  // reliable signal this is a Reel/video cover regardless of how the URL path
-  // (/p/ vs /reel/) classified it. That composite IS the "needs a clean cover"
-  // marker, so gate on it rather than the post-type guess.
-  if (
-    deps.coverEnricher &&
-    deps.config.reelCoverEnrich &&
-    acceptedResolverId !== "apify_instagram" &&
-    isCompositeReelCover(directCover)
-  ) {
-    const started = now();
-    const id = await store.openRetrievalAttempt({
-      importId: request.importId, userId: request.userId, attemptNumber: ++retrievalN,
-      resolverId: "apify_cover", providerId: "apify", serviceId: "instagram_scraper",
-    });
-    let enriched: SourceResolverResult | null = null;
-    try {
-      enriched = await deps.coverEnricher(request);
-    } catch {
-      enriched = null;
-    }
-    const cost = enriched?.cost ? retrievalCost(store.prices, enriched) : { units: null, unitType: null, costMicroUsd: 0, accuracy: "none" as const };
-    const cleanImage = enriched?.evidence.media.find((m) => m.modality === "image")?.sourceUrl ?? null;
-    await store.closeRetrievalAttempt(id, {
-      status: enriched && cleanImage ? "succeeded" : "failed",
-      failureReason: enriched ? null : "source_retrieval_failed",
-      responseStatus: null, contentType: null, contentBytes: null,
-      captionRetrieved: false, mediaCount: enriched?.evidence.media.length ?? 0,
-      postType: "reel", evidenceStatus: enriched?.evidence.retrievalStatus ?? "unavailable",
-      providerRequestId: null, externalRunId: enriched?.externalRunId ?? null,
-      unitsUsed: cost.units, unitType: cost.unitType, costMicroUsd: cost.costMicroUsd,
-      costAccuracy: cost.accuracy, rawUsage: enriched?.cost?.rawUsage ?? null,
-      latencyMs: Math.max(0, now() - started),
-    });
-    costAccum += cost.costMicroUsd;
-    if (cleanImage && !isCompositeReelCover(cleanImage)) coverOverride = cleanImage;
-  }
+  // Reel cover enrichment is DEFERRED off the critical path: the pipeline finishes
+  // with the direct (play-button composite) cover so the preview lands sooner, and
+  // the review screen swaps in Apify's clean cover afterwards via
+  // POST /api/imports/[id]/cover. Single source of that logic is enrich-cover.ts.
+  // See docs/spec/defer-cover-enrichment.md.
 
-  // Deterministic recipe → no AI. Flush any cover-enrichment cost accrued above.
+  // Deterministic recipe → no AI.
   if (deterministic) {
-    return finishReady(deterministic, acceptedEvidence, request, "source_retrieved", store, "jsonld", coverOverride, costAccum);
+    return finishReady(deterministic, acceptedEvidence, request, "source_retrieved", store, "jsonld", costAccum);
   }
 
   // AI extraction. Each transition is CAS-gated — a lost race means a concurrent
@@ -427,7 +385,7 @@ export async function runImportPipeline(request: ImportRequest, deps: EngineDeps
     return { kind: "failed", failureReason: "unknown_error" };
   }
   costAccum = 0;
-  return finishReady(extraction.outcome.recipe, acceptedEvidence, request, "validating", store, acceptedResolverId ?? "ai", coverOverride, costAccum);
+  return finishReady(extraction.outcome.recipe, acceptedEvidence, request, "validating", store, acceptedResolverId ?? "ai", costAccum);
 }
 
 // ---- retrieval attempt helpers ----
@@ -572,7 +530,7 @@ function aiClose(
 async function finishReady(
   recipe: AiExtractedRecipe, evidence: SourceEvidence, request: ImportRequest,
   fromState: string, store: ImportStore, retrievalMethod: string,
-  coverOverride: string | null = null, costDeltaMicroUsd = 0,
+  costDeltaMicroUsd = 0,
 ): Promise<EngineOutcome> {
   const full: ExtractedRecipe = {
     ...recipe,
@@ -582,7 +540,7 @@ async function finishReady(
       sourceTitle: evidence.title,
       creatorName: evidence.creatorName,
       retrievalMethod,
-      coverImageUrl: coverOverride ?? evidence.media.find((m) => m.modality === "image")?.sourceUrl ?? null,
+      coverImageUrl: evidence.media.find((m) => m.modality === "image")?.sourceUrl ?? null,
     },
   };
   const score = qualityScore(recipe);

@@ -21,7 +21,6 @@ import {
   type ImportRow,
 } from "./store";
 import { classifyInstagramUrl } from "./resolvers/instagram-direct";
-import { createApifyResolver } from "./resolvers/apify";
 import type { ImportFailureReason, ImportRequest, ImportResult, RecipeImportSourceType } from "./schema";
 
 /**
@@ -89,13 +88,11 @@ async function runPipelineFor(request: ImportRequest): Promise<ImportResult> {
   const provider = selectPrimaryProvider(config);
   const replacementProvider = selectReplacementProvider(config);
   const store = createImportStore(prices);
-  // Reel cover enrichment (Freddi-approved): a clean Apify displayUrl replaces
-  // the play-button composite the direct rung returns. Only wired when Apify is
-  // configured; the engine gates it to composite Reel covers.
-  const coverEnricher = config.apifyToken
-    ? (req: ImportRequest) => createApifyResolver().resolve(req, { previousEvidence: [] })
-    : undefined;
-  const outcome = await runImportPipeline(request, { config, chain, provider, replacementProvider, store, coverEnricher });
+  // Reel cover enrichment is now DEFERRED off the critical path: the pipeline
+  // finishes with the direct (play-button composite) cover so the user reaches the
+  // preview ~11s sooner, and the review screen swaps in Apify's clean cover in the
+  // background via POST /api/imports/[id]/cover. See docs/spec/defer-cover-enrichment.md.
+  const outcome = await runImportPipeline(request, { config, chain, provider, replacementProvider, store });
   return outcomeToResult(request.importId, outcome);
 }
 

@@ -13,12 +13,15 @@ import { ImportNote } from "@/components/import/import-note";
 import { ImportFailure } from "@/components/import/import-failure";
 import { InstagramIcon, GlobeIcon, CheckIcon } from "@/components/icons";
 import { extractedToFormInitial } from "@/lib/import/to-form";
+import { isCompositeReelCover } from "@/lib/import/config";
 import { useImportPolling } from "@/components/import/use-import-polling";
 import { attributionLabel } from "@/lib/recipes/handle";
 import type { ImportResult, ExtractedRecipe } from "@/lib/import/schema";
 
 const EXTRACTING_STEPS = ["Reading the recipe…", "Pulling out ingredients & steps…", "Tidying it up…"];
 const STEP_INTERVAL_MS = 1200;
+/** Cap the background cover fetch so the shimmer never spins forever (spec Q3). */
+const COVER_ENRICH_TIMEOUT_MS = 20_000;
 
 const IDLE: ImportResult = { phase: "processing", importId: "", state: "created" };
 
@@ -154,6 +157,38 @@ function Review({
   const sourceType = recipe.source.sourceType.startsWith("instagram") ? "instagram" : "website";
   const cached = recipe.source.retrievalMethod === "cache";
   const creatorLabel = attributionLabel(recipe.source.creatorName, { at: sourceType === "instagram" }) ?? "Imported";
+
+  // Deferred Reel cover enrichment (spec: docs/spec/defer-cover-enrichment.md). The
+  // pipeline handed us the play-button composite so we got here sooner; fetch the
+  // clean Apify cover and swap it in. Saving does NOT cancel the run — the server
+  // finishes it (kept alive with after()) and lands the clean cover on the import
+  // while in review, or on the saved recipe if the run outran the save.
+  const initialCover = recipe.source.coverImageUrl;
+  const [coverUrl, setCoverUrl] = useState<string | null>(initialCover);
+  const [coverEnriching, setCoverEnriching] = useState(() => isCompositeReelCover(initialCover));
+
+  useEffect(() => {
+    if (!isCompositeReelCover(initialCover)) return;
+    const ctrl = new AbortController();
+    const cap = setTimeout(() => ctrl.abort(), COVER_ENRICH_TIMEOUT_MS);
+    (async () => {
+      try {
+        const res = await fetch(`/api/imports/${importId}/cover`, { method: "POST", signal: ctrl.signal });
+        const data = (await res.json()) as { coverUrl: string | null };
+        if (data?.coverUrl && !isCompositeReelCover(data.coverUrl)) setCoverUrl(data.coverUrl);
+      } catch {
+        // aborted (save/timeout) or failed — keep the composite, silently.
+      } finally {
+        clearTimeout(cap);
+        setCoverEnriching(false);
+      }
+    })();
+    return () => {
+      clearTimeout(cap);
+      ctrl.abort();
+    };
+  }, [importId, initialCover]);
+
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
@@ -170,7 +205,8 @@ function Review({
         action={createRecipe}
         initial={extractedToFormInitial(recipe)}
         source={{ type: sourceType, url: recipe.source.sourceUrl ?? "", handle: recipe.source.creatorName }}
-        importCoverUrl={recipe.source.coverImageUrl}
+        importCoverUrl={coverUrl}
+        coverEnriching={coverEnriching}
         importId={importId}
         submitLabel="Save to shelf"
         isNew
