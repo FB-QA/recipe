@@ -153,6 +153,15 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.steps[0].instruction).toBe("Fold as in step 1. Then repeat for step 2. Serve warm.");
   });
 
+  it("does not split an out-of-order marker run", () => {
+    // Markers must read 1, 2, 3… in text order. "1. … 3. … 2." is not a clean
+    // enumeration; splitting on 1 and 2 would embed "3. Third." inside step one.
+    const r = extractRecipeFromHtml(
+      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "1. First.3. Third.2. Second." }] }),
+    );
+    expect(r!.steps).toHaveLength(1);
+  });
+
   it("does not split a decimal written with a space ('1. 5 hours')", () => {
     const r = extractRecipeFromHtml(
       withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "Roast for 1. 5 hours, then rest for 2. 5 hours." }] }),

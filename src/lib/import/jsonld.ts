@@ -85,15 +85,11 @@ function isEnumerationMarker(text: string, at: number): boolean {
 function splitEnumeratedSteps(text: string): string[] | null {
   const marks: { num: number; at: number; len: number }[] = [];
   for (const m of text.matchAll(/(\d+)\.\s+/g)) marks.push({ num: Number(m[1]), at: m.index ?? 0, len: m[0].length });
-  const seq: typeof marks = [];
-  let expected = 1;
-  for (const mk of marks) {
-    if (mk.num === expected && isEnumerationMarker(text, mk.at)) {
-      seq.push(mk);
-      expected += 1;
-    }
-  }
-  if (seq.length < 2) return null;
+  // The clause-opening markers, in text order, must read exactly 1, 2, 3… — a
+  // missing, repeated, or out-of-order number (e.g. "1. … 3. … 2.") is not a
+  // clean enumeration, and splitting it would embed one step's text inside another.
+  const seq = marks.filter((mk) => isEnumerationMarker(text, mk.at));
+  if (seq.length < 2 || !seq.every((mk, i) => mk.num === i + 1)) return null;
   const parts: string[] = [];
   // Any text before the first marker is real content (a lead-in sentence, not a
   // step number) — keep it on step one rather than silently dropping it.
