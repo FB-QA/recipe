@@ -61,15 +61,16 @@ function findRecipeNode(json: unknown, depth = 0): JsonLdNode | null {
 
 /**
  * A "N." is a list marker only when it opens a clause: it sits at the very start
- * of the text, or hugs the previous sentence's end (WP Recipe Maker concatenates
- * "…set aside.2. Heat…"), possibly across spaces or a line break. A number that
- * follows a WORD — "as in step 1.", "roast for 1. 5 hours" — is prose, not a
- * marker, and must never trigger a split. `at` is the index of the digit.
+ * of the text, hugs the previous sentence's end (WP Recipe Maker concatenates
+ * "…set aside.2. Heat…"), or follows a heading colon ("Directions: 1. …"),
+ * possibly across spaces or a line break. A number that follows a WORD — "as in
+ * step 1.", "roast for 1. 5 hours" — is prose, not a marker, and must never
+ * trigger a split. `at` is the index of the digit.
  */
 function isEnumerationMarker(text: string, at: number): boolean {
   let j = at - 1;
   while (j >= 0 && (text[j] === " " || text[j] === "\t")) j -= 1;
-  return j < 0 || text[j] === "." || text[j] === "!" || text[j] === "?" || text[j] === "\n";
+  return j < 0 || ".!?:\n".includes(text[j]);
 }
 
 /**
@@ -97,6 +98,13 @@ function splitEnumeratedSteps(text: string): string[] | null {
     seq.push(mk);
   }
   if (seq.length < 2) return null;
+  // What broke the run decides whether to split. A restart at 1 is a fresh list
+  // (a numbered notes block after the method) — split the prefix and let it ride
+  // on the last step. Any OTHER continuation ("1, 2, 4" or a stray "425.") means
+  // a single malformed enumeration; leave it whole rather than cram an orphaned
+  // step onto another.
+  const breaker = anchored[seq.length];
+  if (breaker && breaker.num !== 1) return null;
   const parts: string[] = [];
   // Any text before the first marker is real content (a lead-in sentence, not a
   // step number) — keep it on step one rather than silently dropping it.

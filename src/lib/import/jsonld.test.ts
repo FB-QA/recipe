@@ -168,6 +168,20 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.steps[2].instruction).toBe("Simmer 20 minutes. Notes: 1. Freezes well. 2. Doubles easily.");
   });
 
+  it("does not split a run interrupted by a gap (1, 2, 4)", () => {
+    const r = extractRecipeFromHtml(
+      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "1. First.2. Second.4. Fourth." }] }),
+    );
+    expect(r!.steps).toHaveLength(1);
+  });
+
+  it("recognises a colon-prefixed numbered method (Directions: 1. … 2. …)", () => {
+    const r = extractRecipeFromHtml(
+      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "Directions: 1. Mix the batter. 2. Bake until golden." }] }),
+    );
+    expect(r!.steps.map((s) => s.instruction)).toEqual(["Directions: Mix the batter.", "Bake until golden."]);
+  });
+
   it("does not split an out-of-order marker run", () => {
     // Markers must read 1, 2, 3… in text order. "1. … 3. … 2." is not a clean
     // enumeration; splitting on 1 and 2 would embed "3. Third." inside step one.
