@@ -176,6 +176,18 @@ describe("matchStep — singular/plural tolerance", () => {
     const got = inStep("Warm the milk gently", [mk("milk", "200ml milk"), mk("almond", "100ml almond milk")]);
     expect(got.map((i) => i.id)).toEqual(["milk"]);
   });
+
+  it("keeps both when a bare noun and a same-stem sibling are each quoted (eggs and egg whites)", () => {
+    // The step names BOTH; "eggs" is a leading-word coincidence with "egg whites",
+    // not a redundant sub-match, so positional containment must keep both.
+    const got = inStep("Beat the eggs, then fold in the egg whites", [mk("e", "2 eggs"), mk("w", "3 egg whites")]);
+    expect(got.map((i) => i.id)).toEqual(["e", "w"]);
+  });
+
+  it("keeps both for peas / pea shoots and oats / oat milk when each is quoted", () => {
+    expect(inStep("Stir in the peas and the pea shoots", [mk("p", "200g peas"), mk("s", "handful pea shoots")]).map((i) => i.id)).toEqual(["p", "s"]);
+    expect(inStep("Combine the oats with the oat milk", [mk("o", "50g oats"), mk("m", "200ml oat milk")]).map((i) => i.id)).toEqual(["o", "m"]);
+  });
 });
 
 describe("matchStep — leading vs trailing qualifiers", () => {

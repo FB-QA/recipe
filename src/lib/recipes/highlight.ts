@@ -126,20 +126,29 @@ export function matchStep<T extends Ingredientish>(
     if (head) headCounts.set(canonicalNoun(head), (headCounts.get(canonicalNoun(head)) ?? 0) + 1);
   }
 
-  // A hit records the matched substring, whether it is the ingredient's FULL
-  // significant phrase (vs a shortened run), and the significant words the term
-  // left behind — both needed to arbitrate collisions below.
-  type Hit = { index: number; term: string; full: boolean; leftover: string[] };
+  // First position in the step where a term matches, with its length — used to
+  // arbitrate overlapping matches positionally below.
+  const matchSpan = (pattern: string): { at: number; end: number } | null => {
+    const m = wordRe(pattern).exec(text);
+    return m ? { at: m.index, end: m.index + m[0].length } : null;
+  };
+
+  // A hit records the matched substring and where it landed, whether it is the
+  // ingredient's FULL significant phrase (vs a shortened run), and the words the
+  // term left behind — all needed to arbitrate the overlaps below.
+  type Hit = { index: number; term: string; full: boolean; leftover: string[]; at: number; end: number };
   const hits: Hit[] = [];
   ingredients.forEach((_, i) => {
     const words = wordsFor[i];
     if (words.length === 0) return;
     let term: string | null = null;
+    let span: { at: number; end: number } | null = null;
     // Longest contiguous ≥2-word run the step quotes.
     for (let len = words.length; len >= 2 && !term; len--) {
       for (let start = 0; start + len <= words.length; start++) {
         const gram = words.slice(start, start + len).join(" ");
-        if (wordRe(gram).test(text)) {
+        span = matchSpan(gram);
+        if (span) {
           term = gram;
           break;
         }
@@ -148,30 +157,32 @@ export function matchStep<T extends Ingredientish>(
     // Single-word ingredient (salt, flour): match on the word itself. Otherwise
     // fall back to the head noun, but only when that noun is unique to this
     // ingredient — so "heat the oil" never pulls in both oils. The subset-drop
-    // below removes the redundant bare noun ("onion" under "spring onions").
+    // below removes a bare noun matched INSIDE a longer phrase ("onion" within
+    // "spring onions").
     if (!term) {
       const head = words[words.length - 1];
-      if (words.length === 1) {
-        if (wordRe(head).test(text)) term = head;
-      } else if ((headCounts.get(canonicalNoun(head)) ?? 0) === 1 && wordRe(head).test(text)) {
-        term = head;
-      }
+      if (words.length === 1 || (headCounts.get(canonicalNoun(head)) ?? 0) === 1) span = matchSpan(head);
+      if (span) term = head;
     }
-    if (term) {
+    if (term && span) {
       const termSet = new Set(term.split(" "));
-      hits.push({ index: i, term, full: termSet.size === words.length, leftover: words.filter((w) => !termSet.has(w)) });
+      hits.push({
+        index: i,
+        term,
+        full: termSet.size === words.length,
+        leftover: words.filter((w) => !termSet.has(w)),
+        at: span.at,
+        end: span.end,
+      });
     }
   });
 
-  // Drop a hit whose matched words are a strict subset of another's — so
-  // "chili flakes" in a step doesn't also surface a standalone "chili", and
-  // "spring onions" doesn't also surface a bare "onion". Compare canonical nouns
-  // so the subset holds across a plural difference (onion ⊂ {spring, onions}).
-  const termWords = hits.map((h) => new Set(h.term.split(" ").map(canonicalNoun)));
-  const subsetKept = hits.filter((_, a) =>
-    !hits.some(
-      (__, b) => a !== b && termWords[a].size < termWords[b].size && [...termWords[a]].every((w) => termWords[b].has(w)),
-    ),
+  // Drop a hit whose matched span sits INSIDE a longer hit's span — so "chili"
+  // matched within "chili flakes", or "onion" within "spring onions", doesn't
+  // also surface on its own. Positional (not word-set) containment is the point:
+  // separately-quoted "eggs" and "egg whites" don't overlap, so both survive.
+  const subsetKept = hits.filter(
+    (a) => !hits.some((b) => b !== a && b.end - b.at > a.end - a.at && b.at <= a.at && a.end <= b.end),
   );
 
   // Drop a SHORTENED match that collides with another ingredient owning that exact
