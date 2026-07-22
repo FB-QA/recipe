@@ -153,6 +153,21 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.steps[0].instruction).toBe("Fold as in step 1. Then repeat for step 2. Serve warm.");
   });
 
+  it("splits the method and leaves trailing numbered notes on the last step", () => {
+    // A real method followed by a numbered notes block restarts the numbering;
+    // split on the ascending 1,2,3 run and let the notes ride on the last step
+    // rather than rejecting the whole enumeration.
+    const r = extractRecipeFromHtml(
+      withJsonLd({
+        ...RECIPE,
+        recipeInstructions: [{ "@type": "HowToStep", text: "1. Brown the beef.2. Add the sauce.3. Simmer 20 minutes. Notes: 1. Freezes well. 2. Doubles easily." }],
+      }),
+    );
+    expect(r!.steps).toHaveLength(3);
+    expect(r!.steps[0].instruction).toBe("Brown the beef.");
+    expect(r!.steps[2].instruction).toBe("Simmer 20 minutes. Notes: 1. Freezes well. 2. Doubles easily.");
+  });
+
   it("does not split an out-of-order marker run", () => {
     // Markers must read 1, 2, 3… in text order. "1. … 3. … 2." is not a clean
     // enumeration; splitting on 1 and 2 would embed "3. Third." inside step one.
