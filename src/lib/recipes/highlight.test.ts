@@ -221,6 +221,15 @@ describe("matchStep — review round 3 (plural stems, plural-blind collision, of
     // cream appears both inside "cream of tartar" (excluded) and standalone (kept)
     expect(inStep("Add the cream of tartar, then fold in the cream", rows).map((i) => i.id).sort()).toEqual(["cream", "tartar"]);
   });
+
+  it("does not let an unrelated distant 'powder' vouch for coconut milk powder", () => {
+    // The shortened "coconut milk" hit for the powder collides with plain coconut
+    // milk; the leftover word "powder" appears only far away (cocoa powder), so it
+    // must not rescue the powder row.
+    const rows = [mk("milk", "1 can coconut milk"), mk("powder", "2 tbsp coconut milk powder"), mk("cocoa", "1 tbsp cocoa powder")];
+    const got = inStep("Stir in the coconut milk, then dust with cocoa powder", rows).map((i) => i.id).sort();
+    expect(got).toEqual(["cocoa", "milk"]);
+  });
 });
 
 describe("matchStep — leading vs trailing qualifiers", () => {

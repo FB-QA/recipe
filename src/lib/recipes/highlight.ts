@@ -193,15 +193,21 @@ export function matchStep<T extends Ingredientish>(
   // phrase in full — "coconut milk powder" matching only "coconut milk" when a
   // plain "coconut milk" is present. Compare the owned phrase plural-invariantly
   // (canned tomatoes ≡ canned tomato), so a plural difference can't hide the
-  // collision. The guard: keep it if any leftover word is itself quoted by the
-  // step (then the longer ingredient is genuinely referenced — "honey or maple
-  // syrup" survives a step naming honey), or if nothing owns the phrase in full
-  // (shortened matching is still the only way to reach that row).
+  // collision. The guard: keep it if a leftover word appears NEXT TO the matched
+  // phrase (then the longer ingredient is genuinely referenced — "honey or maple
+  // syrup" survives a step naming honey right beside the syrup), or if nothing
+  // owns the phrase in full (shortened matching is still the only way to reach it).
+  // "Next to" matters: an unrelated "cocoa powder" elsewhere in the step must not
+  // vouch for "coconut milk powder".
   const canonPhrase = (t: string) => t.split(" ").map(canonicalNoun).join(" ");
+  const leftoverBesideTerm = (h: Hit): boolean => {
+    const near = spansOf(h.term).map((sp) => text.slice(Math.max(0, sp.at - 18), sp.end + 18));
+    return h.leftover.some((w) => near.some((ctx) => wordRe(w).test(ctx)));
+  };
   const kept = subsetKept.filter(
     (h) =>
       h.full ||
-      h.leftover.some((w) => wordRe(w).test(text)) ||
+      leftoverBesideTerm(h) ||
       !subsetKept.some((o) => o !== h && o.full && canonPhrase(o.term) === canonPhrase(h.term)),
   );
 
