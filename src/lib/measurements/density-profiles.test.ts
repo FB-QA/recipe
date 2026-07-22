@@ -61,6 +61,12 @@ describe("density corpus — verify (contract)", () => {
     expect(findDensityProfile("quick oats")?.id).toBe("rolled-oats"); // KA groups these
   });
 
+  it("keeps polenta distinct from cornmeal (different grind, different weight)", () => {
+    expect(findDensityProfile("polenta")?.id).toBe("polenta");
+    expect(findDensityProfile("polenta")?.equivalentGrams).toBe(163); // KA, not cornmeal's 138
+    expect(findDensityProfile("cornmeal")?.equivalentGrams).toBe(138);
+  });
+
   it("keeps the flours DISTINCT — bare 'flour' does not resolve", () => {
     expect(findDensityProfile("flour")).toBeNull();
     // and the distinct flours differ in density

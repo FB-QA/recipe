@@ -498,6 +498,38 @@ describe("renderIngredientAmount", () => {
       expect(r.text).toMatch(/^120–240 g plain flour$/);
       expect(r.approximate).toBe(true);
     });
+
+    it("rounds a density weight to the approximate band (198 → 200 g)", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup sugar", quantity_value: 1, unit: "cup", name: "granulated sugar" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.text).toBe("200 g granulated sugar"); // not 198
+    });
+
+    it("SKIPS density when a known preparation conflicts (sifted flour)", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup all-purpose flour", quantity_value: 1, unit: "cup", name: "all-purpose flour", preparation: "sifted" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.text).not.toMatch(/\bg\b/); // no fabricated weight
+      expect(r.approximate).toBe(false);
+      // packed brown sugar still weighs — its prep MATCHES the profile assumption.
+      const bs = renderIngredientAmount(
+        ing({ display_text: "1 cup brown sugar", quantity_value: 1, unit: "cup", name: "brown sugar", preparation: "packed" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(bs.text).toMatch(/g brown sugar/);
+    });
+
+    it("carries the density note through a multiplier row", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "2 x 1 cup brown sugar", quantity_value: 2, unit: null, name: "brown sugar" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.approximate).toBe(true);
+      expect(r.note).toMatch(/packed/i); // not dropped
+    });
   });
 
   it("always exposes the original source text", () => {

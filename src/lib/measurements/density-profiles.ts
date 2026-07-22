@@ -242,8 +242,16 @@ export const DENSITY_PROFILES: IngredientDensityProfile[] = [
   {
     id: "cornmeal",
     canonicalName: "cornmeal",
-    aliases: ["polenta"],
+    // "polenta" is a DIFFERENT grind (coarser, denser) — its own profile below.
+    aliases: ["whole cornmeal"],
     referenceQuantity: 1, referenceUnit: "cup", equivalentGrams: 138,
+    source: KING_ARTHUR, sourceQuality: "authoritative",
+  },
+  {
+    id: "polenta",
+    canonicalName: "polenta",
+    aliases: ["coarse cornmeal"],
+    referenceQuantity: 1, referenceUnit: "cup", equivalentGrams: 163,
     source: KING_ARTHUR, sourceQuality: "authoritative",
   },
   {
