@@ -126,29 +126,27 @@ export function matchStep<T extends Ingredientish>(
     if (head) headCounts.set(canonicalNoun(head), (headCounts.get(canonicalNoun(head)) ?? 0) + 1);
   }
 
-  // First position in the step where a term matches, with its length — used to
-  // arbitrate overlapping matches positionally below.
-  const matchSpan = (pattern: string): { at: number; end: number } | null => {
-    const m = wordRe(pattern).exec(text);
-    return m ? { at: m.index, end: m.index + m[0].length } : null;
-  };
+  // Every span in the step where a term matches (plural-tolerant, non-overlapping).
+  const spansOf = (term: string): Array<{ at: number; end: number }> =>
+    [...text.matchAll(new RegExp(`\\b${phraseSource(term)}\\b`, "g"))].map((m) => ({
+      at: m.index ?? 0,
+      end: (m.index ?? 0) + m[0].length,
+    }));
 
-  // A hit records the matched substring and where it landed, whether it is the
-  // ingredient's FULL significant phrase (vs a shortened run), and the words the
-  // term left behind — all needed to arbitrate the overlaps below.
-  type Hit = { index: number; term: string; full: boolean; leftover: string[]; at: number; end: number };
+  // A hit records the matched substring, whether it is the ingredient's FULL
+  // significant phrase (vs a shortened run), and the words the term left behind —
+  // both needed to arbitrate the collision below.
+  type Hit = { index: number; term: string; words: number; full: boolean; leftover: string[] };
   const hits: Hit[] = [];
   ingredients.forEach((_, i) => {
     const words = wordsFor[i];
     if (words.length === 0) return;
     let term: string | null = null;
-    let span: { at: number; end: number } | null = null;
     // Longest contiguous ≥2-word run the step quotes.
     for (let len = words.length; len >= 2 && !term; len--) {
       for (let start = 0; start + len <= words.length; start++) {
         const gram = words.slice(start, start + len).join(" ");
-        span = matchSpan(gram);
-        if (span) {
+        if (wordRe(gram).test(text)) {
           term = gram;
           break;
         }
@@ -156,33 +154,36 @@ export function matchStep<T extends Ingredientish>(
     }
     // Single-word ingredient (salt, flour): match on the word itself. Otherwise
     // fall back to the head noun, but only when that noun is unique to this
-    // ingredient — so "heat the oil" never pulls in both oils. The subset-drop
-    // below removes a bare noun matched INSIDE a longer phrase ("onion" within
-    // "spring onions").
+    // ingredient — so "heat the oil" never pulls in both oils.
     if (!term) {
       const head = words[words.length - 1];
-      if (words.length === 1 || (headCounts.get(canonicalNoun(head)) ?? 0) === 1) span = matchSpan(head);
-      if (span) term = head;
+      if ((words.length === 1 || (headCounts.get(canonicalNoun(head)) ?? 0) === 1) && wordRe(head).test(text)) term = head;
     }
-    if (term && span) {
+    if (term) {
       const termSet = new Set(term.split(" "));
       hits.push({
         index: i,
         term,
+        words: termSet.size,
         full: termSet.size === words.length,
         leftover: words.filter((w) => !termSet.has(w)),
-        at: span.at,
-        end: span.end,
       });
     }
   });
 
-  // Drop a hit whose matched span sits INSIDE a longer hit's span — so "chili"
-  // matched within "chili flakes", or "onion" within "spring onions", doesn't
-  // also surface on its own. Positional (not word-set) containment is the point:
-  // separately-quoted "eggs" and "egg whites" don't overlap, so both survive.
-  const subsetKept = hits.filter(
-    (a) => !hits.some((b) => b !== a && b.end - b.at > a.end - a.at && b.at <= a.at && a.end <= b.end),
+  // Drop a bare match that only ever appears INSIDE a longer phrase another
+  // ingredient owns — "chili" within "chili flakes", "onion" within "spring
+  // onions". A hit survives if it has ANY occurrence not covered by a
+  // longer-phrase hit, so "cream" beaten as "cream cheese" AND whipped alone,
+  // or separately-quoted "eggs" and "egg whites", both stay.
+  const hitSpans = hits.map((h) => spansOf(h.term));
+  const subsetKept = hits.filter((a, ai) =>
+    hitSpans[ai].some(
+      (sa) =>
+        !hits.some(
+          (b, bi) => bi !== ai && b.words > a.words && hitSpans[bi].some((sb) => sb.at <= sa.at && sa.end <= sb.end),
+        ),
+    ),
   );
 
   // Drop a SHORTENED match that collides with another ingredient owning that exact

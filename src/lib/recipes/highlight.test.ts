@@ -188,6 +188,18 @@ describe("matchStep — singular/plural tolerance", () => {
     expect(inStep("Stir in the peas and the pea shoots", [mk("p", "200g peas"), mk("s", "handful pea shoots")]).map((i) => i.id)).toEqual(["p", "s"]);
     expect(inStep("Combine the oats with the oat milk", [mk("o", "50g oats"), mk("m", "200ml oat milk")]).map((i) => i.id)).toEqual(["o", "m"]);
   });
+
+  it("keeps a bare noun quoted standalone even when the phrase comes FIRST (cream cheese … then the cream)", () => {
+    // The bare noun's first occurrence is inside the phrase; it must still survive
+    // on the strength of its later standalone occurrence.
+    const rows = [mk("cream", "200ml double cream"), mk("cc", "300g cream cheese")];
+    expect(inStep("Beat the cream cheese, then whip the cream until stiff", rows).map((i) => i.id).sort()).toEqual(["cc", "cream"]);
+  });
+
+  it("still drops the bare noun when it ONLY appears inside the phrase (spring onions, no standalone onion)", () => {
+    const rows = [mk("onion", "1 onion"), mk("spring", "3 spring onions")];
+    expect(inStep("Fry the spring onions gently", rows).map((i) => i.id)).toEqual(["spring"]);
+  });
 });
 
 describe("matchStep — leading vs trailing qualifiers", () => {
