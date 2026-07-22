@@ -122,6 +122,19 @@ describe("ingredientsInStep — review hardening (PR #25 Codex findings)", () =>
     const only = [{ id: "powder", display_text: "2 tbsp coconut milk powder", name: "2 tbsp coconut milk powder" }];
     expect(ingredientsInStep("Stir in the coconut milk", only).map((i) => i.id)).toEqual(["powder"]);
   });
+
+  it("matches 'salt to taste' when a step says 'salt'", () => {
+    const s = [{ id: "salt", display_text: "salt to taste", name: "salt to taste" }];
+    expect(ingredientsInStep("Season with salt and serve", s).map((i) => i.id)).toEqual(["salt"]);
+  });
+
+  it("drops a trailing comma descriptor so 'parmesan, grated' matches 'the parmesan'", () => {
+    const s = [
+      { id: "parm", display_text: "50g parmesan, grated", name: "50g parmesan, grated" },
+      { id: "ched", display_text: "100g cheddar", name: "100g cheddar" },
+    ];
+    expect(ingredientsInStep("Stir in the parmesan until melted", s).map((i) => i.id)).toEqual(["parm"]);
+  });
 });
 
 describe("ingredientsInStep", () => {

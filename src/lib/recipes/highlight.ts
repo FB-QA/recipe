@@ -13,6 +13,7 @@ const STOPWORDS = new Set([
   "the", "and", "with", "for", "into", "from", "your", "this", "that", "some", "each", "then",
   "until", "about", "over", "onto", "plus", "large", "small", "to", "of", "a", "an", "or", "in", "on",
   "fresh", "frozen", "optional", "divided", "drained", "rinsed", "softened", "melted", "thawed", "chilled",
+  "taste", // the "…to taste" tail, so "salt to taste" reduces to "salt"
 ]);
 
 // Numbers with optional cooking units / times / temperatures.
@@ -39,7 +40,11 @@ function significantWords(ing: { display_text: string; name: string | null }): s
   t = t.replace(LEAD_QTY, "").replace(LEAD_UNIT, "");
   // "X of Y" — the ingredient is Y ("can of chopped tomatoes" → "chopped tomatoes").
   if (/\bof\b/.test(t)) t = t.split(/\bof\b/).slice(1).join(" ");
-  t = t.replace(/[(),.]/g, " ").split(/\bfor\b|,/)[0]; // drop trailing descriptors
+  // Drop a trailing descriptor after a comma or "for …" ("parmesan, grated" →
+  // "parmesan") BEFORE flattening punctuation — otherwise the comma is gone and the
+  // split never fires. A leading prep adjective ("chopped tomatoes", no comma) is
+  // deliberately kept; only the incidental trailing form is dropped.
+  t = t.split(/\bfor\b|,/)[0].replace(/[(),.]/g, " ");
   return t.split(/\s+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
 }
 
