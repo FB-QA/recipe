@@ -60,8 +60,9 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\
  *  nouns are overwhelmingly regular. */
 function wordVariants(word: string): string {
   const w = word.toLowerCase();
-  // Plural input → also match its singular.
-  if (/[^aeiou]ies$/.test(w)) return `${escapeRegExp(w.slice(0, -3))}(?:y|ies)`; // berries↔berry
+  // Plural input → also match its singular. -ies is ambiguous (berries→berry vs
+  // cookies→cookie), so offer both singular stems plus the plural itself.
+  if (/[^aeiou]ies$/.test(w)) return `(?:${escapeRegExp(w)}|${escapeRegExp(w.slice(0, -3))}y|${escapeRegExp(w.slice(0, -1))})`; // berries↔berry, cookies↔cookie
   if (/(?:ch|sh|s|x|z)es$/.test(w)) return `${escapeRegExp(w.slice(0, -2))}(?:es)?`; // dishes↔dish, boxes↔box
   if (/oes$/.test(w)) return `${escapeRegExp(w.slice(0, -2))}(?:es)?`; // tomatoes↔tomato
   if (/s$/.test(w) && !/(?:ss|us|is)$/.test(w)) return `${escapeRegExp(w.slice(0, -1))}s?`; // onions↔onion, breasts↔breast
@@ -126,12 +127,14 @@ export function matchStep<T extends Ingredientish>(
     if (head) headCounts.set(canonicalNoun(head), (headCounts.get(canonicalNoun(head)) ?? 0) + 1);
   }
 
-  // Every span in the step where a term matches (plural-tolerant, non-overlapping).
+  // Every span in the step where a term matches (plural-tolerant, non-overlapping),
+  // EXCLUDING an occurrence immediately followed by " of " — there the word is the
+  // head of a compound ("cream of tartar"), not a standalone reference, so a bare
+  // "cream" ingredient must not claim it.
   const spansOf = (term: string): Array<{ at: number; end: number }> =>
-    [...text.matchAll(new RegExp(`\\b${phraseSource(term)}\\b`, "g"))].map((m) => ({
-      at: m.index ?? 0,
-      end: (m.index ?? 0) + m[0].length,
-    }));
+    [...text.matchAll(new RegExp(`\\b${phraseSource(term)}\\b`, "g"))]
+      .map((m) => ({ at: m.index ?? 0, end: (m.index ?? 0) + m[0].length }))
+      .filter((sp) => !/^\s+of\s/.test(text.slice(sp.end, sp.end + 5)));
 
   // A hit records the matched substring, whether it is the ingredient's FULL
   // significant phrase (vs a shortened run), and the words the term left behind —
@@ -186,17 +189,20 @@ export function matchStep<T extends Ingredientish>(
     ),
   );
 
-  // Drop a SHORTENED match that collides with another ingredient owning that exact
+  // Drop a SHORTENED match that collides with another ingredient owning that same
   // phrase in full — "coconut milk powder" matching only "coconut milk" when a
-  // plain "coconut milk" is present. The guard: keep it if any leftover word is
-  // itself quoted by the step (then the longer ingredient is genuinely referenced —
-  // "honey or maple syrup" survives a step naming honey), or if nothing owns the
-  // phrase in full (shortened matching is still the only way to reach that row).
+  // plain "coconut milk" is present. Compare the owned phrase plural-invariantly
+  // (canned tomatoes ≡ canned tomato), so a plural difference can't hide the
+  // collision. The guard: keep it if any leftover word is itself quoted by the
+  // step (then the longer ingredient is genuinely referenced — "honey or maple
+  // syrup" survives a step naming honey), or if nothing owns the phrase in full
+  // (shortened matching is still the only way to reach that row).
+  const canonPhrase = (t: string) => t.split(" ").map(canonicalNoun).join(" ");
   const kept = subsetKept.filter(
     (h) =>
       h.full ||
       h.leftover.some((w) => wordRe(w).test(text)) ||
-      !subsetKept.some((o) => o !== h && o.full && o.term === h.term),
+      !subsetKept.some((o) => o !== h && o.full && canonPhrase(o.term) === canonPhrase(h.term)),
   );
 
   // The same ingredient text can appear in two variant groups within one recipe

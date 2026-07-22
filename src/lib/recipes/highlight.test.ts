@@ -202,6 +202,27 @@ describe("matchStep — singular/plural tolerance", () => {
   });
 });
 
+describe("matchStep — review round 3 (plural stems, plural-blind collision, of-compounds)", () => {
+  const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
+  it("matches an -ie plural to its singular (cookies → cookie)", () => {
+    expect(inStep("Crush each cookie into crumbs", [mk("c", "12 cookies")]).map((i) => i.id)).toEqual(["c"]);
+  });
+  it("resolves a prefix collision across a plural difference (canned tomatoes vs canned tomato paste)", () => {
+    const rows = [mk("tom", "400g canned tomatoes"), mk("paste", "2 tbsp canned tomato paste")];
+    expect(inStep("Add the canned tomatoes and simmer", rows).map((i) => i.id)).toEqual(["tom"]);
+  });
+  it("does not let a bare ingredient claim the head of an 'X of Y' compound (double cream vs cream of tartar)", () => {
+    const rows = [mk("whites", "4 egg whites"), mk("tartar", "1 tsp cream of tartar"), mk("cream", "300ml double cream")];
+    const got = inStep("Whisk the egg whites, then add the cream of tartar", rows).map((i) => i.id).sort();
+    expect(got).toEqual(["tartar", "whites"]);
+  });
+  it("still matches a bare ingredient quoted standalone elsewhere in an of-compound step", () => {
+    const rows = [mk("tartar", "1 tsp cream of tartar"), mk("cream", "300ml double cream")];
+    // cream appears both inside "cream of tartar" (excluded) and standalone (kept)
+    expect(inStep("Add the cream of tartar, then fold in the cream", rows).map((i) => i.id).sort()).toEqual(["cream", "tartar"]);
+  });
+});
+
 describe("matchStep — leading vs trailing qualifiers", () => {
   const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
   it("keeps a LEADING qualifier distinct (fresh berries vs frozen berries)", () => {
