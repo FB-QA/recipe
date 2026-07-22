@@ -59,23 +59,66 @@ function findRecipeNode(json: unknown, depth = 0): JsonLdNode | null {
   return null;
 }
 
+/**
+ * Split a method blob that runs its steps together with "1." "2." … markers into
+ * one string per step. WP Recipe Maker (halfbakedharvest.com and others) can emit
+ * the ENTIRE method as a single HowToStep with no line breaks; left whole, every
+ * step imports as one. Only a marker run that reads 1, 2, 3… from the start is
+ * treated as an enumeration — a lone number, an out-of-sequence one, or a
+ * decimal/temperature ("Preheat to 375.", "1.5 cups") is left untouched, so
+ * genuine prose is never chopped. Returns null when there is no such run.
+ */
+function splitEnumeratedSteps(text: string): string[] | null {
+  const marks: { num: number; at: number; len: number }[] = [];
+  for (const m of text.matchAll(/(\d+)\.\s+/g)) marks.push({ num: Number(m[1]), at: m.index ?? 0, len: m[0].length });
+  const seq: typeof marks = [];
+  let expected = 1;
+  for (const mk of marks) {
+    if (mk.num === expected) {
+      seq.push(mk);
+      expected += 1;
+    }
+  }
+  if (seq.length < 2) return null;
+  const parts: string[] = [];
+  // Any text before the first marker is real content (a lead-in sentence, not a
+  // step number) — keep it on step one rather than silently dropping it.
+  const lead = text.slice(0, seq[0].at).trim();
+  for (let i = 0; i < seq.length; i += 1) {
+    const start = seq[i].at + seq[i].len;
+    const end = i + 1 < seq.length ? seq[i + 1].at : text.length;
+    let part = text.slice(start, end).trim();
+    if (i === 0 && lead) part = part ? `${lead} ${part}` : lead;
+    if (part) parts.push(part);
+  }
+  return parts.length >= 2 ? parts : null;
+}
+
+/** One instruction string → one or more step strings: a numbered run first, else
+ *  newline-separated lines (some sites cram every step into one string), else the
+ *  string itself. */
+function expandInstruction(text: string): string[] {
+  return (
+    splitEnumeratedSteps(text) ??
+    text
+      .split(/\r?\n+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+}
+
 function mapInstructions(raw: unknown): string[] {
   const out: string[] = [];
   for (const item of asArray(raw)) {
     if (typeof item === "string") {
-      // Some sites cram all steps into one string with newlines.
-      item
-        .split(/\r?\n+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .forEach((s) => out.push(s));
+      expandInstruction(item).forEach((s) => out.push(s));
     } else if (item && typeof item === "object") {
       const obj = item as JsonLdNode;
       if (obj["@type"] && String(obj["@type"]).toLowerCase() === "howtosection") {
         mapInstructions(obj.itemListElement).forEach((s) => out.push(s));
       } else {
         const text = firstString(obj.text) ?? firstString(obj.name);
-        if (text) out.push(text);
+        if (text) expandInstruction(text).forEach((s) => out.push(s));
       }
     }
   }

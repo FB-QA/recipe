@@ -116,6 +116,42 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.steps.map((s) => s.position)).toEqual([0, 1, 2]);
   });
 
+  it("splits a single HowToStep that crams every step into one numbered blob", () => {
+    // WP Recipe Maker (e.g. halfbakedharvest.com) emits the whole method as one
+    // HowToStep whose text runs the steps together with "1." "2." markers and no
+    // line breaks. Left whole, all six steps import as a single step.
+    const blob =
+      "1. To make the salad, combine the ingredients and toss. Set aside." +
+      "2. Heat the oil until hot but not smoking." +
+      "3. Combine the aromatics, then pour the hot oil over." +
+      "4. Cook the beef until browned, about 5 minutes. Stir in the tamari." +
+      "5. Cook the noodles, then toss with the herb oil." +
+      "6. Divide among bowls and top with cashews.";
+    const r = extractRecipeFromHtml(withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: blob }] }));
+    expect(r!.steps).toHaveLength(6);
+    expect(r!.steps[0].instruction).toBe("To make the salad, combine the ingredients and toss. Set aside.");
+    expect(r!.steps[3].instruction).toBe("Cook the beef until browned, about 5 minutes. Stir in the tamari.");
+    expect(r!.steps[5].instruction).toBe("Divide among bowls and top with cashews.");
+    expect(r!.steps.map((s) => s.position)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it("keeps a lead-in sentence before the first marker on step one", () => {
+    const r = extractRecipeFromHtml(
+      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "Preparation: 1. Chop the onion. 2. Fry it off." }] }),
+    );
+    expect(r!.steps.map((s) => s.instruction)).toEqual(["Preparation: Chop the onion.", "Fry it off."]);
+  });
+
+  it("does not split a lone number or a temperature that is not an enumeration", () => {
+    // "375°" and "1.5" must not be mistaken for step markers — only a run that
+    // reads 1, 2, 3… from the start is an enumeration.
+    const r = extractRecipeFromHtml(
+      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "Preheat to 375. Add 1.5 cups flour and bake." }] }),
+    );
+    expect(r!.steps).toHaveLength(1);
+    expect(r!.steps[0].instruction).toBe("Preheat to 375. Add 1.5 cups flour and bake.");
+  });
+
   it("preserves HowToSection groupings as named step titles", () => {
     const r = extractRecipeFromHtml(
       withJsonLd({
