@@ -3,17 +3,17 @@ export type Segment = { text: string; bold: boolean };
 // Prep words (chopped/sliced/diced) are deliberately NOT stopwords: they
 // distinguish variants like "chopped tomatoes" vs "diced tomatoes", which would
 // otherwise both collapse to "tomatoes" and cross-match in the step drawer.
-//
-// State/availability qualifiers (fresh, frozen, optional, divided, drained…) ARE
-// stopwords: they never define what an ingredient IS, and — worse — a source that
-// flattens a parenthetical into the name ("mixed berries (fresh or frozen)" →
-// "mixed berries fresh or frozen") would otherwise leave "frozen" as the head
-// noun, then falsely match any step that says "freeze until frozen solid".
 const STOPWORDS = new Set([
   "the", "and", "with", "for", "into", "from", "your", "this", "that", "some", "each", "then",
   "until", "about", "over", "onto", "plus", "large", "small", "to", "of", "a", "an", "or", "in", "on",
-  "fresh", "frozen", "optional", "divided", "drained", "rinsed", "softened", "melted", "thawed", "chilled",
-  "taste", // the "…to taste" tail, so "salt to taste" reduces to "salt"
+]);
+
+// State/availability qualifiers. Stripped only as a TRAILING tail — "mixed berries
+// fresh or frozen" → "mixed berries", "salt to taste" → "salt" — because there the
+// qualifier is incidental. A LEADING one is kept ("frozen berries" stays distinct
+// from "fresh berries"), since in that position it is the distinguishing word.
+const QUALIFIERS = new Set([
+  "fresh", "frozen", "optional", "divided", "drained", "rinsed", "softened", "melted", "thawed", "chilled", "taste",
 ]);
 
 // Numbers with optional cooking units / times / temperatures.
@@ -45,7 +45,10 @@ function significantWords(ing: { display_text: string; name: string | null }): s
   // split never fires. A leading prep adjective ("chopped tomatoes", no comma) is
   // deliberately kept; only the incidental trailing form is dropped.
   t = t.split(/\bfor\b|,/)[0].replace(/[(),.]/g, " ");
-  return t.split(/\s+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+  const words = t.split(/\s+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+  // Strip a trailing run of state qualifiers ("… fresh or frozen", "… optional").
+  while (words.length > 1 && QUALIFIERS.has(words[words.length - 1])) words.pop();
+  return words;
 }
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -66,6 +69,20 @@ function wordVariants(word: string): string {
   if (/[^aeiou]y$/.test(w)) return `${escapeRegExp(w.slice(0, -1))}(?:y|ies)`; // berry↔berries
   if (/(?:ch|sh|s|x|z|o)$/.test(w)) return `${escapeRegExp(w)}(?:es|s)?`; // dish↔dishes, tomato↔tomatoes
   return `${escapeRegExp(w)}s?`; // onion↔onions
+}
+
+/** A plural-invariant key: a singular and its regular plural collapse to the same
+ *  value (onion/onions, tomato/tomatoes, berry/berries → one key). Used to count
+ *  shared nouns, so plural tolerance can't sneak a second "onion" past the guard
+ *  that stops a bare noun matching two different ingredients. Mirrors
+ *  {@link wordVariants}. */
+function canonicalNoun(word: string): string {
+  const w = word.toLowerCase();
+  if (/[^aeiou]ies$/.test(w)) return `${w.slice(0, -3)}y`; // berries → berry
+  if (/(?:ch|sh|s|x|z)es$/.test(w)) return w.slice(0, -2); // dishes → dish, boxes → box
+  if (/oes$/.test(w)) return w.slice(0, -2); // tomatoes → tomato
+  if (/s$/.test(w) && !/(?:ss|us|is)$/.test(w)) return w.slice(0, -1); // onions → onion, grapes → grape
+  return w; // already singular
 }
 
 /** Plural-tolerant regex source for a phrase: only the final noun varies; leading
@@ -101,10 +118,12 @@ export function matchStep<T extends Ingredientish>(
 ): { ingredients: T[]; terms: string[] } {
   const text = instruction.toLowerCase();
   const wordsFor = ingredients.map(significantWords);
+  // Count head nouns by their plural-invariant key, so "onion" and "spring onions"
+  // register as the shared noun they are once plural tolerance is in play.
   const headCounts = new Map<string, number>();
   for (const w of wordsFor) {
     const head = w[w.length - 1];
-    if (head) headCounts.set(head, (headCounts.get(head) ?? 0) + 1);
+    if (head) headCounts.set(canonicalNoun(head), (headCounts.get(canonicalNoun(head)) ?? 0) + 1);
   }
 
   // A hit records the matched substring, whether it is the ingredient's FULL
@@ -127,12 +146,14 @@ export function matchStep<T extends Ingredientish>(
       }
     }
     // Single-word ingredient (salt, flour): match on the word itself. Otherwise
-    // fall back to the head noun, but only when it is unique to this ingredient.
+    // fall back to the head noun, but only when that noun is unique to this
+    // ingredient — so "heat the oil" never pulls in both oils. The subset-drop
+    // below removes the redundant bare noun ("onion" under "spring onions").
     if (!term) {
       const head = words[words.length - 1];
       if (words.length === 1) {
         if (wordRe(head).test(text)) term = head;
-      } else if ((headCounts.get(head) ?? 0) === 1 && wordRe(head).test(text)) {
+      } else if ((headCounts.get(canonicalNoun(head)) ?? 0) === 1 && wordRe(head).test(text)) {
         term = head;
       }
     }
@@ -143,8 +164,10 @@ export function matchStep<T extends Ingredientish>(
   });
 
   // Drop a hit whose matched words are a strict subset of another's — so
-  // "chili flakes" in a step doesn't also surface a standalone "chili".
-  const termWords = hits.map((h) => new Set(h.term.split(" ")));
+  // "chili flakes" in a step doesn't also surface a standalone "chili", and
+  // "spring onions" doesn't also surface a bare "onion". Compare canonical nouns
+  // so the subset holds across a plural difference (onion ⊂ {spring, onions}).
+  const termWords = hits.map((h) => new Set(h.term.split(" ").map(canonicalNoun)));
   const subsetKept = hits.filter((_, a) =>
     !hits.some(
       (__, b) => a !== b && termWords[a].size < termWords[b].size && [...termWords[a]].every((w) => termWords[b].has(w)),

@@ -157,6 +157,39 @@ describe("matchStep — singular/plural tolerance", () => {
     const got = inStep("Toast the oats", [mk("oats", "50g rolled oats"), mk("oil", "1 tbsp oil")]);
     expect(got.map((i) => i.id)).toEqual(["oats"]);
   });
+
+  it("does not let plural tolerance defeat the shared-noun guard (onion vs spring onions)", () => {
+    // "onion" and "spring onions" share the noun once plurals are folded; the step
+    // names spring onions in full, so plain onion must NOT ride along on "onions".
+    const got = inStep("Scatter the spring onions on top", [mk("onion", "1 onion, diced"), mk("spring", "3 spring onions")]);
+    expect(got.map((i) => i.id)).toEqual(["spring"]);
+  });
+
+  it("does not let a plural head-noun cross-match a singular sibling (green beans vs vanilla bean)", () => {
+    const got = inStep("Steam the green beans until tender", [mk("green", "400g green beans"), mk("van", "1 vanilla bean, split")]);
+    expect(got.map((i) => i.id)).toEqual(["green"]);
+  });
+
+  it("still shows the plain single-word ingredient when a qualified sibling is not referenced (milk vs almond milk)", () => {
+    // "the milk" names milk alone; almond milk is not referenced, so the guard must
+    // not suppress plain milk (regression guard for the shared-noun fix).
+    const got = inStep("Warm the milk gently", [mk("milk", "200ml milk"), mk("almond", "100ml almond milk")]);
+    expect(got.map((i) => i.id)).toEqual(["milk"]);
+  });
+});
+
+describe("matchStep — leading vs trailing qualifiers", () => {
+  const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
+  it("keeps a LEADING qualifier distinct (fresh berries vs frozen berries)", () => {
+    const rows = [mk("fresh", "200g fresh berries"), mk("frozen", "200g frozen berries")];
+    expect(inStep("Fold in the frozen berries", rows).map((i) => i.id)).toEqual(["frozen"]);
+    expect(inStep("Top with the fresh berries", rows).map((i) => i.id)).toEqual(["fresh"]);
+  });
+  it("still strips a TRAILING qualifier (mixed berries fresh or frozen → berries)", () => {
+    const rows = [mk("b", "1 cup mixed berries fresh or frozen")];
+    expect(inStep("Blend the berries until smooth", rows).map((i) => i.id)).toEqual(["b"]);
+    expect(inStep("Freeze until frozen solid", rows).map((i) => i.id)).toEqual([]);
+  });
 });
 
 describe("matchStep (drawer membership)", () => {
