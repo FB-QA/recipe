@@ -48,7 +48,8 @@ function significantWords(ing: { display_text: string; name: string | null }): s
   return t.split(/\s+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
 }
 
-const wordRe = (w: string) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const wordRe = (w: string) => new RegExp(`\\b${escapeRegExp(w)}\\b`);
 
 type Ingredientish = { display_text: string; name: string | null };
 
@@ -153,14 +154,9 @@ export function matchStep<T extends Ingredientish>(
   return { ingredients: out, terms: [...terms].sort((a, b) => b.length - a.length) };
 }
 
-/** The ingredients a method step refers to (see {@link matchStep}). */
-export function ingredientsInStep<T extends Ingredientish>(instruction: string, ingredients: T[]): T[] {
-  return matchStep(instruction, ingredients).ingredients;
-}
-
 /** Split a step into segments, marking measures and ingredient terms as bold. */
 export function highlightStep(text: string, terms: string[]): Segment[] {
-  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).filter(Boolean);
+  const escaped = terms.map(escapeRegExp).filter(Boolean);
   const source = escaped.length > 0 ? `(?:${MEASURE})|\\b(?:${escaped.join("|")})\\b` : MEASURE;
   const re = new RegExp(source, "gi");
 
