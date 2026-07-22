@@ -85,6 +85,43 @@ describe("ingredientsInStep — variant & qualifier robustness (samdoesherbest c
     const freezeStep = "Pour the mixture into a container and freeze for 6 hours, or until frozen solid.";
     expect(ingredientsInStep(freezeStep, ccic).map((i) => i.id)).not.toContain("berries");
   });
+
+  it("keeps the berry sweetener whose extra word ('honey') the step also names", () => {
+    // "3 tablespoons honey or maple syrup" matches on "maple syrup" — a prefix of
+    // nothing, but a phrase another (chocolate) row owns in full. It must survive
+    // because its leftover word "honey" is quoted by the step; only a genuinely
+    // absent leftover (see the coconut-milk-powder case) justifies dropping.
+    expect(ingredientsInStep(step1, ccic).map((i) => i.id)).toContain("sweet1");
+  });
+});
+
+describe("ingredientsInStep — review hardening (PR #25 Codex findings)", () => {
+  it("keeps two rows that share a name but differ in amount (olive oil, sauce vs dressing)", () => {
+    // Deduplicating must not swallow a distinct amount the cook needs. Same name,
+    // different display_text → both belong in the drawer.
+    const oils = [
+      { id: "sauce", display_text: "1 tbsp olive oil", name: "olive oil" },
+      { id: "dressing", display_text: "3 tbsp olive oil", name: "olive oil" },
+    ];
+    const ids = ingredientsInStep("Whisk the olive oil into the sauce, then the dressing", oils).map((i) => i.id);
+    expect(ids).toEqual(["sauce", "dressing"]);
+  });
+
+  it("does not pull 'coconut milk powder' into a step that says only 'coconut milk'", () => {
+    const cans = [
+      { id: "milk", display_text: "1 can coconut milk", name: "1 can coconut milk" },
+      { id: "powder", display_text: "2 tbsp coconut milk powder", name: "2 tbsp coconut milk powder" },
+    ];
+    const ids = ingredientsInStep("Stir in the coconut milk and warm through", cans).map((i) => i.id);
+    expect(ids).toEqual(["milk"]);
+  });
+
+  it("still surfaces the longer ingredient when it is the only claimant", () => {
+    // If the plain form is absent, a step saying "coconut milk" should still find
+    // the powder — shortened matching is a feature, the drop only guards collisions.
+    const only = [{ id: "powder", display_text: "2 tbsp coconut milk powder", name: "2 tbsp coconut milk powder" }];
+    expect(ingredientsInStep("Stir in the coconut milk", only).map((i) => i.id)).toEqual(["powder"]);
+  });
 });
 
 describe("ingredientsInStep", () => {

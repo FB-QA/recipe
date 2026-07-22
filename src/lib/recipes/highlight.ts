@@ -21,10 +21,13 @@ const MEASURE =
 
 /** Derive matchable terms (ingredient names) from a recipe's ingredients. */
 // Leading quantity (multiplier-safe so "xanthan" is never mistaken for one; en/em
-// dash ranges) and a leading cooking-unit word, stripped to reach the ingredient.
+// dash ranges) and a leading cooking-unit or container word, stripped to reach the
+// ingredient. Container counters (can/tin/jar/packet…) matter beyond tidiness: left
+// in, "1 can coconut milk" keeps "can" as a significant word, so it no longer fully
+// matches "coconut milk" and can't out-rank "coconut milk powder" (see matchStep).
 const LEAD_QTY = /^(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/;
 const LEAD_UNIT =
-  /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|grams?|kilograms?|millilitres?)\b\.?\s*/;
+  /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|cans?|tins?|jars?|packets?|packs?|bottles?|boxes|tubs?|cartons?|bags?|sticks?|blocks?|bunch(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|grams?|kilograms?|millilitres?)\b\.?\s*/;
 
 /** The significant words of one ingredient, in order — quantity, unit and
  *  stopwords stripped. Empty when nothing meaningful survives. This is the raw
@@ -70,7 +73,11 @@ export function matchStep<T extends Ingredientish>(
     if (head) headCounts.set(head, (headCounts.get(head) ?? 0) + 1);
   }
 
-  const hits: { index: number; term: string }[] = [];
+  // A hit records the matched substring, whether it is the ingredient's FULL
+  // significant phrase (vs a shortened run), and the significant words the term
+  // left behind — both needed to arbitrate collisions below.
+  type Hit = { index: number; term: string; full: boolean; leftover: string[] };
+  const hits: Hit[] = [];
   ingredients.forEach((_, i) => {
     const words = wordsFor[i];
     if (words.length === 0) return;
@@ -95,28 +102,45 @@ export function matchStep<T extends Ingredientish>(
         term = head;
       }
     }
-    if (term) hits.push({ index: i, term });
+    if (term) {
+      const termSet = new Set(term.split(" "));
+      hits.push({ index: i, term, full: termSet.size === words.length, leftover: words.filter((w) => !termSet.has(w)) });
+    }
   });
 
   // Drop a hit whose matched words are a strict subset of another's — so
   // "chili flakes" in a step doesn't also surface a standalone "chili".
   const termWords = hits.map((h) => new Set(h.term.split(" ")));
-  const kept = hits.filter((_, a) =>
+  const subsetKept = hits.filter((_, a) =>
     !hits.some(
       (__, b) => a !== b && termWords[a].size < termWords[b].size && [...termWords[a]].every((w) => termWords[b].has(w)),
     ),
   );
 
+  // Drop a SHORTENED match that collides with another ingredient owning that exact
+  // phrase in full — "coconut milk powder" matching only "coconut milk" when a
+  // plain "coconut milk" is present. The guard: keep it if any leftover word is
+  // itself quoted by the step (then the longer ingredient is genuinely referenced —
+  // "honey or maple syrup" survives a step naming honey), or if nothing owns the
+  // phrase in full (shortened matching is still the only way to reach that row).
+  const kept = subsetKept.filter(
+    (h) =>
+      h.full ||
+      h.leftover.some((w) => wordRe(w).test(text)) ||
+      !subsetKept.some((o) => o !== h && o.full && o.term === h.term),
+  );
+
   // The same ingredient text can appear in two variant groups within one recipe
-  // (a Berry and a Chocolate version); show it once. Terms carry every match so
-  // both quoted spellings still bold.
+  // (a Berry and a Chocolate version); show it once — but key on the SHOWN text, so
+  // two rows sharing a name yet differing in amount both survive. Terms carry every
+  // match so both quoted spellings still bold.
   const seen = new Set<string>();
   const out: T[] = [];
   const terms = new Set<string>();
   for (const h of kept) {
     terms.add(h.term);
     const ing = ingredients[h.index];
-    const key = (ing.name ?? ing.display_text).toLowerCase();
+    const key = ing.display_text.trim().toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(ing);
