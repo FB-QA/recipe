@@ -60,13 +60,27 @@ function findRecipeNode(json: unknown, depth = 0): JsonLdNode | null {
 }
 
 /**
+ * A "N." is a list marker only when it opens a clause: it sits at the very start
+ * of the text, or hugs the previous sentence's end (WP Recipe Maker concatenates
+ * "…set aside.2. Heat…"), possibly across spaces or a line break. A number that
+ * follows a WORD — "as in step 1.", "roast for 1. 5 hours" — is prose, not a
+ * marker, and must never trigger a split. `at` is the index of the digit.
+ */
+function isEnumerationMarker(text: string, at: number): boolean {
+  let j = at - 1;
+  while (j >= 0 && (text[j] === " " || text[j] === "\t")) j -= 1;
+  return j < 0 || text[j] === "." || text[j] === "!" || text[j] === "?" || text[j] === "\n";
+}
+
+/**
  * Split a method blob that runs its steps together with "1." "2." … markers into
  * one string per step. WP Recipe Maker (halfbakedharvest.com and others) can emit
  * the ENTIRE method as a single HowToStep with no line breaks; left whole, every
- * step imports as one. Only a marker run that reads 1, 2, 3… from the start is
- * treated as an enumeration — a lone number, an out-of-sequence one, or a
- * decimal/temperature ("Preheat to 375.", "1.5 cups") is left untouched, so
- * genuine prose is never chopped. Returns null when there is no such run.
+ * step imports as one. Only a run of clause-opening markers (see
+ * {@link isEnumerationMarker}) that reads 1, 2, 3… is treated as an enumeration —
+ * a lone number, an out-of-sequence one, a decimal/temperature ("375.", "1.5"),
+ * or a step cross-reference in prose is left untouched, so genuine prose (even
+ * with in-sequence numbers) is never chopped. Returns null when there is no run.
  */
 function splitEnumeratedSteps(text: string): string[] | null {
   const marks: { num: number; at: number; len: number }[] = [];
@@ -74,7 +88,7 @@ function splitEnumeratedSteps(text: string): string[] | null {
   const seq: typeof marks = [];
   let expected = 1;
   for (const mk of marks) {
-    if (mk.num === expected) {
+    if (mk.num === expected && isEnumerationMarker(text, mk.at)) {
       seq.push(mk);
       expected += 1;
     }

@@ -135,11 +135,29 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     expect(r!.steps.map((s) => s.position)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
-  it("keeps a lead-in sentence before the first marker on step one", () => {
+  it("keeps a lead-in sentence hugged to the first marker on step one", () => {
     const r = extractRecipeFromHtml(
-      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "Preparation: 1. Chop the onion. 2. Fry it off." }] }),
+      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "Make the salad first.1. Chop the onion.2. Fry it off." }] }),
     );
-    expect(r!.steps.map((s) => s.instruction)).toEqual(["Preparation: Chop the onion.", "Fry it off."]);
+    expect(r!.steps.map((s) => s.instruction)).toEqual(["Make the salad first. Chop the onion.", "Fry it off."]);
+  });
+
+  it("does not split prose that cross-references step numbers", () => {
+    // "step 1. … step 2." are references inside one instruction, not list
+    // markers — they sit after a word, not at a sentence boundary. Splitting here
+    // would scramble the text, which is worse than leaving it whole.
+    const r = extractRecipeFromHtml(
+      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "Fold as in step 1. Then repeat for step 2. Serve warm." }] }),
+    );
+    expect(r!.steps).toHaveLength(1);
+    expect(r!.steps[0].instruction).toBe("Fold as in step 1. Then repeat for step 2. Serve warm.");
+  });
+
+  it("does not split a decimal written with a space ('1. 5 hours')", () => {
+    const r = extractRecipeFromHtml(
+      withJsonLd({ ...RECIPE, recipeInstructions: [{ "@type": "HowToStep", text: "Roast for 1. 5 hours, then rest for 2. 5 hours." }] }),
+    );
+    expect(r!.steps).toHaveLength(1);
   });
 
   it("does not split a lone number or a temperature that is not an enumeration", () => {
