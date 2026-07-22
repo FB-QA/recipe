@@ -407,6 +407,99 @@ describe("renderIngredientAmount", () => {
     expect(r.text).toBe("400g / 14 oz noodles"); // not "400g / 7 oz noodles"
   });
 
+  describe("density — dry volume → weight in Metric (Phase 3)", () => {
+    it("converts a US cup of flour to grams in Metric, flagged approximate", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "plain flour" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.text).toBe("120 g plain flour"); // 236.588 ml × 0.507 g/ml
+      expect(r.approximate).toBe(true);
+      expect(r.note).toMatch(/approximate/i);
+    });
+
+    it("delivers the headline case: 375 ml plain flour → ~190 g", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "375 ml plain flour", quantity_value: 375, unit: "ml", name: "plain flour" }),
+        { scale: 1, targetSystem: "metric" },
+      );
+      expect(r.text).toMatch(/^19[01] g plain flour$/); // ~190 g, not 375
+      expect(r.approximate).toBe(true);
+    });
+
+    it("surfaces the assumed preparation in the note (packed brown sugar)", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup brown sugar", quantity_value: 1, unit: "cup", name: "brown sugar" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.note).toMatch(/packed/i);
+    });
+
+    it("keeps a LIQUID (no density profile) as volume, not weight", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup milk", quantity_value: 1, unit: "cup", name: "milk" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.text).toMatch(/ml milk$/); // milk has no profile → stays ml
+      expect(r.approximate).toBe(false);
+    });
+
+    it("keeps cups in US view — density weighs only in Metric", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "plain flour" }),
+        { scale: 1, targetSystem: "us", sourceRegion: "us" },
+      );
+      expect(r.text).toMatch(/cup/);
+      expect(r.approximate).toBe(false);
+    });
+
+    it("does NOT weigh a preserved spoon (1 tsp baking powder stays a spoon)", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 tsp baking powder", quantity_value: 1, unit: "tsp", name: "baking powder" }),
+        { scale: 1, targetSystem: "metric" },
+      );
+      expect(r.text).toBe("1 tsp baking powder");
+    });
+
+    it("leaves an unknown ingredient as volume (never guesses a weight)", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup quinoa", quantity_value: 1, unit: "cup", name: "quinoa" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.text).not.toMatch(/\bg\b/); // no grams — stays a volume
+      expect(r.approximate).toBe(false);
+    });
+
+    it("scales the weight with portions", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "plain flour" }),
+        { scale: 2, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.text).toBe("240 g plain flour");
+    });
+
+    // Falsify: a cup's ml depends on region (236 vs 250). With region UNKNOWN we
+    // cannot know the weight — must stay original, never fabricate grams.
+    it("does NOT weigh a region-sensitive cup when the source region is unknown", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "plain flour" }),
+        { scale: 1, targetSystem: "metric" }, // no sourceRegion
+      );
+      expect(r.status).toBe("ambiguous_region");
+      expect(r.text).toBe("1 cup flour");
+      expect(r.approximate).toBe(false);
+    });
+
+    it("weighs both endpoints of a volume range", () => {
+      const r = renderIngredientAmount(
+        ing({ display_text: "1–2 cups flour", quantity_value: null, quantity_min: 1, quantity_max: 2, unit: "cup", name: "plain flour" }),
+        { scale: 1, targetSystem: "metric", sourceRegion: "us" },
+      );
+      expect(r.text).toMatch(/^120–240 g plain flour$/);
+      expect(r.approximate).toBe(true);
+    });
+  });
+
   it("always exposes the original source text", () => {
     const r = renderIngredientAmount(
       ing({ display_text: "1 cup flour", quantity_value: 1, unit: "cup", name: "flour" }),

@@ -5,6 +5,7 @@ import { FoodImage } from "@/components/food-icons";
 import { AddToListSheet } from "@/components/grocery/add-to-list-sheet";
 import { CookControls } from "./cook-controls";
 import { renderIngredientAmount } from "@/lib/recipes/ingredient-amount";
+import { ApproximateBadge } from "./approximate-badge";
 import type { IngredientLike } from "@/lib/recipes/ingredient";
 import type { MeasurementRegion, MeasurementSystem } from "@/lib/measurements";
 
@@ -71,7 +72,7 @@ export function IngredientsSection({
                   <FoodImage text={ing.name ?? ing.display_text} size={22} className="flex-none text-ink-3" />
                   <span className="text-ink-2">
                     {rendered.text}
-                    {rendered.approximate && <span className="sr-only"> (approximate conversion)</span>}
+                    {rendered.approximate && <ApproximateBadge note={rendered.note} />}
                   </span>
                   {ing.optional && (
                     <span className="ml-auto flex-none rounded-full bg-surface-2 px-2 py-0.5 text-[10.5px] font-semibold text-ink-3">

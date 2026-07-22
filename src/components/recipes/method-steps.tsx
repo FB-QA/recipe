@@ -7,6 +7,7 @@ import { ListIcon } from "@/components/icons";
 import { CookControls } from "./cook-controls";
 import { highlightStep } from "@/lib/recipes/highlight";
 import { renderIngredientAmount } from "@/lib/recipes/ingredient-amount";
+import { ApproximateBadge } from "./approximate-badge";
 import { convertInstructionTemps } from "@/lib/recipes/instruction-temp";
 import type { MeasurementRegion, MeasurementSystem } from "@/lib/measurements";
 
@@ -146,7 +147,7 @@ export function MethodSteps({
                   <FoodImage text={ing.name ?? ing.display_text} size={24} className="flex-none text-ink-3" />
                   <span>
                     {rendered.text}
-                    {rendered.approximate && <span className="sr-only"> (approximate conversion)</span>}
+                    {rendered.approximate && <ApproximateBadge note={rendered.note} />}
                   </span>
                 </li>
               );
