@@ -141,6 +141,24 @@ describe("matchStep — review hardening (PR #25 Codex findings)", () => {
   });
 });
 
+describe("matchStep — singular/plural tolerance", () => {
+  const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
+  it("matches a plural step against a singular ingredient ('the onions' → '1 onion')", () => {
+    expect(inStep("Soften the onions in butter", [mk("o", "1 onion")]).map((i) => i.id)).toEqual(["o"]);
+  });
+  it("matches a singular step against a plural ingredient ('the breast' → 'chicken breasts')", () => {
+    expect(inStep("Sear the chicken breast skin-side down", [mk("c", "2 chicken breasts")]).map((i) => i.id)).toEqual(["c"]);
+  });
+  it("handles -oes and -ies plurals (tomato/tomatoes, berry/berries)", () => {
+    expect(inStep("Add a tomato", [mk("t", "400g tomatoes")]).map((i) => i.id)).toEqual(["t"]);
+    expect(inStep("Fold in the berries", [mk("b", "1 cup berry")]).map((i) => i.id)).toEqual(["b"]);
+  });
+  it("does not let plural tolerance cross distinct ingredients (oat vs oats stays put, no oil↔oils bleed)", () => {
+    const got = inStep("Toast the oats", [mk("oats", "50g rolled oats"), mk("oil", "1 tbsp oil")]);
+    expect(got.map((i) => i.id)).toEqual(["oats"]);
+  });
+});
+
 describe("matchStep (drawer membership)", () => {
   const ingredients = [
     { id: "a", display_text: "2 cloves garlic", name: null },

@@ -49,7 +49,35 @@ function significantWords(ing: { display_text: string; name: string | null }): s
 }
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const wordRe = (w: string) => new RegExp(`\\b${escapeRegExp(w)}\\b`);
+
+/** A regex fragment matching a single word across a regular singular↔plural
+ *  difference, so a step's "the onions" finds the "1 onion" ingredient and a
+ *  "2 chicken breasts" ingredient is found by "sear the breast". Irregular
+ *  plurals (mouse/mice) fall through to an exact match — acceptable, since food
+ *  nouns are overwhelmingly regular. */
+function wordVariants(word: string): string {
+  const w = word.toLowerCase();
+  // Plural input → also match its singular.
+  if (/[^aeiou]ies$/.test(w)) return `${escapeRegExp(w.slice(0, -3))}(?:y|ies)`; // berries↔berry
+  if (/(?:ch|sh|s|x|z)es$/.test(w)) return `${escapeRegExp(w.slice(0, -2))}(?:es)?`; // dishes↔dish, boxes↔box
+  if (/oes$/.test(w)) return `${escapeRegExp(w.slice(0, -2))}(?:es)?`; // tomatoes↔tomato
+  if (/s$/.test(w) && !/(?:ss|us|is)$/.test(w)) return `${escapeRegExp(w.slice(0, -1))}s?`; // onions↔onion, breasts↔breast
+  // Singular input → also match its plural.
+  if (/[^aeiou]y$/.test(w)) return `${escapeRegExp(w.slice(0, -1))}(?:y|ies)`; // berry↔berries
+  if (/(?:ch|sh|s|x|z|o)$/.test(w)) return `${escapeRegExp(w)}(?:es|s)?`; // dish↔dishes, tomato↔tomatoes
+  return `${escapeRegExp(w)}s?`; // onion↔onions
+}
+
+/** Plural-tolerant regex source for a phrase: only the final noun varies; leading
+ *  words match verbatim. Shared by the matcher and the highlighter so the drawer
+ *  and the bolded words always agree. */
+function phraseSource(phrase: string): string {
+  const parts = phrase.split(" ");
+  const last = parts.pop() ?? "";
+  return [...parts.map(escapeRegExp), wordVariants(last)].join(" ");
+}
+
+const wordRe = (w: string) => new RegExp(`\\b${phraseSource(w)}\\b`);
 
 type Ingredientish = { display_text: string; name: string | null };
 
@@ -156,7 +184,7 @@ export function matchStep<T extends Ingredientish>(
 
 /** Split a step into segments, marking measures and ingredient terms as bold. */
 export function highlightStep(text: string, terms: string[]): Segment[] {
-  const escaped = terms.map(escapeRegExp).filter(Boolean);
+  const escaped = terms.filter(Boolean).map(phraseSource);
   const source = escaped.length > 0 ? `(?:${MEASURE})|\\b(?:${escaped.join("|")})\\b` : MEASURE;
   const re = new RegExp(source, "gi");
 
