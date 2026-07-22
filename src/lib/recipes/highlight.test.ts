@@ -230,6 +230,19 @@ describe("matchStep — review round 3 (plural stems, plural-blind collision, of
     const got = inStep("Stir in the coconut milk, then dust with cocoa powder", rows).map((i) => i.id).sort();
     expect(got).toEqual(["cocoa", "milk"]);
   });
+
+  it("keeps a sole ingredient followed by ordinary 'of' prose (drain the pasta of water)", () => {
+    // "pasta of excess water" is prose, not an X-of-Y compound — nothing else owns
+    // "excess"/"water", so pasta must survive.
+    expect(inStep("Drain the pasta of excess water before serving", [mk("p", "200g pasta")]).map((i) => i.id)).toEqual(["p"]);
+  });
+
+  it("blocks a bare -ie noun shared by two rows (a cookie vs cookies)", () => {
+    // canonicalNoun must agree with wordVariants: cookie and cookies share a head,
+    // so a step naming just "a cookie" resolves neither (ambiguous), not both.
+    const rows = [mk("one", "1 raspberry cookie"), mk("many", "200g chocolate cookies")];
+    expect(inStep("Top with a cookie", rows)).toHaveLength(0);
+  });
 });
 
 describe("matchStep — leading vs trailing qualifiers", () => {

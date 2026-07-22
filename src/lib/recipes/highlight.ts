@@ -28,7 +28,7 @@ const MEASURE =
 // matches "coconut milk" and can't out-rank "coconut milk powder" (see matchStep).
 const LEAD_QTY = /^(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/;
 const LEAD_UNIT =
-  /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|cans?|tins?|jars?|packets?|packs?|bottles?|boxes|tubs?|cartons?|bags?|sticks?|blocks?|bunch(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|grams?|kilograms?|millilitres?)\b\.?\s*/;
+  /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|cans?|tins?|jars?|packets?|packs?|bottles?|box(?:es)?|tubs?|cartons?|bags?|sticks?|blocks?|bunch(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|grams?|kilograms?|millilitres?)\b\.?\s*/;
 
 /** The significant words of one ingredient, in order — quantity, unit and
  *  stopwords stripped. Empty when nothing meaningful survives. This is the raw
@@ -79,11 +79,14 @@ function wordVariants(word: string): string {
  *  {@link wordVariants}. */
 function canonicalNoun(word: string): string {
   const w = word.toLowerCase();
-  if (/[^aeiou]ies$/.test(w)) return `${w.slice(0, -3)}y`; // berries → berry
+  // -ies is ambiguous (berry→berries vs cookie→cookies); collapse BOTH the plural
+  // and either singular to one shared key, so wordVariants and this agree.
+  if (/[^aeiou]ies$/.test(w)) return w.slice(0, -1); // berries → berrie, cookies → cookie
+  if (/[^aeiou]y$/.test(w)) return `${w.slice(0, -1)}ie`; // berry → berrie
   if (/(?:ch|sh|s|x|z)es$/.test(w)) return w.slice(0, -2); // dishes → dish, boxes → box
   if (/oes$/.test(w)) return w.slice(0, -2); // tomatoes → tomato
   if (/s$/.test(w) && !/(?:ss|us|is)$/.test(w)) return w.slice(0, -1); // onions → onion, grapes → grape
-  return w; // already singular
+  return w; // already singular (incl. -ie: cookie → cookie)
 }
 
 /** Plural-tolerant regex source for a phrase: only the final noun varies; leading
@@ -128,13 +131,17 @@ export function matchStep<T extends Ingredientish>(
   }
 
   // Every span in the step where a term matches (plural-tolerant, non-overlapping),
-  // EXCLUDING an occurrence immediately followed by " of " — there the word is the
-  // head of a compound ("cream of tartar"), not a standalone reference, so a bare
-  // "cream" ingredient must not claim it.
+  // EXCLUDING an occurrence that heads an "X of Y" compound where Y is itself an
+  // ingredient noun — "cream of tartar" when the recipe lists cream of tartar, so a
+  // bare "cream" can't claim it. Ordinary prose ("drain the pasta of excess water")
+  // is left alone, since "excess" is nobody's ingredient.
   const spansOf = (term: string): Array<{ at: number; end: number }> =>
     [...text.matchAll(new RegExp(`\\b${phraseSource(term)}\\b`, "g"))]
       .map((m) => ({ at: m.index ?? 0, end: (m.index ?? 0) + m[0].length }))
-      .filter((sp) => !/^\s+of\s/.test(text.slice(sp.end, sp.end + 5)));
+      .filter((sp) => {
+        const after = text.slice(sp.end).match(/^\s+of\s+([a-z]+)/i);
+        return !(after && headCounts.has(canonicalNoun(after[1])));
+      });
 
   // A hit records the matched substring, whether it is the ingredient's FULL
   // significant phrase (vs a shortened run), and the words the term left behind —
