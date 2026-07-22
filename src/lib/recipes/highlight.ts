@@ -5,7 +5,15 @@ export type Segment = { text: string; bold: boolean };
 // otherwise both collapse to "tomatoes" and cross-match in the step drawer.
 const STOPWORDS = new Set([
   "the", "and", "with", "for", "into", "from", "your", "this", "that", "some", "each", "then",
-  "until", "about", "over", "onto", "plus", "large", "small", "fresh", "to", "of", "a", "an", "or", "in", "on",
+  "until", "about", "over", "onto", "plus", "large", "small", "to", "of", "a", "an", "or", "in", "on",
+]);
+
+// State/availability qualifiers. Stripped only as a TRAILING tail — "mixed berries
+// fresh or frozen" → "mixed berries", "salt to taste" → "salt" — because there the
+// qualifier is incidental. A LEADING one is kept ("frozen berries" stays distinct
+// from "fresh berries"), since in that position it is the distinguishing word.
+const QUALIFIERS = new Set([
+  "fresh", "frozen", "optional", "divided", "drained", "rinsed", "softened", "melted", "thawed", "chilled", "taste",
 ]);
 
 // Numbers with optional cooking units / times / temperatures.
@@ -14,80 +22,223 @@ const MEASURE =
 
 /** Derive matchable terms (ingredient names) from a recipe's ingredients. */
 // Leading quantity (multiplier-safe so "xanthan" is never mistaken for one; en/em
-// dash ranges) and a leading cooking-unit word, stripped to reach the ingredient.
+// dash ranges) and a leading cooking-unit or container word, stripped to reach the
+// ingredient. Container counters (can/tin/jar/packet…) matter beyond tidiness: left
+// in, "1 can coconut milk" keeps "can" as a significant word, so it no longer fully
+// matches "coconut milk" and can't out-rank "coconut milk powder" (see matchStep).
 const LEAD_QTY = /^(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+/;
 const LEAD_UNIT =
-  /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|grams?|kilograms?|millilitres?)\b\.?\s*/;
+  /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|cans?|tins?|jars?|packets?|packs?|bottles?|box(?:es)?|tubs?|cartons?|bags?|sticks?|blocks?|bunch(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|grams?|kilograms?|millilitres?)\b\.?\s*/;
 
-/** The matchable words for one ingredient: [full phrase, head noun]. Empty when
- *  nothing meaningful survives stripping quantity/units/stopwords. */
-function ingredientWords(ing: { display_text: string; name: string | null }): string[] {
+/** The significant words of one ingredient, in order — quantity, unit and
+ *  stopwords stripped. Empty when nothing meaningful survives. This is the raw
+ *  material for matching: a step may quote any contiguous run of these words
+ *  ("whole milk cottage cheese" → "cottage cheese"), so we keep the full ordered
+ *  list rather than collapsing to a single phrase + head. */
+function significantWords(ing: { display_text: string; name: string | null }): string[] {
   let t = (ing.name ?? ing.display_text).toLowerCase().replace(/\([^)]*\)/g, " ");
   t = t.replace(LEAD_QTY, "").replace(LEAD_UNIT, "");
   // "X of Y" — the ingredient is Y ("can of chopped tomatoes" → "chopped tomatoes").
   if (/\bof\b/.test(t)) t = t.split(/\bof\b/).slice(1).join(" ");
-  t = t.replace(/[(),.]/g, " ").split(/\bfor\b|,/)[0]; // drop trailing descriptors
+  // Drop a trailing descriptor after a comma or "for …" ("parmesan, grated" →
+  // "parmesan") BEFORE flattening punctuation — otherwise the comma is gone and the
+  // split never fires. A leading prep adjective ("chopped tomatoes", no comma) is
+  // deliberately kept; only the incidental trailing form is dropped.
+  t = t.split(/\bfor\b|,/)[0].replace(/[(),.]/g, " ");
   const words = t.split(/\s+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
-  if (words.length === 0) return [];
-  const phrase = words.join(" ");
-  const head = words[words.length - 1];
-  return phrase === head ? [phrase] : [phrase, head];
+  // Strip a trailing run of state qualifiers ("… fresh or frozen", "… optional").
+  while (words.length > 1 && QUALIFIERS.has(words[words.length - 1])) words.pop();
+  return words;
 }
 
-export function ingredientTerms(ingredients: Array<{ display_text: string; name: string | null }>): string[] {
-  const terms = new Set<string>();
-  for (const ing of ingredients) for (const w of ingredientWords(ing)) terms.add(w);
-  return [...terms].filter(Boolean).sort((a, b) => b.length - a.length);
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** A regex fragment matching a single word across a regular singular↔plural
+ *  difference, so a step's "the onions" finds the "1 onion" ingredient and a
+ *  "2 chicken breasts" ingredient is found by "sear the breast". Irregular
+ *  plurals (mouse/mice) fall through to an exact match — acceptable, since food
+ *  nouns are overwhelmingly regular. */
+function wordVariants(word: string): string {
+  const w = word.toLowerCase();
+  // Plural input → also match its singular. -ies is ambiguous (berries→berry vs
+  // cookies→cookie), so offer both singular stems plus the plural itself.
+  if (/[^aeiou]ies$/.test(w)) return `(?:${escapeRegExp(w)}|${escapeRegExp(w.slice(0, -3))}y|${escapeRegExp(w.slice(0, -1))})`; // berries↔berry, cookies↔cookie
+  if (/(?:ch|sh|s|x|z)es$/.test(w)) return `${escapeRegExp(w.slice(0, -2))}(?:es)?`; // dishes↔dish, boxes↔box
+  if (/oes$/.test(w)) return `${escapeRegExp(w.slice(0, -2))}(?:es)?`; // tomatoes↔tomato
+  if (/s$/.test(w) && !/(?:ss|us|is)$/.test(w)) return `${escapeRegExp(w.slice(0, -1))}s?`; // onions↔onion, breasts↔breast
+  // Singular input → also match its plural.
+  if (/[^aeiou]y$/.test(w)) return `${escapeRegExp(w.slice(0, -1))}(?:y|ies)`; // berry↔berries
+  if (/(?:ch|sh|s|x|z|o)$/.test(w)) return `${escapeRegExp(w)}(?:es|s)?`; // dish↔dishes, tomato↔tomatoes
+  return `${escapeRegExp(w)}s?`; // onion↔onions
 }
 
-const wordRe = (w: string) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+/** A plural-invariant key: a singular and its regular plural collapse to the same
+ *  value (onion/onions, tomato/tomatoes, berry/berries → one key). Used to count
+ *  shared nouns, so plural tolerance can't sneak a second "onion" past the guard
+ *  that stops a bare noun matching two different ingredients. Mirrors
+ *  {@link wordVariants}. */
+function canonicalNoun(word: string): string {
+  const w = word.toLowerCase();
+  // -ies is ambiguous (berry→berries vs cookie→cookies); collapse BOTH the plural
+  // and either singular to one shared key, so wordVariants and this agree.
+  if (/[^aeiou]ies$/.test(w)) return w.slice(0, -1); // berries → berrie, cookies → cookie
+  if (/[^aeiou]y$/.test(w)) return `${w.slice(0, -1)}ie`; // berry → berrie
+  if (/(?:ch|sh|s|x|z)es$/.test(w)) return w.slice(0, -2); // dishes → dish, boxes → box
+  if (/oes$/.test(w)) return w.slice(0, -2); // tomatoes → tomato
+  if (/s$/.test(w) && !/(?:ss|us|is)$/.test(w)) return w.slice(0, -1); // onions → onion, grapes → grape
+  return w; // already singular (incl. -ie: cookie → cookie)
+}
+
+/** Plural-tolerant regex source for a phrase: only the final noun varies; leading
+ *  words match verbatim. Shared by the matcher and the highlighter so the drawer
+ *  and the bolded words always agree. */
+function phraseSource(phrase: string): string {
+  const parts = phrase.split(" ");
+  const last = parts.pop() ?? "";
+  return [...parts.map(escapeRegExp), wordVariants(last)].join(" ");
+}
+
+const wordRe = (w: string) => new RegExp(`\\b${phraseSource(w)}\\b`);
+
+type Ingredientish = { display_text: string; name: string | null };
 
 /**
- * The ingredients a given method step refers to. Matches the full ingredient
- * phrase, or its head noun ONLY when that head noun is unique to one ingredient —
- * so "heat the olive oil" doesn't also pull in "vegetable oil" on the shared word
- * "oil". Order follows the ingredient list, not the sentence.
+ * The ingredients a method step refers to, paired with the exact substring that
+ * matched — so the drawer (which ingredients) and the bolding (which words) are
+ * driven by one decision and can never disagree.
+ *
+ * An ingredient matches on the LONGEST contiguous run of its significant words
+ * that the step quotes: a step rarely repeats an ingredient's full stored name
+ * ("2 cups whole milk cottage cheese") — it says "cottage cheese". Requiring a
+ * ≥2-word run keeps that specific while stepping over both extra leading words
+ * ("whole milk …") and trailing qualifiers ("… fresh or frozen") without having
+ * to guess which words are qualifiers. A bare head noun matches only when it is
+ * unique across the recipe, so "heat the olive oil" never also pulls in
+ * "vegetable oil" on the shared word "oil". Order follows the ingredient list.
  */
-export function ingredientsInStep<T extends { display_text: string; name: string | null }>(
+export function matchStep<T extends Ingredientish>(
   instruction: string,
   ingredients: T[],
-): T[] {
+): { ingredients: T[]; terms: string[] } {
   const text = instruction.toLowerCase();
-  const wordsFor = ingredients.map(ingredientWords);
+  const wordsFor = ingredients.map(significantWords);
+  // Count head nouns by their plural-invariant key, so "onion" and "spring onions"
+  // register as the shared noun they are once plural tolerance is in play.
   const headCounts = new Map<string, number>();
   for (const w of wordsFor) {
     const head = w[w.length - 1];
-    if (head) headCounts.set(head, (headCounts.get(head) ?? 0) + 1);
+    if (head) headCounts.set(canonicalNoun(head), (headCounts.get(canonicalNoun(head)) ?? 0) + 1);
   }
 
-  const matched: number[] = [];
+  // Every span in the step where a term matches (plural-tolerant, non-overlapping),
+  // EXCLUDING an occurrence that heads an "X of Y" compound where Y is itself an
+  // ingredient noun — "cream of tartar" when the recipe lists cream of tartar, so a
+  // bare "cream" can't claim it. Ordinary prose ("drain the pasta of excess water")
+  // is left alone, since "excess" is nobody's ingredient.
+  const spansOf = (term: string): Array<{ at: number; end: number }> =>
+    [...text.matchAll(new RegExp(`\\b${phraseSource(term)}\\b`, "g"))]
+      .map((m) => ({ at: m.index ?? 0, end: (m.index ?? 0) + m[0].length }))
+      .filter((sp) => {
+        const after = text.slice(sp.end).match(/^\s+of\s+([a-z]+)/i);
+        return !(after && headCounts.has(canonicalNoun(after[1])));
+      });
+
+  // A hit records the matched substring, whether it is the ingredient's FULL
+  // significant phrase (vs a shortened run), and the words the term left behind —
+  // both needed to arbitrate the collision below.
+  type Hit = { index: number; term: string; words: number; full: boolean; leftover: string[] };
+  const hits: Hit[] = [];
   ingredients.forEach((_, i) => {
-    const w = wordsFor[i];
-    if (w.length === 0) return;
-    const phrase = w[0];
-    const head = w[w.length - 1];
-    if (wordRe(phrase).test(text)) matched.push(i);
-    // Head-noun-only match only when that noun isn't shared with another ingredient.
-    else if (phrase !== head && (headCounts.get(head) ?? 0) === 1 && wordRe(head).test(text)) matched.push(i);
+    const words = wordsFor[i];
+    if (words.length === 0) return;
+    let term: string | null = null;
+    // Longest contiguous ≥2-word run the step quotes.
+    for (let len = words.length; len >= 2 && !term; len--) {
+      for (let start = 0; start + len <= words.length; start++) {
+        const gram = words.slice(start, start + len).join(" ");
+        if (wordRe(gram).test(text)) {
+          term = gram;
+          break;
+        }
+      }
+    }
+    // Single-word ingredient (salt, flour): match on the word itself. Otherwise
+    // fall back to the head noun, but only when that noun is unique to this
+    // ingredient — so "heat the oil" never pulls in both oils.
+    if (!term) {
+      const head = words[words.length - 1];
+      if ((words.length === 1 || (headCounts.get(canonicalNoun(head)) ?? 0) === 1) && wordRe(head).test(text)) term = head;
+    }
+    if (term) {
+      const termSet = new Set(term.split(" "));
+      hits.push({
+        index: i,
+        term,
+        words: termSet.size,
+        full: termSet.size === words.length,
+        leftover: words.filter((w) => !termSet.has(w)),
+      });
+    }
   });
 
-  // Drop a match whose phrase words are a strict subset of another match's — so
-  // "chili flakes" in a step doesn't also surface a standalone "chili".
-  const phraseWords = matched.map((i) => new Set(wordsFor[i][0].split(" ")));
-  const kept = matched.filter((_, a) =>
-    !matched.some(
-      (__, b) =>
-        a !== b &&
-        phraseWords[a].size < phraseWords[b].size &&
-        [...phraseWords[a]].every((word) => phraseWords[b].has(word)),
+  // Drop a bare match that only ever appears INSIDE a longer phrase another
+  // ingredient owns — "chili" within "chili flakes", "onion" within "spring
+  // onions". A hit survives if it has ANY occurrence not covered by a
+  // longer-phrase hit, so "cream" beaten as "cream cheese" AND whipped alone,
+  // or separately-quoted "eggs" and "egg whites", both stay.
+  const hitSpans = hits.map((h) => spansOf(h.term));
+  const subsetKept = hits.filter((a, ai) =>
+    hitSpans[ai].some(
+      (sa) =>
+        !hits.some(
+          (b, bi) => bi !== ai && b.words > a.words && hitSpans[bi].some((sb) => sb.at <= sa.at && sa.end <= sb.end),
+        ),
     ),
   );
-  return kept.map((i) => ingredients[i]);
+
+  // Drop a SHORTENED match that collides with another ingredient owning that same
+  // phrase in full — "coconut milk powder" matching only "coconut milk" when a
+  // plain "coconut milk" is present. Compare the owned phrase plural-invariantly
+  // (canned tomatoes ≡ canned tomato), so a plural difference can't hide the
+  // collision. The guard: keep it if a leftover word appears NEXT TO the matched
+  // phrase (then the longer ingredient is genuinely referenced — "honey or maple
+  // syrup" survives a step naming honey right beside the syrup), or if nothing
+  // owns the phrase in full (shortened matching is still the only way to reach it).
+  // "Next to" matters: an unrelated "cocoa powder" elsewhere in the step must not
+  // vouch for "coconut milk powder".
+  const canonPhrase = (t: string) => t.split(" ").map(canonicalNoun).join(" ");
+  const leftoverBesideTerm = (h: Hit): boolean => {
+    const near = spansOf(h.term).map((sp) => text.slice(Math.max(0, sp.at - 18), sp.end + 18));
+    return h.leftover.some((w) => near.some((ctx) => wordRe(w).test(ctx)));
+  };
+  const kept = subsetKept.filter(
+    (h) =>
+      h.full ||
+      leftoverBesideTerm(h) ||
+      !subsetKept.some((o) => o !== h && o.full && canonPhrase(o.term) === canonPhrase(h.term)),
+  );
+
+  // The same ingredient text can appear in two variant groups within one recipe
+  // (a Berry and a Chocolate version); show it once — but key on the SHOWN text, so
+  // two rows sharing a name yet differing in amount both survive. Terms carry every
+  // match so both quoted spellings still bold.
+  const seen = new Set<string>();
+  const out: T[] = [];
+  const terms = new Set<string>();
+  for (const h of kept) {
+    terms.add(h.term);
+    const ing = ingredients[h.index];
+    const key = ing.display_text.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(ing);
+  }
+  return { ingredients: out, terms: [...terms].sort((a, b) => b.length - a.length) };
 }
 
 /** Split a step into segments, marking measures and ingredient terms as bold. */
 export function highlightStep(text: string, terms: string[]): Segment[] {
-  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).filter(Boolean);
+  const escaped = terms.filter(Boolean).map(phraseSource);
   const source = escaped.length > 0 ? `(?:${MEASURE})|\\b(?:${escaped.join("|")})\\b` : MEASURE;
   const re = new RegExp(source, "gi");
 

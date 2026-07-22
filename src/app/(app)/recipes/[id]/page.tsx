@@ -9,7 +9,7 @@ import { CookSections } from "@/components/recipes/cook-sections";
 import { SavedToast } from "@/components/recipes/saved-toast";
 import { listedIngredientIds } from "@/lib/grocery/queries";
 import { CREATED_PARAM } from "@/lib/recipes/constants";
-import { ingredientsInStep, ingredientTerms } from "@/lib/recipes/highlight";
+import { matchStep } from "@/lib/recipes/highlight";
 import { attributionLabel } from "@/lib/recipes/handle";
 import { detectSourceRegion } from "@/lib/recipes/measurement-region";
 import {
@@ -142,12 +142,12 @@ export default async function RecipeDetailPage({
           steps={recipe.steps.map((step) => {
             // One match per step drives BOTH the drawer and the bolded words, so
             // they can never disagree (a bolded word is always tappable).
-            const matched = ingredientsInStep(step.instruction, recipe.ingredients);
+            const { ingredients: matched, terms } = matchStep(step.instruction, recipe.ingredients);
             return {
               id: step.id,
               title: step.title,
               instruction: step.instruction,
-              terms: ingredientTerms(matched),
+              terms,
               ingredients: matched.map((ing) => ({
                 id: ing.id,
                 display_text: ing.display_text,

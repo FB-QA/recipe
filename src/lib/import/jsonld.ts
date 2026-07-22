@@ -59,23 +59,91 @@ function findRecipeNode(json: unknown, depth = 0): JsonLdNode | null {
   return null;
 }
 
+/**
+ * A "N." is a list marker only when it opens a clause: it sits at the very start
+ * of the text, hugs the previous sentence's end (WP Recipe Maker concatenates
+ * "…set aside.2. Heat…"), or follows a heading colon ("Directions: 1. …"),
+ * possibly across spaces or a line break. A number that follows a WORD — "as in
+ * step 1.", "roast for 1. 5 hours" — is prose, not a marker, and must never
+ * trigger a split. `at` is the index of the digit.
+ */
+function isEnumerationMarker(text: string, at: number): boolean {
+  let j = at - 1;
+  while (j >= 0 && (text[j] === " " || text[j] === "\t")) j -= 1;
+  return j < 0 || ".!?:\n".includes(text[j]);
+}
+
+/**
+ * Split a method blob that runs its steps together with "1." "2." … markers into
+ * one string per step. WP Recipe Maker (halfbakedharvest.com and others) can emit
+ * the ENTIRE method as a single HowToStep with no line breaks; left whole, every
+ * step imports as one. Only a run of clause-opening markers (see
+ * {@link isEnumerationMarker}) that reads 1, 2, 3… is treated as an enumeration —
+ * a lone number, an out-of-sequence one, a decimal/temperature ("375.", "1.5"),
+ * or a step cross-reference in prose is left untouched, so genuine prose (even
+ * with in-sequence numbers) is never chopped. Returns null when there is no run.
+ */
+function splitEnumeratedSteps(text: string): string[] | null {
+  const marks: { num: number; at: number; len: number }[] = [];
+  for (const m of text.matchAll(/(\d+)\.\s+/g)) marks.push({ num: Number(m[1]), at: m.index ?? 0, len: m[0].length });
+  // Take the longest run of clause-opening markers that reads 1, 2, 3… from the
+  // start, stopping at the FIRST break. This rejects an out-of-order run like
+  // "1. … 3. … 2." (which would embed one step inside another) while tolerating a
+  // trailing restart — a numbered notes block after the method rides on the last
+  // step rather than defeating the split.
+  const anchored = marks.filter((mk) => isEnumerationMarker(text, mk.at));
+  const seq: typeof anchored = [];
+  for (const mk of anchored) {
+    if (mk.num !== seq.length + 1) break;
+    seq.push(mk);
+  }
+  if (seq.length < 2) return null;
+  // What broke the run decides whether to split. A restart at 1 is a fresh list
+  // (a numbered notes block after the method) — split the prefix and let it ride
+  // on the last step. Any OTHER continuation ("1, 2, 4" or a stray "425.") means
+  // a single malformed enumeration; leave it whole rather than cram an orphaned
+  // step onto another.
+  const breaker = anchored[seq.length];
+  if (breaker && breaker.num !== 1) return null;
+  const parts: string[] = [];
+  // Any text before the first marker is real content (a lead-in sentence, not a
+  // step number) — keep it on step one rather than silently dropping it.
+  const lead = text.slice(0, seq[0].at).trim();
+  for (let i = 0; i < seq.length; i += 1) {
+    const start = seq[i].at + seq[i].len;
+    const end = i + 1 < seq.length ? seq[i + 1].at : text.length;
+    let part = text.slice(start, end).trim();
+    if (i === 0 && lead) part = part ? `${lead} ${part}` : lead;
+    if (part) parts.push(part);
+  }
+  return parts.length >= 2 ? parts : null;
+}
+
+/** One instruction string → one or more step strings: a numbered run first, else
+ *  newline-separated lines (some sites cram every step into one string), else the
+ *  string itself. */
+function expandInstruction(text: string): string[] {
+  return (
+    splitEnumeratedSteps(text) ??
+    text
+      .split(/\r?\n+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+}
+
 function mapInstructions(raw: unknown): string[] {
   const out: string[] = [];
   for (const item of asArray(raw)) {
     if (typeof item === "string") {
-      // Some sites cram all steps into one string with newlines.
-      item
-        .split(/\r?\n+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .forEach((s) => out.push(s));
+      expandInstruction(item).forEach((s) => out.push(s));
     } else if (item && typeof item === "object") {
       const obj = item as JsonLdNode;
       if (obj["@type"] && String(obj["@type"]).toLowerCase() === "howtosection") {
         mapInstructions(obj.itemListElement).forEach((s) => out.push(s));
       } else {
         const text = firstString(obj.text) ?? firstString(obj.name);
-        if (text) out.push(text);
+        if (text) expandInstruction(text).forEach((s) => out.push(s));
       }
     }
   }
