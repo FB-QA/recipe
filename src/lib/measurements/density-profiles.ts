@@ -160,8 +160,13 @@ export const DENSITY_PROFILES: IngredientDensityProfile[] = [
   {
     id: "rolled-oats",
     canonicalName: "rolled oats",
-    aliases: ["old-fashioned oats", "porridge oats", "oats", "old fashioned oats"],
-    referenceQuantity: 1, referenceUnit: "cup", equivalentGrams: 113,
+    // KA's GENERIC "old-fashioned or quick-cooking" oats are 89 g/cup — the 113 g
+    // row is its branded thick-cut "Rolled" product, not the generic value. Only
+    // preparation-named forms alias (old-fashioned/rolled/quick, all ~89 g/cup);
+    // bare "oats" and steel-cut/pinhead oats are deliberately unaliased (steel-cut
+    // is denser), so an ambiguous "oats" resolves to unavailable rather than guessed.
+    aliases: ["old-fashioned oats", "old fashioned oats", "porridge oats", "quick oats", "quick-cooking oats"],
+    referenceQuantity: 1, referenceUnit: "cup", equivalentGrams: 89,
     source: KING_ARTHUR, sourceQuality: "authoritative",
   },
   {
@@ -287,7 +292,9 @@ export function findDensityProfile(name: string | null | undefined): IngredientD
  * reference, via the same regional millilitre constants the converter uses.
  */
 export function gramsPerMl(profile: IngredientDensityProfile): number {
-  const ml = regionalMl(profile.referenceUnit, profile.referenceRegion ?? "us");
+  // "ml" is region-neutral (1 ml = 1 ml); regionalMl only holds spoon/cup entries,
+  // so a profile published as "100 ml = 80 g" is handled directly here.
+  const ml = profile.referenceUnit === "ml" ? 1 : regionalMl(profile.referenceUnit, profile.referenceRegion ?? "us");
   if (ml == null) throw new Error(`No regional ml for ${profile.referenceUnit} (${profile.id})`);
   return profile.equivalentGrams / (profile.referenceQuantity * ml);
 }

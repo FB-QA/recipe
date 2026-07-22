@@ -46,6 +46,21 @@ describe("density corpus — verify (contract)", () => {
     expect(gramsPerMl(findDensityProfile("baking soda")!) * regionalMl("tsp", "us")!).toBeCloseTo(6, 1);
   });
 
+  it("derives a reference published in region-neutral millilitres (no throw)", () => {
+    const p: IngredientDensityProfile = {
+      id: "t", canonicalName: "t", aliases: [],
+      referenceQuantity: 100, referenceUnit: "ml", equivalentGrams: 80,
+      source: { name: "t", reference: "t" }, sourceQuality: "reviewed",
+    };
+    expect(gramsPerMl(p)).toBeCloseTo(0.8, 5); // 80 g / 100 ml
+  });
+
+  it("uses the GENERIC rolled-oats weight (89 g/cup), not the branded 113 g", () => {
+    const oats = findDensityProfile("rolled oats")!;
+    expect(oats.equivalentGrams).toBe(89);
+    expect(findDensityProfile("quick oats")?.id).toBe("rolled-oats"); // KA groups these
+  });
+
   it("keeps the flours DISTINCT — bare 'flour' does not resolve", () => {
     expect(findDensityProfile("flour")).toBeNull();
     // and the distinct flours differ in density
@@ -133,5 +148,9 @@ describe("density corpus — falsify (adversary + data integrity)", () => {
     // kosher/flaky salt differ from table salt — not aliased.
     expect(findDensityProfile("kosher salt")).toBeNull();
     expect(findDensityProfile("flaky sea salt")).toBeNull();
+    // bare "oats" is ambiguous (steel-cut is denser) — not aliased.
+    expect(findDensityProfile("oats")).toBeNull();
+    expect(findDensityProfile("steel-cut oats")).toBeNull();
+    expect(findDensityProfile("pinhead oatmeal")).toBeNull();
   });
 });
