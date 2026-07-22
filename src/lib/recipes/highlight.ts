@@ -8,13 +8,20 @@ const STOPWORDS = new Set([
   "until", "about", "over", "onto", "plus", "large", "small", "to", "of", "a", "an", "or", "in", "on",
 ]);
 
-// State/availability qualifiers. Stripped only as a TRAILING tail — "mixed berries
-// fresh or frozen" → "mixed berries", "salt to taste" → "salt" — because there the
-// qualifier is incidental. A LEADING one is kept ("frozen berries" stays distinct
-// from "fresh berries"), since in that position it is the distinguishing word.
+// Descriptors stripped only as a TRAILING tail — "mixed berries fresh or frozen" →
+// "mixed berries", "salt to taste" → "salt", "cashews, chopped" / "cashews chopped"
+// (a flattened "(chopped)") → "cashews". A LEADING one is kept ("frozen berries"
+// stays distinct from "fresh berries", "chopped tomatoes" from "diced tomatoes"),
+// since in that position it distinguishes the ingredient. Two flavours: state
+// qualifiers and prep/cut past-participles.
 const QUALIFIERS = new Set([
   "fresh", "frozen", "optional", "divided", "drained", "rinsed", "softened", "melted", "thawed", "chilled", "taste",
 ]);
+const PREP = new Set([
+  "chopped", "sliced", "diced", "minced", "grated", "crushed", "cubed", "shredded", "halved", "quartered",
+  "crumbled", "torn", "beaten", "mashed", "peeled", "pitted", "seeded", "deseeded", "zested", "toasted", "roasted", "cooked",
+]);
+const TRAILING = new Set([...QUALIFIERS, ...PREP]);
 
 // Numbers with optional cooking units / times / temperatures.
 const MEASURE =
@@ -30,25 +37,37 @@ const LEAD_QTY = /^(?:\d+\s*[×x]\s*)?[\d\s.,/–—¼½¾⅓⅔⅛⅜⅝⅞+-]+
 const LEAD_UNIT =
   /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|cans?|tins?|jars?|packets?|packs?|bottles?|box(?:es)?|tubs?|cartons?|bags?|sticks?|blocks?|bunch(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|grams?|kilograms?|millilitres?)\b\.?\s*/;
 
-/** The significant words of one ingredient, in order — quantity, unit and
- *  stopwords stripped. Empty when nothing meaningful survives. This is the raw
- *  material for matching: a step may quote any contiguous run of these words
- *  ("whole milk cottage cheese" → "cottage cheese"), so we keep the full ordered
- *  list rather than collapsing to a single phrase + head. */
-function significantWords(ing: { display_text: string; name: string | null }): string[] {
+/** The matchable phrases of one ingredient, each an ordered significant-word list —
+ *  quantity, unit and stopwords stripped. Usually one, but an "A or B" ingredient
+ *  yields one per alternative name ("tamari or soy sauce" → ["tamari"], ["soy",
+ *  "sauce"]), since the step may quote either. Empty list when nothing survives.
+ *  A step may quote any contiguous run of a phrase's words ("whole milk cottage
+ *  cheese" → "cottage cheese"), so each phrase keeps its full ordered list. */
+function significantWordAlts(ing: { display_text: string; name: string | null }): string[][] {
   let t = (ing.name ?? ing.display_text).toLowerCase().replace(/\([^)]*\)/g, " ");
   t = t.replace(LEAD_QTY, "").replace(LEAD_UNIT, "");
   // "X of Y" — the ingredient is Y ("can of chopped tomatoes" → "chopped tomatoes").
   if (/\bof\b/.test(t)) t = t.split(/\bof\b/).slice(1).join(" ");
   // Drop a trailing descriptor after a comma or "for …" ("parmesan, grated" →
   // "parmesan") BEFORE flattening punctuation — otherwise the comma is gone and the
-  // split never fires. A leading prep adjective ("chopped tomatoes", no comma) is
-  // deliberately kept; only the incidental trailing form is dropped.
+  // split never fires. A leading prep adjective ("chopped tomatoes") is kept.
   t = t.split(/\bfor\b|,/)[0].replace(/[(),.]/g, " ");
-  const words = t.split(/\s+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
-  // Strip a trailing run of state qualifiers ("… fresh or frozen", "… optional").
-  while (words.length > 1 && QUALIFIERS.has(words[words.length - 1])) words.pop();
-  return words;
+  // Keep "or" as a separator token so genuine alternatives can be split out; drop
+  // stopwords and short noise otherwise.
+  const toks = t.split(/\s+/).filter((w) => w === "or" || (w.length >= 3 && !STOPWORDS.has(w)));
+  // Strip a trailing qualifier tail, INCLUDING an "or" that joins qualifiers
+  // ("… fresh or frozen" → …, "… to taste" → …). Doing this before the alternative
+  // split is what stops "fresh or frozen" being mistaken for two alternatives.
+  while (toks.length > 1 && (toks[toks.length - 1] === "or" || TRAILING.has(toks[toks.length - 1]))) toks.pop();
+  return (
+    toks
+      .join(" ")
+      .split(/\bor\b/)
+      .map((part) => part.split(/\s+/).filter(Boolean))
+      // Keep an alternative only if it carries a word that actually names something
+      // (not a lone leading qualifier like the "fresh" of "fresh or frozen berries").
+      .filter((a) => a.some((w) => !TRAILING.has(w)))
+  );
 }
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -121,14 +140,24 @@ export function matchStep<T extends Ingredientish>(
   ingredients: T[],
 ): { ingredients: T[]; terms: string[] } {
   const text = instruction.toLowerCase();
-  const wordsFor = ingredients.map(significantWords);
-  // Count head nouns by their plural-invariant key, so "onion" and "spring onions"
-  // register as the shared noun they are once plural tolerance is in play.
-  const headCounts = new Map<string, number>();
-  for (const w of wordsFor) {
-    const head = w[w.length - 1];
-    if (head) headCounts.set(canonicalNoun(head), (headCounts.get(canonicalNoun(head)) ?? 0) + 1);
+  // A "unit" is one matchable phrase; an "A or B" ingredient contributes one per
+  // alternative, all pointing back to the same ingredient index.
+  const units: Array<{ index: number; words: string[] }> = [];
+  ingredients.forEach((ing, index) => {
+    for (const words of significantWordAlts(ing)) units.push({ index, words });
+  });
+  // Head nouns keyed by plural-invariant form → the DISTINCT ingredients carrying
+  // that head. Distinct-ingredient count (not unit count) is what "unique" means,
+  // so a single "basil or Thai basil" row doesn't shadow its own head noun.
+  const headIndexes = new Map<string, Set<number>>();
+  for (const u of units) {
+    const head = u.words[u.words.length - 1];
+    if (head) {
+      const k = canonicalNoun(head);
+      (headIndexes.get(k) ?? headIndexes.set(k, new Set()).get(k)!).add(u.index);
+    }
   }
+  const headUnique = (w: string) => (headIndexes.get(canonicalNoun(w))?.size ?? 0) === 1;
 
   // Every span in the step where a term matches (plural-tolerant, non-overlapping),
   // EXCLUDING an occurrence that heads an "X of Y" compound where Y is itself an
@@ -140,7 +169,7 @@ export function matchStep<T extends Ingredientish>(
       .map((m) => ({ at: m.index ?? 0, end: (m.index ?? 0) + m[0].length }))
       .filter((sp) => {
         const after = text.slice(sp.end).match(/^\s+of\s+([a-z]+)/i);
-        return !(after && headCounts.has(canonicalNoun(after[1])));
+        return !(after && headIndexes.has(canonicalNoun(after[1])));
       });
 
   // A hit records the matched substring, whether it is the ingredient's FULL
@@ -148,8 +177,8 @@ export function matchStep<T extends Ingredientish>(
   // both needed to arbitrate the collision below.
   type Hit = { index: number; term: string; words: number; full: boolean; leftover: string[] };
   const hits: Hit[] = [];
-  ingredients.forEach((_, i) => {
-    const words = wordsFor[i];
+  units.forEach((u) => {
+    const words = u.words;
     if (words.length === 0) return;
     let term: string | null = null;
     // Longest contiguous ≥2-word run the step quotes.
@@ -162,17 +191,17 @@ export function matchStep<T extends Ingredientish>(
         }
       }
     }
-    // Single-word ingredient (salt, flour): match on the word itself. Otherwise
-    // fall back to the head noun, but only when that noun is unique to this
-    // ingredient — so "heat the oil" never pulls in both oils.
+    // Single-word phrase (salt, or the "tamari" of "tamari or soy sauce"): match on
+    // the word itself. Otherwise fall back to the head noun, but only when that noun
+    // is unique to this ingredient — so "heat the oil" never pulls in both oils.
     if (!term) {
       const head = words[words.length - 1];
-      if ((words.length === 1 || (headCounts.get(canonicalNoun(head)) ?? 0) === 1) && wordRe(head).test(text)) term = head;
+      if ((words.length === 1 || headUnique(head)) && wordRe(head).test(text)) term = head;
     }
     if (term) {
       const termSet = new Set(term.split(" "));
       hits.push({
-        index: i,
+        index: u.index,
         term,
         words: termSet.size,
         full: termSet.size === words.length,

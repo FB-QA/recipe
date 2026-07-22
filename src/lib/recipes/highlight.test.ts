@@ -314,3 +314,32 @@ describe("matchStep (drawer membership)", () => {
     expect(got.map((i) => i.id)).toEqual(["b"]);
   });
 });
+
+describe("matchStep — 'A or B' alternatives and trailing prep (HBH red curry beef noodles)", () => {
+  const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
+  it("matches an 'A or B' ingredient by EITHER name (tamari or soy sauce)", () => {
+    const rows = [mk("t", "1/3 cup tamari or soy sauce")];
+    expect(inStep("Stir in the tamari", rows).map((i) => i.id)).toEqual(["t"]);
+    expect(inStep("Add the soy sauce", rows).map((i) => i.id)).toEqual(["t"]);
+  });
+  it("shows the alternative ingredient once, not once per alternative", () => {
+    // A step naming both alternatives must not duplicate the row.
+    const rows = [mk("t", "1/3 cup tamari or soy sauce")];
+    expect(inStep("Add tamari or soy sauce to taste", rows)).toHaveLength(1);
+  });
+  it("strips a trailing prep word so 'roasted salted cashews chopped' matches 'cashews'", () => {
+    // The "(chopped)" parenthetical flattened on import; a LEADING prep word stays.
+    expect(inStep("Top with the cashews", [mk("c", "1/2 cup roasted salted cashews chopped")]).map((i) => i.id)).toEqual(["c"]);
+  });
+  it("does not mistake a 'fresh or frozen' qualifier tail for two alternatives", () => {
+    // Regression guard: "or" joining qualifiers is a tail to strip, not a split, so
+    // "frozen" must not become a matchable alternative that a freezing step catches.
+    const rows = [mk("b", "1 cup mixed berries fresh or frozen")];
+    expect(inStep("Freeze until frozen solid", rows)).toHaveLength(0);
+    expect(inStep("Blend the berries", rows).map((i) => i.id)).toEqual(["b"]);
+  });
+  it("keeps a leading prep adjective distinct (chopped vs diced tomatoes)", () => {
+    const rows = [mk("c", "400g chopped tomatoes"), mk("d", "400g diced tomatoes")];
+    expect(inStep("Add the diced tomatoes", rows).map((i) => i.id)).toEqual(["d"]);
+  });
+});
