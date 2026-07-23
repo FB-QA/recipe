@@ -13,14 +13,12 @@
  * "Cooking:"), which must not leak into the ingredient list.
  */
 
-import { decodeEntities } from "./entities";
+import { decodeEntities, stripTags } from "./entities";
 
 export interface WprmIngredientGroup {
   name: string | null;
   ingredients: string[];
 }
-
-const stripTags = (s: string): string => decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 
 /** Reassemble one ingredient from its amount/unit/name/notes spans, in order. */
 function ingredientText(liInner: string): string {

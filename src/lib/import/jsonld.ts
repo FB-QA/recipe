@@ -1,6 +1,7 @@
 import { decodeEntities } from "./entities";
 import type { AiExtractedRecipe, ExtractedIngredient, ExtractedNutrition, ExtractedRecipeStep } from "./schema";
 import { parseWprmIngredientGroups } from "./wprm";
+import { parseSectionedIngredientGroups } from "./ingredient-sections";
 
 type IngredientGroup = AiExtractedRecipe["ingredientGroups"][number];
 
@@ -189,10 +190,17 @@ function yieldValue(text: string | null): number | null {
 
 /**
  * Ingredient sections for the deterministic path. schema.org has none, so we recover
- * WP Recipe Maker's groups from the HTML when present; otherwise everything goes in
- * one unnamed group. WPRM is trusted only when it carries at least one NAMED section
- * and its ingredient count is close to the JSON-LD list's — a wildly different count
- * means a bad parse, so we fall back rather than ship garbage.
+ * them from the HTML when present; otherwise everything goes in one unnamed group. Two
+ * recovery rungs, tried in order:
+ *   1. WP Recipe Maker's bespoke group markup — trusted when it carries ≥1 NAMED section
+ *      and its ingredient count is CLOSE to the JSON-LD list's (WPRM's own scrape can
+ *      diverge slightly from the JSON-LD, so a fuzzy 0.5×–1.4× bound, not equality).
+ *   2. Generic non-WPRM sections (King Arthur, Serious Eats / Dotdash) — a heading
+ *      element followed by a `<ul>`, trusted only on EXACT multiset equality with the
+ *      flat list (a from-scratch DOM parse gets no benefit of the doubt; exact match
+ *      both rejects decoy lists and scopes to the selected recipe).
+ * Either way a wildly-off or unmatched parse falls back to one unnamed group rather
+ * than shipping garbage.
  */
 function buildIngredientGroups(html: string, flat: string[], title: string): IngredientGroup[] {
   const wprm = parseWprmIngredientGroups(html, title);
@@ -214,6 +222,21 @@ function buildIngredientGroups(html: string, flat: string[], title: string): Ing
       }));
     }
   }
+
+  // Generic non-WPRM sections. The parser self-guards on exact multiset equality, so a
+  // returned value is already the recipe's own sections — emit them directly.
+  const sectioned = parseSectionedIngredientGroups(html, flat);
+  if (sectioned) {
+    let position = 0;
+    return sectioned.map((g, gi) => ({
+      temporaryId: `sec-g${gi}`,
+      name: g.name,
+      position: gi,
+      optional: false,
+      ingredients: g.ingredients.map((t) => toIngredient(t, position++)),
+    }));
+  }
+
   return [
     {
       temporaryId: "jsonld-g0",

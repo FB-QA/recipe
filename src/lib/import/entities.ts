@@ -26,3 +26,7 @@ export const decodeEntities = (s: string): string =>
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
     .replace(NAMED_RE, (m) => NAMED_ENTITIES[m])
     .replace(/&amp;/g, "&");
+
+/** Strip tags to readable text: drop markup, decode entities, collapse whitespace. */
+export const stripTags = (s: string): string =>
+  decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
