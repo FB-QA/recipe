@@ -408,6 +408,7 @@ export type Database = {
           source_type: Database["public"]["Enums"]["source_type"]
           source_url: string | null
           tags: string[]
+          thumb_image_path: string | null
           title: string
           updated_at: string
           user_id: string
@@ -432,6 +433,7 @@ export type Database = {
           source_type?: Database["public"]["Enums"]["source_type"]
           source_url?: string | null
           tags?: string[]
+          thumb_image_path?: string | null
           title: string
           updated_at?: string
           user_id?: string
@@ -456,6 +458,7 @@ export type Database = {
           source_type?: Database["public"]["Enums"]["source_type"]
           source_url?: string | null
           tags?: string[]
+          thumb_image_path?: string | null
           title?: string
           updated_at?: string
           user_id?: string

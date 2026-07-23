@@ -11,6 +11,7 @@ export type RecipeListItem = {
   is_favourite: boolean;
   tags: string[];
   coverUrl: string | null;
+  thumbUrl: string | null;
   ingredientCount: number;
   cook_time: string | null;
 };
@@ -22,7 +23,7 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
   let query = supabase
     .from("recipes")
     .select(
-      "id, title, servings, source_type, source_handle, is_favourite, tags, cover_image_path, cook_time, recipe_ingredients(count)",
+      "id, title, servings, source_type, source_handle, is_favourite, tags, cover_image_path, thumb_image_path, cook_time, recipe_ingredients(count)",
     )
     .order("created_at", { ascending: false });
 
@@ -45,7 +46,7 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
 
   const covers = await signStoragePaths(
     supabase,
-    data.map((r) => r.cover_image_path).filter((p): p is string => Boolean(p)),
+    data.flatMap((r) => [r.cover_image_path, r.thumb_image_path]).filter((p): p is string => Boolean(p)),
   );
 
   return data.map((r) => ({
@@ -56,6 +57,7 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
     is_favourite: r.is_favourite,
     tags: r.tags,
     coverUrl: r.cover_image_path ? (covers[r.cover_image_path] ?? null) : null,
+    thumbUrl: r.thumb_image_path ? (covers[r.thumb_image_path] ?? null) : null,
     ingredientCount: r.recipe_ingredients?.[0]?.count ?? 0,
     source_handle: r.source_handle,
     cook_time: r.cook_time,

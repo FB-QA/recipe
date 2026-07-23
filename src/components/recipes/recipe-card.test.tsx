@@ -13,11 +13,15 @@ function makeRecipe(overrides: Partial<RecipeListItem> = {}): RecipeListItem {
     is_favourite: false,
     tags: [],
     coverUrl: null,
+    thumbUrl: null,
     ingredientCount: 8,
     cook_time: "25 min",
     ...overrides,
   };
 }
+
+const coverImg = (recipe: RecipeListItem) =>
+  render(<RecipeCard recipe={recipe} />).container.querySelector("img") as HTMLImageElement | null;
 
 describe("RecipeCard", () => {
   it("shows the cooking time when present", () => {
@@ -37,5 +41,20 @@ describe("RecipeCard", () => {
     // title the same height as a two-line one, so the grid never staggers.
     expect(heading.className).toContain("line-clamp-2");
     expect(heading.className).toMatch(/min-h-\[2/);
+  });
+
+  it("uses the lightweight thumb on the shelf when one exists", () => {
+    const img = coverImg(makeRecipe({ coverUrl: "https://s/cover.webp", thumbUrl: "https://s/thumb.webp" }));
+    expect(img?.getAttribute("src")).toBe("https://s/thumb.webp");
+  });
+
+  it("falls back to the full cover for recipes with no thumb yet", () => {
+    const img = coverImg(makeRecipe({ coverUrl: "https://s/cover.webp", thumbUrl: null }));
+    expect(img?.getAttribute("src")).toBe("https://s/cover.webp");
+  });
+
+  it("lazy-loads the shelf image so an off-screen card costs nothing until scrolled to", () => {
+    const img = coverImg(makeRecipe({ coverUrl: "https://s/cover.webp", thumbUrl: "https://s/thumb.webp" }));
+    expect(img?.getAttribute("loading")).toBe("lazy");
   });
 });

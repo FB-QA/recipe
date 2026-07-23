@@ -72,7 +72,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
       href={`/recipes/${recipe.id}`}
       className={`${CARD_SHELL} transition-transform duration-150 active:scale-[0.97]`}
     >
-      <CoverImage url={recipe.coverUrl} title={recipe.title} className={`${CARD_COVER_H} p-2.5`}>
+      <CoverImage url={recipe.thumbUrl ?? recipe.coverUrl} title={recipe.title} className={`${CARD_COVER_H} p-2.5`}>
         {recipe.is_favourite && (
           <span className="absolute right-2.5 top-2.5 grid h-7 w-7 place-items-center rounded-full bg-white/85 text-heart">
             <HeartIcon size={14} filled />

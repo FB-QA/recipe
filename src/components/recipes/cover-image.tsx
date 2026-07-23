@@ -38,11 +38,23 @@ export function CoverImage({
 }) {
   return (
     <div
-      className={clsx("relative flex items-end overflow-hidden bg-cover bg-center", className)}
-      style={url ? { backgroundImage: `url(${url})` } : { backgroundImage: gradientFor(title) }}
+      className={clsx("relative flex items-end overflow-hidden", className)}
+      // The gradient is always the base layer: it fills a photo-less recipe, and sits
+      // behind the <img> as a graceful fallback if the photo ever fails to load. The
+      // photo rides on the single <img> only — no duplicate background-image URL, so the
+      // browser fetches it once and `loading="lazy"` can actually defer off-screen cards.
+      style={{ backgroundImage: gradientFor(title) }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {url && <img src={url} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />}
+      {url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
       {children}
     </div>
   );
