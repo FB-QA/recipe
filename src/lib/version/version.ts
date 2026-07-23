@@ -109,9 +109,17 @@ export function canRecoveryReload(now: number = Date.now()): boolean {
 }
 
 /** Hard-reload onto the current build, guarded against loops. Returns whether it
- *  actually reloaded (false = suppressed because we reloaded moments ago). */
+ *  actually reloaded (false = suppressed because we reloaded moments ago). Use for
+ *  AUTOMATIC recovery, where an unguarded reload could loop. */
 export function guardedReload(): boolean {
   if (!mayRecoveryReload()) return false;
   window.location.reload();
   return true;
+}
+
+/** Hard-reload with no guard — for an EXPLICIT user action (the "Refresh" control). A
+ *  deliberate press is not a loop risk, and must always work even when storage is
+ *  unavailable and {@link guardedReload} would refuse. */
+export function forceReload(): void {
+  window.location.reload();
 }

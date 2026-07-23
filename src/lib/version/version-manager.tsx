@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { APP_VERSION, VERSION_HEADER, clearUpdateSeen, guardedReload, hasRealVersion, isDeployError, markUpdateSeen, updateSeen } from "./version";
+import { APP_VERSION, VERSION_HEADER, clearUpdateSeen, forceReload, guardedReload, hasRealVersion, isDeployError, markUpdateSeen, updateSeen } from "./version";
 
 /**
  * Detects a new deployment off traffic the app already makes and reloads onto it at a
@@ -110,7 +110,7 @@ export function VersionManager() {
       className="fixed inset-x-0 bottom-[80px] z-[60] mx-auto flex w-fit max-w-[92%] items-center gap-3 rounded-full border border-line bg-surface px-4 py-2.5 text-[13px] shadow-[var(--shadow)]"
     >
       <span className="text-ink-2">A new version is ready.</span>
-      <button type="button" onClick={() => guardedReload()} className="font-semibold text-basil">
+      <button type="button" onClick={() => forceReload()} className="font-semibold text-basil">
         Refresh
       </button>
       <button type="button" onClick={() => setShowBanner(false)} aria-label="Dismiss" className="text-ink-3">
