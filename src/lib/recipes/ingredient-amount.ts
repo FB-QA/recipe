@@ -7,6 +7,9 @@ import {
   SYSTEM_REGION,
   UNICODE_FRACTION_CHARS,
   UNIT_DEFINITIONS,
+  findDensityProfile,
+  gramsPerMl,
+  type IngredientDensityProfile,
   type MeasurementDimension,
   type MeasurementRegion,
   type MeasurementSystem,
@@ -39,6 +42,8 @@ export interface RenderedIngredientAmount {
   text: string;
   status: IngredientConversionStatus;
   approximate: boolean;
+  /** Explanation for an approximate conversion (assumed prep) — surfaced in the UI. */
+  note?: string;
   /** The original imported line, always available for reference. */
   sourceText: string;
 }
@@ -76,6 +81,24 @@ const CANONICAL_UNIT: Partial<Record<MeasurementDimension, MeasurementUnit>> = {
  * jug measure at that size.)
  */
 const PRESERVED_UNITS = new Set<MeasurementUnit>(["tsp", "tbsp"]);
+
+/**
+ * A known preparation that materially changes a volume's weight and CONFLICTS
+ * with the density profile's assumption — so the profile's grams would be wrong.
+ * Sifting/sieving lightens; scooping/heaping packs more than the spooned default;
+ * a "packed" qualifier only agrees with a profile that itself assumes packed.
+ */
+function prepConflictsWithProfile(prep: string | null | undefined, profile: IngredientDensityProfile): boolean {
+  if (!prep) return false;
+  const p = prep.toLowerCase();
+  if (/\b(sift|siev)/.test(p)) return true;
+  if (/\b(scoop|heaped)/.test(p)) return true;
+  if (/\bpacked\b/.test(p)) {
+    const loose = /\b(loose|light)/.test(p);
+    return (profile.preparationState ?? "").toLowerCase() !== "packed" || loose;
+  }
+  return false;
+}
 
 /** Volume units whose millilitre value depends on region (cup, pint, spoons…). */
 function isRegionSensitive(unit: MeasurementUnit): boolean {
@@ -152,11 +175,25 @@ function roundDisplay(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/**
+ * Coarser rounding for an APPROXIMATE weight (density-derived) — the spec's
+ * approximate weight bands (§30). Precision beyond this falsely implies accuracy
+ * the "approx" badge disclaims, so 198 g → 200 g, not 198 g.
+ */
+function roundApproximateWeight(value: number, unit: MeasurementUnit): number {
+  const abs = Math.abs(value);
+  if (unit === "kg") return Number((Math.round(value / 0.05) * 0.05).toFixed(2)); // nearest 0.05 kg
+  if (abs < 10) return Math.round(value * 2) / 2; // nearest 0.5 g
+  if (abs < 100) return Math.round(value); // nearest 1 g
+  return Math.round(value / 5) * 5; // nearest 5 g
+}
+
 /** Format a conversion result (already in its chosen display unit). */
-function formatConverted(result: ConversionResult): string {
+function formatConverted(result: ConversionResult, approximate = false): string {
   const unit = result.convertedUnit!;
   const useFractions = UNIT_DEFINITIONS[unit].allowFractions && !NO_FRACTION_UNITS.has(unit);
-  const fmt = (v: number) => (useFractions ? formatQuantityValue(roundDisplay(v)) : String(roundDisplay(v)));
+  const round = (v: number) => (approximate ? roundApproximateWeight(v, unit) : roundDisplay(v));
+  const fmt = (v: number) => (useFractions ? formatQuantityValue(round(v)) : String(round(v)));
   const label = UNIT_DEFINITIONS[unit].shortLabel;
   const hi = result.convertedQuantityMax;
   return hi != null ? `${fmt(result.convertedQuantity!)}–${fmt(hi)} ${label}` : `${fmt(result.convertedQuantity!)} ${label}`;
@@ -189,7 +226,7 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
       { scale: 1, targetSystem: system, sourceRegion: opts.sourceRegion },
     );
     const count = formatQuantityValue(Number(mult[1]) * opts.scale);
-    return { text: `${count} x ${perItem.text}`, status: perItem.status, approximate: perItem.approximate, sourceText };
+    return { text: `${count} x ${perItem.text}`, status: perItem.status, approximate: perItem.approximate, note: perItem.note, sourceText };
   }
 
   // A leading article + number ("a 14 oz can tomatoes") is a COUNT of a fixed-
@@ -255,6 +292,8 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   //    pivots through the canonical unit so the LIBRARY picks the friendly
   //    target unit (US weight → lb for large amounts, US volume → cups, etc.).
   let result: ConversionResult;
+  let approximate = false;
+  let assumedPrep: string | undefined;
   if (dimension === "temperature") {
     result = convert({
       quantity: scaledLo,
@@ -268,16 +307,35 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
     // Step 1 — source → canonical (sourceRegion interprets the SOURCE unit).
     const canon = convert({ quantity: scaledLo, quantityMax: scaledHi, fromUnit: norm.unit, toUnit: canonUnit, sourceRegion: opts.sourceRegion });
     if (canon.error || canon.convertedQuantity == null) return fallback("unsupported_conversion");
-    const driver = Math.max(Math.abs(canon.convertedQuantity), Math.abs(canon.convertedQuantityMax ?? canon.convertedQuantity));
-    const targetUnit = selectSystemUnit(driver, dimension, system);
-    // Step 2 — canonical → target (system region interprets the TARGET unit).
-    result = convert({
-      quantity: canon.convertedQuantity,
-      quantityMax: canon.convertedQuantityMax,
-      fromUnit: canonUnit,
-      toUnit: targetUnit,
-      sourceRegion: SYSTEM_REGION[system],
-    });
+
+    // DENSITY (Phase 3): a dry ingredient measured by VOLUME, viewed in Metric, is
+    // shown by WEIGHT — a metric baker weighs flour; "250 ml flour" is useless. Only
+    // on a STRICT density-profile match for the ingredient name; otherwise the
+    // volume stays a volume. US keeps cups. Always approximate (cup packing varies).
+    // A conflicting known preparation ("sifted" vs the profile's spooned default)
+    // makes the profile's weight wrong — skip density and keep the volume rather
+    // than assert a weight we can't stand behind.
+    const densityProfile = dimension === "volume" && system === "metric" ? findDensityProfile(name) : null;
+    if (densityProfile && !prepConflictsWithProfile(ing.preparation, densityProfile)) {
+      const gml = gramsPerMl(densityProfile);
+      const gramsLo = canon.convertedQuantity * gml;
+      const gramsHi = canon.convertedQuantityMax != null ? canon.convertedQuantityMax * gml : undefined;
+      const massUnit = selectSystemUnit(Math.max(gramsLo, gramsHi ?? gramsLo), "weight", system);
+      result = convert({ quantity: gramsLo, quantityMax: gramsHi, fromUnit: "g", toUnit: massUnit, sourceRegion: SYSTEM_REGION[system] });
+      approximate = true;
+      assumedPrep = densityProfile.assumedPreparationLabel;
+    } else {
+      const driver = Math.max(Math.abs(canon.convertedQuantity), Math.abs(canon.convertedQuantityMax ?? canon.convertedQuantity));
+      const targetUnit = selectSystemUnit(driver, dimension, system);
+      // Step 2 — canonical → target (system region interprets the TARGET unit).
+      result = convert({
+        quantity: canon.convertedQuantity,
+        quantityMax: canon.convertedQuantityMax,
+        fromUnit: canonUnit,
+        toUnit: targetUnit,
+        sourceRegion: SYSTEM_REGION[system],
+      });
+    }
   }
 
   if (result.error || result.convertedQuantity == null || result.convertedUnit == null) {
@@ -306,7 +364,7 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
     return { text: scaled(), status: "converted", approximate: false, sourceText };
   }
 
-  const amount = formatConverted(result);
+  const amount = formatConverted(result, approximate);
   // Retain a leading quantity modifier ("about", "roughly") on the converted
   // amount — dropping it would present a hedged amount as exact.
   const modifier = displayText.match(LEADING_MODIFIER)?.[0]?.trim();
@@ -315,5 +373,6 @@ export function renderIngredientAmount(ing: AmountIngredient, opts: RenderOption
   const prep = ing.preparation?.trim();
   const namePart = name && prep ? `${name}, ${prep}` : name || prep || "";
   const text = namePart ? `${amountText} ${namePart}` : amountText;
-  return { text, status: "converted", approximate: false, sourceText };
+  const note = approximate ? `Approximate weight${assumedPrep ? ` — assumes ${assumedPrep}` : ""}.` : undefined;
+  return { text, status: "converted", approximate, note, sourceText };
 }

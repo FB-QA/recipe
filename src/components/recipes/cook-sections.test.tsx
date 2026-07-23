@@ -22,6 +22,22 @@ const combobox = () => screen.getByRole("combobox", { name: /measurement units/i
 const setSystem = (v: string) => fireEvent.change(combobox(), { target: { value: v } });
 
 describe("CookSections integration", () => {
+  it("weighs a dry-volume ingredient in Metric with an approximate badge (density)", () => {
+    const ingredients: IngredientLike[] = [
+      { id: "i1", display_text: "1 cup flour", quantity: null, unit: "cup", name: "plain flour", quantity_value: 1 },
+    ];
+    render(
+      <CookSections recipeId="r1" ingredients={ingredients} servingsText="4" addedIngredientIds={[]} steps={[]} sourceRegion="us" />,
+    );
+    expect(screen.getByText("1 cup flour")).toBeInTheDocument();
+    setSystem("metric");
+    expect(screen.getByText(/120 g plain flour/)).toBeInTheDocument();
+    // Visible + accessible approximate indicator, with the assumption in the label.
+    const badge = screen.getByText("approx");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveAttribute("aria-label", expect.stringMatching(/approximate/i));
+  });
+
   it("method-only recipe: the selector shows and converts step temperatures", () => {
     const steps: MethodStep[] = [
       { id: "s1", title: null, instruction: "Bake at 350°F for 20 minutes.", ingredients: [], terms: [] },
