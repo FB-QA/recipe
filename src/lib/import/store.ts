@@ -326,9 +326,11 @@ export async function markImportSaved(
   if (coverKept && cover && !isCompositeReelCover(cover)) {
     const stored = await storeCoverFromUrl(db.storage, userId, recipeId, cover);
     // The cover overwrites in place at its stable path, so cover_image_path needs no
-    // update — but the thumb path must be persisted, or a save-time thumb failure that
-    // this re-upload has just repaired would still read as null and serve the full cover.
-    if (stored?.thumb) await db.from("recipes").update({ thumb_image_path: stored.thumb }).eq("id", recipeId);
+    // update — but the thumb path must track the re-store. Persist it whenever the cover
+    // landed (stored non-null), INCLUDING a null thumb: a re-store whose thumb upload
+    // failed must null the path so the shelf falls back to the fresh cover, never keeps
+    // pointing at the stale thumb while the detail page shows the new one.
+    if (stored) await db.from("recipes").update({ thumb_image_path: stored.thumb }).eq("id", recipeId);
   }
 }
 
@@ -408,10 +410,11 @@ export async function applyEnrichedCover(
     // touch the recipe's cover".
     if (row.extracted?.source?.coverImageUrl != null) {
       const stored = await storeCoverFromUrl(db.storage, userId, row.recipe_id, coverUrl);
-      // Persist the thumb path (the cover overwrites in place, so it needs no update):
-      // without this, a recipe whose save-time thumb upload failed would keep serving the
-      // full cover on the shelf even after enrichment has written a fresh thumb.webp.
-      if (stored?.thumb) {
+      // Persist the thumb path whenever the cover landed (stored non-null), including a
+      // null thumb: without this a save-time thumb failure never heals; with only the
+      // non-null guard, a re-store whose thumb upload fails would keep the stale thumb on
+      // the shelf while the detail page shows the newly enriched cover.
+      if (stored) {
         await db.from("recipes").update({ thumb_image_path: stored.thumb }).eq("id", row.recipe_id);
       }
     }

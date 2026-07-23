@@ -9,7 +9,7 @@ import { resolveGroups, flattenIngredients } from "./groups";
 import { markImportSaved } from "@/lib/import/store";
 import { optimizeRenditions } from "@/lib/images/optimize";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
-import { backfillThumb, storeCoverFromUrl, storeRenditions, type StoredCover } from "./cover";
+import { backfillMissingThumb, storeCoverFromUrl, storeRenditions, type StoredCover } from "./cover";
 
 export type RecipeFormState = { error?: string } | { ok: true; id: string } | undefined;
 
@@ -35,30 +35,6 @@ async function uploadCover(
 
 const uploadCoverFromUrl = (supabase: Client, userId: string, recipeId: string, url: string) =>
   storeCoverFromUrl(supabase.storage, userId, recipeId, url);
-
-/**
- * Backfill the shelf thumbnail for a recipe that predates thumbnails — a cover on file
- * but no `thumb_image_path`. Generated from the stored cover (not the original), so it's
- * cheap and needs no re-upload of the source. Best-effort and idempotent: skipped once a
- * thumb exists, so re-saving an already-migrated recipe costs one small read. Runs in the
- * owner's auth context, so RLS on the row and the storage folder both hold.
- */
-async function backfillThumbIfMissing(supabase: Client, userId: string, recipeId: string) {
-  const { data } = await supabase
-    .from("recipes")
-    .select("cover_image_path, thumb_image_path")
-    .eq("id", recipeId)
-    .maybeSingle();
-  if (!data?.cover_image_path || data.thumb_image_path) return; // nothing to backfill
-  try {
-    const { data: file } = await supabase.storage.from(BUCKET).download(data.cover_image_path);
-    if (!file) return;
-    const thumbPath = await backfillThumb(supabase.storage, userId, recipeId, await file.arrayBuffer());
-    if (thumbPath) await supabase.from("recipes").update({ thumb_image_path: thumbPath }).eq("id", recipeId);
-  } catch {
-    // Best-effort: the shelf falls back to the full cover until the next save.
-  }
-}
 
 async function removeRecipeFolder(supabase: Client, userId: string, recipeId: string) {
   const prefix = `${userId}/${recipeId}`;
@@ -273,7 +249,7 @@ export async function updateRecipe(
   } else {
     // Cover retained: if this recipe predates thumbnails, generate the missing one now,
     // so a normal edit lets its shelf card catch up without any bulk migration.
-    await backfillThumbIfMissing(supabase, user.id, id);
+    await backfillMissingThumb(supabase, user.id, id);
   }
 
   const saved = await replaceChildren(supabase, id, input);

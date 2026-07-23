@@ -9,8 +9,9 @@ vi.mock("@/lib/images/optimize", () => ({
   optimizeThumb: vi.fn(async () => Buffer.from("THUMB")),
 }));
 
+import type { Client } from "@/lib/supabase/server";
 import { optimizeRenditionsFromUrl } from "@/lib/images/optimize";
-import { backfillThumb, recipeCoverPath, recipeThumbPath, storeCoverFromUrl } from "./cover";
+import { backfillMissingThumb, backfillThumb, recipeCoverPath, recipeThumbPath, storeCoverFromUrl } from "./cover";
 
 const mockOptimize = vi.mocked(optimizeRenditionsFromUrl);
 
@@ -91,5 +92,89 @@ describe("backfillThumb", () => {
   it("returns null when the thumb upload fails", async () => {
     const storage = fakeStorage({ "user-1/recipe-9/thumb.webp": true });
     expect(await backfillThumb(storage, USER, RECIPE, Buffer.from("X"))).toBeNull();
+  });
+});
+
+/** A Supabase-client double for backfillMissingThumb: one recipe row, a cover download
+ *  that can be made to fail, and a thumb upload that can be made to fail. Records the
+ *  storage uploads and the row updates so each branch is observable. */
+function fakeClient(opts: {
+  row: { cover_image_path: string | null; thumb_image_path: string | null } | null;
+  downloadNull?: boolean;
+  uploadErr?: boolean;
+}) {
+  const updates: Array<Record<string, unknown>> = [];
+  const uploads: string[] = [];
+  const client = {
+    from: () => ({
+      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: opts.row }) }) }),
+      update: (vals: Record<string, unknown>) => {
+        updates.push(vals);
+        return { eq: async () => ({ error: null }) };
+      },
+    }),
+    storage: {
+      from: () => ({
+        download: async () => ({
+          data: opts.downloadNull ? null : { arrayBuffer: async () => new ArrayBuffer(8) },
+        }),
+        upload: async (path: string) => {
+          uploads.push(path);
+          return { error: opts.uploadErr ? new Error("boom") : null };
+        },
+      }),
+    },
+  };
+  return { client: client as unknown as Client, updates, uploads };
+}
+
+describe("backfillMissingThumb", () => {
+  const THUMB = "user-1/recipe-9/thumb.webp";
+
+  it("does nothing when the recipe already has a thumb", async () => {
+    const { client, updates, uploads } = fakeClient({
+      row: { cover_image_path: "user-1/recipe-9/cover.webp", thumb_image_path: THUMB },
+    });
+    await backfillMissingThumb(client, USER, RECIPE);
+    expect(uploads).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
+  it("does nothing when there is no cover to backfill from", async () => {
+    const { client, updates, uploads } = fakeClient({
+      row: { cover_image_path: null, thumb_image_path: null },
+    });
+    await backfillMissingThumb(client, USER, RECIPE);
+    expect(uploads).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
+  it("generates the thumb from the stored cover and records its path", async () => {
+    const { client, updates, uploads } = fakeClient({
+      row: { cover_image_path: "user-1/recipe-9/cover.webp", thumb_image_path: null },
+    });
+    await backfillMissingThumb(client, USER, RECIPE);
+    expect(uploads).toEqual([THUMB]);
+    expect(updates).toEqual([{ thumb_image_path: THUMB }]);
+  });
+
+  it("does nothing when the stored cover can't be downloaded", async () => {
+    const { client, updates, uploads } = fakeClient({
+      row: { cover_image_path: "user-1/recipe-9/cover.webp", thumb_image_path: null },
+      downloadNull: true,
+    });
+    await backfillMissingThumb(client, USER, RECIPE);
+    expect(uploads).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
+  it("does not record a path when the thumb upload fails", async () => {
+    const { client, updates, uploads } = fakeClient({
+      row: { cover_image_path: "user-1/recipe-9/cover.webp", thumb_image_path: null },
+      uploadErr: true,
+    });
+    await backfillMissingThumb(client, USER, RECIPE);
+    expect(uploads).toEqual([THUMB]); // attempted
+    expect(updates).toHaveLength(0); // but not persisted
   });
 });

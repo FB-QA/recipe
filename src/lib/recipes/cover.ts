@@ -1,5 +1,6 @@
 import { optimizeRenditionsFromUrl, optimizeThumb, type CoverRenditions } from "@/lib/images/optimize";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
+import type { Client } from "@/lib/supabase/server";
 
 /** The stable storage path for a recipe's full cover — one webp per recipe, upserted. */
 export function recipeCoverPath(userId: string, recipeId: string): string {
@@ -69,6 +70,36 @@ export async function backfillThumb(
   const thumbPath = recipeThumbPath(userId, recipeId);
   const { error } = await storage.from(BUCKET).upload(thumbPath, thumb, WEBP);
   return error ? null : thumbPath;
+}
+
+/**
+ * Backfill the shelf thumbnail for a recipe that predates thumbnails — a cover on file
+ * but no `thumb_image_path`. The thumb is generated from the STORED cover (not the
+ * original), so it's cheap and needs no re-upload of the source. Best-effort and
+ * idempotent: skipped once a thumb exists, so re-saving an already-migrated recipe costs
+ * only one small read. Runs in the owner's auth context, so RLS on both the row and the
+ * storage folder holds. Extracted here (rather than left inline in the server action) so
+ * its branches are unit-testable.
+ */
+export async function backfillMissingThumb(
+  supabase: Client,
+  userId: string,
+  recipeId: string,
+): Promise<void> {
+  const { data } = await supabase
+    .from("recipes")
+    .select("cover_image_path, thumb_image_path")
+    .eq("id", recipeId)
+    .maybeSingle();
+  if (!data?.cover_image_path || data.thumb_image_path) return; // nothing to backfill
+  try {
+    const { data: file } = await supabase.storage.from(BUCKET).download(data.cover_image_path);
+    if (!file) return;
+    const thumbPath = await backfillThumb(supabase.storage, userId, recipeId, await file.arrayBuffer());
+    if (thumbPath) await supabase.from("recipes").update({ thumb_image_path: thumbPath }).eq("id", recipeId);
+  } catch {
+    // Best-effort: the shelf falls back to the full cover until the next save.
+  }
 }
 
 /**
