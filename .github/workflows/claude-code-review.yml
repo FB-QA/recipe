@@ -30,4 +30,7 @@ jobs:
       issues: write
       id-token: write
     uses: FB-QA/ecosystem/.github/workflows/claude-code-review-reusable.yml@main
-    secrets: inherit
+    # Pass the secret explicitly, not `secrets: inherit`: inherit only works across repos
+    # in the same org/enterprise, and FB-QA is a user account.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
