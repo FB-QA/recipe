@@ -61,10 +61,13 @@ describe("storeCoverFromUrl", () => {
     expect(result).toEqual({ cover: "user-1/recipe-9/cover.webp", thumb: null });
   });
 
-  it("fails when the cover upload fails", async () => {
+  it("fails when the cover upload fails, and never touches the thumb", async () => {
     const storage = fakeStorage({ "user-1/recipe-9/cover.webp": true });
     const result = await storeCoverFromUrl(storage, USER, RECIPE, "https://x/y.jpg");
     expect(result).toBeNull();
+    // Sequential-by-design: a failed cover must leave the stable thumb.webp untouched, so
+    // a caller that discards this null never ends up with a new thumb over an old cover.
+    expect(storage.uploads.map((u) => u.path)).toEqual(["user-1/recipe-9/cover.webp"]);
   });
 
   it("returns null (no uploads) when the image can't be fetched/optimised", async () => {

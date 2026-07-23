@@ -324,7 +324,11 @@ export async function markImportSaved(
   // applyEnrichedCover's saved branch.
   const cover = nextExtracted?.source?.coverImageUrl ?? null;
   if (coverKept && cover && !isCompositeReelCover(cover)) {
-    await storeCoverFromUrl(db.storage, userId, recipeId, cover);
+    const stored = await storeCoverFromUrl(db.storage, userId, recipeId, cover);
+    // The cover overwrites in place at its stable path, so cover_image_path needs no
+    // update — but the thumb path must be persisted, or a save-time thumb failure that
+    // this re-upload has just repaired would still read as null and serve the full cover.
+    if (stored?.thumb) await db.from("recipes").update({ thumb_image_path: stored.thumb }).eq("id", recipeId);
   }
 }
 
@@ -403,7 +407,13 @@ export async function applyEnrichedCover(
     // null when they chose their own image or removed it, so a null here means "don't
     // touch the recipe's cover".
     if (row.extracted?.source?.coverImageUrl != null) {
-      await storeCoverFromUrl(db.storage, userId, row.recipe_id, coverUrl);
+      const stored = await storeCoverFromUrl(db.storage, userId, row.recipe_id, coverUrl);
+      // Persist the thumb path (the cover overwrites in place, so it needs no update):
+      // without this, a recipe whose save-time thumb upload failed would keep serving the
+      // full cover on the shelf even after enrichment has written a fresh thumb.webp.
+      if (stored?.thumb) {
+        await db.from("recipes").update({ thumb_image_path: stored.thumb }).eq("id", row.recipe_id);
+      }
     }
   }
 

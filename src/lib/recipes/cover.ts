@@ -34,7 +34,13 @@ const WEBP = { contentType: "image/webp", upsert: true } as const;
 
 /** Upload both renditions to their stable paths. The cover is required — a failure
  *  there fails the whole operation. The thumb is best-effort: a hiccup there must never
- *  cost the cover, so it degrades to a null thumb (the shelf then serves the cover). */
+ *  cost the cover, so it degrades to a null thumb (the shelf then serves the cover).
+ *
+ *  Cover FIRST, then thumb — deliberately sequential, not concurrent. If the cover upload
+ *  fails we must not have already overwritten the stable `thumb.webp`, or a caller that
+ *  discards the null result would leave the row pointing at the old cover while the shelf
+ *  shows the new thumb — cover and card disagreeing. Uploading the cover first means a
+ *  cover failure leaves BOTH stable objects untouched. */
 export async function storeRenditions(
   storage: StorageLike,
   userId: string,
@@ -42,12 +48,10 @@ export async function storeRenditions(
   renditions: CoverRenditions,
 ): Promise<StoredCover | null> {
   const coverPath = recipeCoverPath(userId, recipeId);
-  const thumbPath = recipeThumbPath(userId, recipeId);
-  const [coverRes, thumbRes] = await Promise.all([
-    storage.from(BUCKET).upload(coverPath, renditions.cover, WEBP),
-    storage.from(BUCKET).upload(thumbPath, renditions.thumb, WEBP),
-  ]);
+  const coverRes = await storage.from(BUCKET).upload(coverPath, renditions.cover, WEBP);
   if (coverRes.error) return null;
+  const thumbPath = recipeThumbPath(userId, recipeId);
+  const thumbRes = await storage.from(BUCKET).upload(thumbPath, renditions.thumb, WEBP);
   return { cover: coverPath, thumb: thumbRes.error ? null : thumbPath };
 }
 
