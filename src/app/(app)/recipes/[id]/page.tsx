@@ -83,7 +83,8 @@ export default async function RecipeDetailPage({
       )}
 
       {recipe.description && (
-        <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{recipe.description}</p>
+        // Cap the blurb at five lines; a longer one truncates with an ellipsis.
+        <p className="mt-4 line-clamp-5 text-[14px] leading-relaxed text-ink-2">{recipe.description}</p>
       )}
 
       {metrics.length > 0 && (
