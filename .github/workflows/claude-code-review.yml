@@ -57,43 +57,39 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
-          # The prompt drives three things: the in-progress/done reactions on the PR
-          # description, the review itself, and — load-bearing — that findings are
-          # posted INLINE per line rather than gathered into one summary comment.
-          # The trailing static-review instruction is also load-bearing: without it
-          # the review finishes, posts, and THEN spends every remaining turn being
-          # denied `npm ci` / `npm test` until it dies on error_max_turns — a red
-          # cross on a PR it had already reviewed correctly.
+          # Lead with the review command — claude-code-action's auto-run keys on the
+          # prompt starting with it. Burying it under a natural-language preamble made
+          # the agent step SKIP (a ~12s no-op that posts nothing). The HOW-to-report
+          # rules follow the command. The static-review rule is also load-bearing:
+          # without it the review finishes, posts, and THEN spends every remaining turn
+          # being denied `npm ci` / `npm test` until it dies on error_max_turns.
           prompt: |
-            Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}.
+            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
 
-            STEP 1 — mark the PR in progress. Add an 👀 (eyes) reaction to the PR
-            description (best-effort; if it fails, carry on with the review):
-              gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions -f content=eyes
+            How to run and report this review:
 
-            STEP 2 — review. Run:
-              /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+            - FIRST, before reviewing, mark it in progress: add an 👀 (eyes) reaction
+              to the PR description (best-effort — carry on if it fails):
+                gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions -f content=eyes
 
-            Post EVERY finding as an INLINE review comment anchored to the exact
-            file and line it concerns, using the create_inline_comment tool — the
-            way Codex does, so the author sees precisely which code each point is
-            about. Do NOT gather the findings into one summary comment. The tracking
-            comment carries only a one-line overview and the count of inline
-            findings; put a finding in it only if it genuinely spans the whole diff
-            with no single line to anchor to.
+            - Post EVERY finding as an INLINE review comment anchored to the exact
+              file and line it concerns, using the create_inline_comment tool — the
+              way Codex does, so the author sees precisely which code each point is
+              about. Do NOT gather the findings into one summary comment; the tracking
+              comment carries only a one-line overview and the inline-finding count.
 
-            Review statically. Do NOT run package-manager or build commands
-            (npm/pnpm/tsc/eslint/vitest/playwright) — you will be denied, and the
-            retries will exhaust your turn budget before you can post. The typecheck,
-            lint and unit-test gates run separately in ci.yml; read its result
-            rather than reproducing it.
+            - Review statically. Do NOT run package-manager or build commands
+              (npm/pnpm/tsc/eslint/vitest/playwright) — you will be denied, and the
+              retries will exhaust your turn budget before you can post. The typecheck,
+              lint and unit-test gates run separately in ci.yml; read its result
+              rather than reproducing it.
 
-            STEP 3 — mark done. Once the review is posted, add a 👍 (+1) reaction to
-            the PR description and remove the 👀 reaction you added in STEP 1
-            (best-effort — do not fail the run over the reactions):
-              gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions -f content=+1
-              EID=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions --jq 'map(select(.content=="eyes" and .user.login=="claude[bot]"))[0].id // empty')
-              [ -n "$EID" ] && gh api --method DELETE repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions/$EID || true
+            - LAST, once the review is posted, mark it done: add a 👍 (+1) reaction to
+              the PR description and remove the 👀 reaction you added (best-effort —
+              do not fail the run over the reactions):
+                gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions -f content=+1
+                EID=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions --jq 'map(select(.content=="eyes" and .user.login=="claude[bot]"))[0].id // empty')
+                [ -n "$EID" ] && gh api --method DELETE repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions/$EID || true
           # Post a tracking comment. Without it, a run that reviews the diff and then
           # fails to publish looks identical to a run that had nothing to say.
           track_progress: true
