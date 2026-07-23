@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { APP_VERSION, VERSION_HEADER, guardedReload, hasRealVersion, isDeployError, markUpdateSeen, updateSeen } from "./version";
+import { APP_VERSION, VERSION_HEADER, clearUpdateSeen, guardedReload, hasRealVersion, isDeployError, markUpdateSeen, updateSeen } from "./version";
 
 /**
  * Detects a new deployment off traffic the app already makes and reloads onto it at a
@@ -38,6 +38,10 @@ export function VersionManager() {
         if (live && live !== APP_VERSION) {
           markUpdateSeen();
           setPending(true);
+        } else if (live === APP_VERSION) {
+          // Back in sync — the reload has landed on the new build. Clear the mark so it
+          // doesn't outlive the mismatch and misclassify later unrelated errors.
+          clearUpdateSeen();
         }
       } catch {
         // cross-origin / opaque response — no readable header, ignore.

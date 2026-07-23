@@ -1,5 +1,13 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { isDeployError, markUpdateSeen, mayRecoveryReload, RELOAD_WINDOW_MS, updateSeen } from "./version";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  canRecoveryReload,
+  clearUpdateSeen,
+  isDeployError,
+  markUpdateSeen,
+  mayRecoveryReload,
+  RELOAD_WINDOW_MS,
+  updateSeen,
+} from "./version";
 
 describe("isDeployError", () => {
   it("matches the chunk/module errors a stale client throws after a deploy", () => {
@@ -30,6 +38,38 @@ describe("updateSeen", () => {
     expect(updateSeen()).toBe(false);
     markUpdateSeen();
     expect(updateSeen()).toBe(true);
+  });
+
+  it("is cleared once the client is back in sync, so it can't poison later errors", () => {
+    markUpdateSeen();
+    expect(updateSeen()).toBe(true);
+    clearUpdateSeen();
+    expect(updateSeen()).toBe(false);
+  });
+});
+
+describe("canRecoveryReload", () => {
+  beforeEach(() => sessionStorage.clear());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("permits a reload initially, refuses within the window of one, permits after", () => {
+    const t = 3_000_000;
+    expect(canRecoveryReload(t)).toBe(true);
+    mayRecoveryReload(t); // records the attempt
+    expect(canRecoveryReload(t + 1)).toBe(false);
+    expect(canRecoveryReload(t + RELOAD_WINDOW_MS)).toBe(true);
+  });
+
+  it("refuses when storage is unavailable — no persisted stamp means no loop guarantee", () => {
+    const blocked = () => {
+      throw new Error("storage blocked");
+    };
+    vi.stubGlobal("sessionStorage", { getItem: blocked, setItem: blocked, removeItem: blocked });
+    expect(canRecoveryReload()).toBe(false);
+    expect(mayRecoveryReload()).toBe(false);
   });
 });
 

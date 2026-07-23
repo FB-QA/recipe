@@ -4,19 +4,20 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertIcon } from "@/components/icons";
 import { Spinner } from "@/components/ui/spinner";
-import { guardedReload, isDeployError, recentlyReloaded, updateSeen } from "@/lib/version/version";
+import { canRecoveryReload, guardedReload, isDeployError, updateSeen } from "@/lib/version/version";
 
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
   // Treat it as deploy-skew if the message looks like one OR we've already sniffed a
   // newer version off the wire — the latter catches Server-Action mismatches without
   // depending on their exact wording.
   const deploy = isDeployError(error) || updateSeen();
-  // A stale client after a deploy throws a chunk/module error — recover onto the new
-  // build with one reload instead of a dead-end screen. If we already reloaded moments
-  // ago the error is genuinely persistent, so show it rather than spin forever.
-  const recovering = deploy && !recentlyReloaded();
+  // A stale client after a deploy recovers onto the new build with one reload instead of
+  // a dead-end screen. Only show the recovery spinner if a reload will actually fire —
+  // if we reloaded moments ago (persistent error) or can't guard against a loop, show
+  // the real error instead of spinning forever.
+  const recovering = deploy && canRecoveryReload();
   useEffect(() => {
-    if (deploy && !recentlyReloaded()) guardedReload();
+    if (deploy && canRecoveryReload()) guardedReload();
     else if (!deploy) console.error(error); // hook point for an error monitor
   }, [error, deploy]);
 

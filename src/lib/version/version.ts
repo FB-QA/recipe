@@ -59,6 +59,17 @@ export function updateSeen(): boolean {
     return false;
   }
 }
+/** Clear the "update seen" mark. Called once a response confirms the client is back in
+ *  sync (live version === this build), i.e. the reload has landed on the new build.
+ *  Without this the flag would outlive the mismatch it represents and misclassify every
+ *  later unrelated error in the tab as deploy-skew. */
+export function clearUpdateSeen(): void {
+  try {
+    sessionStorage.removeItem(UPDATE_SEEN_KEY);
+  } catch {
+    // nothing persisted to clear.
+  }
+}
 
 const RELOAD_STAMP_KEY = "cookdex:recovery-reload-at";
 /** The shortest gap between two recovery reloads. A genuine (non-deploy) error that
@@ -66,27 +77,32 @@ const RELOAD_STAMP_KEY = "cookdex:recovery-reload-at";
  *  per window and otherwise let the real error surface. */
 export const RELOAD_WINDOW_MS = 20_000;
 
-/** Pure guard: may we reload now? Records the attempt so the next call within the
- *  window is refused. Separated from the reload itself so it is unit-testable. */
+/** Guard with a side effect: may we reload now? Records the attempt so the next call
+ *  within the window is refused. Separated from the reload itself so it is unit-testable.
+ *
+ *  When storage is unavailable we return FALSE, not true: a reload wipes in-memory state,
+ *  so without a persisted stamp we cannot tell a fresh recovery from a loop. Refusing the
+ *  automatic reload degrades to the visible error boundary (which the user can reload past)
+ *  rather than trapping them in an invisible reload loop. */
 export function mayRecoveryReload(now: number = Date.now()): boolean {
+  if (!canRecoveryReload(now)) return false;
   try {
-    const last = Number(sessionStorage.getItem(RELOAD_STAMP_KEY) ?? 0);
-    if (Number.isFinite(last) && now - last < RELOAD_WINDOW_MS) return false;
     sessionStorage.setItem(RELOAD_STAMP_KEY, String(now));
     return true;
   } catch {
-    // sessionStorage blocked (rare privacy modes) — allow the reload rather than trap.
-    return true;
+    // Couldn't record the attempt — see the doc comment: refuse rather than risk a loop.
+    return false;
   }
 }
 
-/** Read-only counterpart to {@link mayRecoveryReload}: did a recovery reload happen
- *  within the window? Pure (no write), so it's safe to consult during render to decide
- *  whether to show a recovery spinner or the real error. */
-export function recentlyReloaded(now: number = Date.now()): boolean {
+/** Pure read: is a recovery reload permitted right now? True only when we can both prove
+ *  no reload happened within the window AND persist the next one. Storage blocked → false,
+ *  so callers never show a recovery spinner for a reload that will not fire. Safe to
+ *  consult during render. */
+export function canRecoveryReload(now: number = Date.now()): boolean {
   try {
     const last = Number(sessionStorage.getItem(RELOAD_STAMP_KEY) ?? 0);
-    return Number.isFinite(last) && last > 0 && now - last < RELOAD_WINDOW_MS;
+    return !(Number.isFinite(last) && now - last < RELOAD_WINDOW_MS);
   } catch {
     return false;
   }
