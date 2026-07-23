@@ -314,3 +314,87 @@ describe("matchStep (drawer membership)", () => {
     expect(got.map((i) => i.id)).toEqual(["b"]);
   });
 });
+
+describe("matchStep — 'A or B' alternatives and trailing prep (HBH red curry beef noodles)", () => {
+  const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
+  it("matches an 'A or B' ingredient by EITHER name (tamari or soy sauce)", () => {
+    const rows = [mk("t", "1/3 cup tamari or soy sauce")];
+    expect(inStep("Stir in the tamari", rows).map((i) => i.id)).toEqual(["t"]);
+    expect(inStep("Add the soy sauce", rows).map((i) => i.id)).toEqual(["t"]);
+  });
+  it("shows the alternative ingredient once, not once per alternative", () => {
+    // A step naming both alternatives must not duplicate the row.
+    const rows = [mk("t", "1/3 cup tamari or soy sauce")];
+    expect(inStep("Add tamari or soy sauce to taste", rows)).toHaveLength(1);
+  });
+  it("strips a trailing prep word so 'roasted salted cashews chopped' matches 'cashews'", () => {
+    // The "(chopped)" parenthetical flattened on import; a LEADING prep word stays.
+    expect(inStep("Top with the cashews", [mk("c", "1/2 cup roasted salted cashews chopped")]).map((i) => i.id)).toEqual(["c"]);
+  });
+  it("does not mistake a 'fresh or frozen' qualifier tail for two alternatives", () => {
+    // Regression guard: "or" joining qualifiers is a tail to strip, not a split, so
+    // "frozen" must not become a matchable alternative that a freezing step catches.
+    const rows = [mk("b", "1 cup mixed berries fresh or frozen")];
+    expect(inStep("Freeze until frozen solid", rows)).toHaveLength(0);
+    expect(inStep("Blend the berries", rows).map((i) => i.id)).toEqual(["b"]);
+  });
+  it("keeps a leading prep adjective distinct (chopped vs diced tomatoes)", () => {
+    const rows = [mk("c", "400g chopped tomatoes"), mk("d", "400g diced tomatoes")];
+    expect(inStep("Add the diced tomatoes", rows).map((i) => i.id)).toEqual(["d"]);
+  });
+});
+
+describe("matchStep — 'A and B' combinations and shared specific nouns", () => {
+  const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
+  it("surfaces a combination row in a step naming EITHER part (basil and cilantro)", () => {
+    const rows = [mk("mix", "1 cup mixed Thai basil and cilantro")];
+    expect(inStep("Stir through the basil", rows).map((i) => i.id)).toEqual(["mix"]);
+    expect(inStep("Fold in the cilantro", rows).map((i) => i.id)).toEqual(["mix"]);
+    expect(inStep("Combine the basil and cilantro", rows).map((i) => i.id)).toEqual(["mix"]);
+  });
+  it("puts a combination in the respective drawer when parts fall in different steps", () => {
+    const rows = [mk("mix", "1 cup basil and cilantro")];
+    expect(inStep("Bruise the basil in a mortar", rows).map((i) => i.id)).toEqual(["mix"]);
+    expect(inStep("Scatter the cilantro to serve", rows).map((i) => i.id)).toEqual(["mix"]);
+  });
+  it("shows two rows that share a specific noun when both genuinely are it (combo + standalone cilantro)", () => {
+    const rows = [mk("mix", "1 cup basil and cilantro"), mk("cil", "1/4 cup chopped fresh cilantro")];
+    expect(inStep("Stir in the cilantro", rows).map((i) => i.id).sort()).toEqual(["cil", "mix"]);
+  });
+  it("still does NOT pull a defining-modifier sibling in on a bare noun (spring onions vs onion)", () => {
+    const rows = [mk("o", "1 onion"), mk("s", "3 spring onions")];
+    expect(inStep("Add the diced onion", rows).map((i) => i.id)).toEqual(["o"]);
+  });
+});
+
+describe("matchStep — review round: idiomatic 'and', or-elision, prep-contested heads", () => {
+  const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
+  it("does not split an idiomatic 'and' compound name (bread and butter pickles)", () => {
+    const rows = [mk("p", "1 cup bread and butter pickles")];
+    expect(inStep("Toast the bread until golden", rows)).toHaveLength(0);
+    expect(inStep("Chop the pickles finely", rows).map((i) => i.id)).toEqual(["p"]);
+  });
+  it("does not split 'sweet and sour sauce' either (noun follows the 'and')", () => {
+    const rows = [mk("s", "1/2 cup sweet and sour sauce")];
+    expect(inStep("Add a little sweet paprika", rows)).toHaveLength(0);
+    expect(inStep("Spoon over the sauce", rows).map((i) => i.id)).toEqual(["s"]);
+  });
+  it("still splits a genuine 'and' list joining the final word (salt and pepper)", () => {
+    expect(inStep("Season with salt", [mk("sp", "salt and pepper")]).map((i) => i.id)).toEqual(["sp"]);
+    expect(inStep("Add a grind of pepper", [mk("sp", "salt and pepper")]).map((i) => i.id)).toEqual(["sp"]);
+  });
+  it("does not let an elided 'or' adjective match a bare mention (red or white wine vs red onion)", () => {
+    const rows = [mk("wine", "1 cup red or white wine"), mk("onion", "1 red onion")];
+    expect(inStep("Dice the red onion", rows).map((i) => i.id)).toEqual(["onion"]);
+    expect(inStep("Deglaze with the wine", rows).map((i) => i.id)).toEqual(["wine"]);
+  });
+  it("does not filter a whole single-word ingredient that shares a stem with a modifier (peas vs pea shoots)", () => {
+    const rows = [mk("p", "200g peas"), mk("s", "handful pea shoots")];
+    expect(inStep("Stir in the peas and the pea shoots", rows).map((i) => i.id).sort()).toEqual(["p", "s"]);
+  });
+  it("resolves neither for a bare noun when prep variants contest it (chopped vs diced tomatoes)", () => {
+    const rows = [mk("c", "400g chopped tomatoes"), mk("d", "400g diced tomatoes")];
+    expect(inStep("Add the tomatoes and simmer", rows)).toHaveLength(0);
+    expect(inStep("Add the chopped tomatoes", rows).map((i) => i.id)).toEqual(["c"]);
+  });
+});
