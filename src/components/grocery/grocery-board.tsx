@@ -66,14 +66,14 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
       {activeSel !== ALL_LISTS && <AddItemRow listId={activeSel} />}
 
       {active.length === 0 && done.length === 0 ? (
-        <p className="mt-3 rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-sm text-ink-2">
+        <p className="mt-3 rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-base text-ink-2">
           Nothing here yet. Tap “Add to grocery list” on any recipe, or start a list of your own.
         </p>
       ) : (
         <div className="mt-4 flex flex-col gap-4">
           {grouped.map((group) => (
             <section key={group.category}>
-              <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[12px] font-bold uppercase tracking-[0.05em] text-ink-3">
+              <h3 className="mb-1.5 flex items-center gap-1.5 px-0.5 text-xs font-bold uppercase tracking-[0.05em] text-ink-3">
                 <CategoryIcon category={group.category} size={15} /> {group.category}
               </h3>
               <ul className="overflow-hidden rounded-card border border-line bg-surface">
@@ -89,12 +89,12 @@ export function GroceryBoard({ lists, activeId, items }: GroceryBoardData) {
       {done.length > 0 && (
         <>
           <div className="mb-2 mt-6 flex items-center justify-between px-0.5">
-            <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+            <span className="text-xs font-semibold uppercase tracking-[0.05em] text-ink-3">
               Completed · {done.length}
             </span>
             <button
               onClick={() => startTransition(() => clearCompleted(done.map((i) => i.id)))}
-              className="text-[12px] font-semibold text-basil"
+              className="text-xs font-semibold text-basil"
             >
               Clear completed
             </button>
@@ -187,14 +187,14 @@ function Chip({
             {children}
           </span>
           {!editing && count > 0 && (
-            <span className="absolute -right-1 -top-1 z-10 grid h-[20px] min-w-[20px] place-items-center rounded-full border-2 border-paper bg-basil px-1 text-[10px] font-bold leading-none text-white">
+            <span className="absolute -right-1 -top-1 z-10 grid h-[20px] min-w-[20px] place-items-center rounded-full border-2 border-paper bg-basil px-1 text-2xs font-bold leading-none text-white">
               {count}
             </span>
           )}
         </span>
         <span
           className={clsx(
-            "w-full truncate text-center text-[10px]",
+            "w-full truncate text-center text-2xs",
             selected ? "font-semibold text-ink" : "text-ink-3",
           )}
         >
@@ -303,7 +303,7 @@ function FilterBar({
           <span className="grid h-[52px] w-[52px] place-items-center rounded-full border-2 border-basil bg-basil text-white">
             <CheckIcon size={20} />
           </span>
-          <span className="text-[10px] font-semibold text-ink">Done</span>
+          <span className="text-2xs font-semibold text-ink">Done</span>
         </button>
       ) : adding ? (
         <form
@@ -319,7 +319,7 @@ function FilterBar({
             autoFocus
             aria-label="New list name"
             placeholder="List name"
-            className="w-[130px] rounded-full border border-basil bg-surface px-3.5 py-2 text-[13px] text-ink outline-none"
+            className="w-[130px] rounded-full border border-basil bg-surface px-3.5 py-2 text-sm text-ink outline-none"
           />
         </form>
       ) : (
@@ -331,7 +331,7 @@ function FilterBar({
           <span className="grid h-[52px] w-[52px] place-items-center rounded-full border-2 border-dashed border-line text-ink-2">
             <PlusIcon size={18} />
           </span>
-          <span className="text-[10px] text-ink-3">New</span>
+          <span className="text-2xs text-ink-3">New</span>
         </button>
       )}
     </div>
@@ -372,7 +372,7 @@ function Item({ item, onToggle }: { item: GroceryItem; onToggle: (id: string, c:
       <div className="min-w-0 flex-1">
         <span
           className={clsx(
-            "block text-[14.5px] transition-colors",
+            "block text-base transition-colors",
             item.is_completed ? "text-ink-3 line-through" : "text-ink",
           )}
         >
@@ -416,7 +416,7 @@ function AddItemRow({ listId }: { listId: string }) {
             submit();
           }
         }}
-        className="w-full bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
+        className="w-full bg-transparent text-base text-ink outline-none placeholder:text-ink-3"
       />
       <button
         aria-label="Add item"

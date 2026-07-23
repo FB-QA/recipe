@@ -50,7 +50,7 @@ function RangeBadge({ min, max }: { min: number | null; max: number | null }) {
   // Only a genuine range (min < max). "160–160" is not a range — don't show it.
   if (min === null || max === null || min >= max) return null;
   return (
-    <span className="rounded-full bg-basil-tint px-2 py-0.5 text-[10.5px] font-semibold text-basil" title="Quantity range preserved from the source">
+    <span className="rounded-full bg-basil-tint px-2 py-0.5 text-2xs font-semibold text-basil" title="Quantity range preserved from the source">
       {min}–{max}
     </span>
   );
@@ -83,8 +83,8 @@ export function GroupedIngredients({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between">
-        <span className="text-[13px] font-semibold text-ink-2">Ingredients</span>
-        <button type="button" onClick={addSection} className="text-[12.5px] font-semibold text-basil">
+        <span className="text-sm font-semibold text-ink-2">Ingredients</span>
+        <button type="button" onClick={addSection} className="text-xs font-semibold text-basil">
           + Add section
         </button>
       </div>
@@ -98,7 +98,7 @@ export function GroupedIngredients({
                 value={group.name}
                 onChange={(e) => patchGroup(gi, { name: e.target.value })}
                 placeholder="Section name (e.g. For the sauce)"
-                className="flex-1 rounded-sm border border-transparent bg-transparent px-1 py-1 text-[13.5px] font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-3 focus:border-line focus:bg-surface"
+                className="flex-1 rounded-sm border border-transparent bg-transparent px-1 py-1 text-sm font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-3 focus:border-line focus:bg-surface"
               />
               {groups.length > 1 && (
                 <button type="button" onClick={() => removeSection(gi)} aria-label="Remove section" className="text-ink-3 hover:text-danger">
@@ -115,16 +115,16 @@ export function GroupedIngredients({
                   value={ing.display_text}
                   onChange={(e) => patchIngredient(gi, ii, { display_text: e.target.value })}
                   placeholder="500g chicken thighs"
-                  className={`flex-1 rounded-sm border border-line bg-surface px-3 py-2.5 text-[14.5px] text-ink outline-none placeholder:text-ink-3 focus:border-basil ${ing.optional ? "italic text-ink-2" : ""}`}
+                  className={`flex-1 rounded-sm border border-line bg-surface px-3 py-2.5 text-base text-ink outline-none placeholder:text-ink-3 focus:border-basil ${ing.optional ? "italic text-ink-2" : ""}`}
                 />
                 <RangeBadge min={ing.quantity_min} max={ing.quantity_max} />
                 {ing.alternative_group && (
-                  <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10.5px] font-semibold text-ink-3" title="One of two alternatives from the source">
+                  <span className="rounded-full bg-surface-2 px-2 py-0.5 text-2xs font-semibold text-ink-3" title="One of two alternatives from the source">
                     or
                   </span>
                 )}
                 {ing.optional && (
-                  <span className="rounded-full bg-basil-tint px-2 py-0.5 text-[10.5px] font-semibold text-basil">optional</span>
+                  <span className="rounded-full bg-basil-tint px-2 py-0.5 text-2xs font-semibold text-basil">optional</span>
                 )}
                 <button type="button" onClick={() => removeIngredient(gi, ii)} aria-label="Remove ingredient" className="text-ink-3 hover:text-danger">
                   <CloseIcon size={15} />
@@ -133,7 +133,7 @@ export function GroupedIngredients({
             ))}
           </div>
 
-          <button type="button" onClick={() => addIngredient(gi)} className="mt-2 flex items-center gap-1.5 text-[12.5px] font-semibold text-basil">
+          <button type="button" onClick={() => addIngredient(gi)} className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-basil">
             <PlusIcon size={14} /> Add ingredient
           </button>
         </div>

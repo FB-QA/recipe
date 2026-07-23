@@ -60,11 +60,11 @@ export default async function ShelfPage({
       {recipes.length > 0 ? (
         <RecipeShelf recipes={recipes} />
       ) : q ? (
-        <p className="rounded-card border border-dashed border-line-2 bg-surface px-5 py-10 text-center text-sm text-ink-2">
+        <p className="rounded-card border border-dashed border-line-2 bg-surface px-5 py-10 text-center text-base text-ink-2">
           Nothing matches <span className="font-semibold text-ink">“{q}”</span>. Try a different word.
         </p>
       ) : (
-        <p className="rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-sm text-ink-2">
+        <p className="rounded-card border border-dashed border-line-2 bg-surface px-5 py-9 text-center text-base text-ink-2">
           No favourites yet — tap the heart on a recipe to keep it here.
         </p>
       )}

@@ -55,7 +55,7 @@ function NavLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={clsx(
-        "flex w-16 flex-col items-center gap-[3px] text-[10.5px] font-semibold transition-colors",
+        "flex w-16 flex-col items-center gap-[3px] text-2xs font-semibold transition-colors",
         active ? "text-basil" : "text-ink-3",
       )}
     >

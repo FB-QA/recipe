@@ -8,8 +8,8 @@ export default function NotFound() {
       <div aria-hidden className="mb-4 grid h-[70px] w-[70px] place-items-center rounded-[22px] bg-basil-tint text-basil">
         <SearchIcon size={30} />
       </div>
-      <h1 className="text-[20px] font-bold text-ink">We couldn&apos;t find that</h1>
-      <p className="mt-2 text-[14px] text-ink-2">The recipe or page you were after isn&apos;t here.</p>
+      <h1 className="text-xl font-bold text-ink">We couldn&apos;t find that</h1>
+      <p className="mt-2 text-base text-ink-2">The recipe or page you were after isn&apos;t here.</p>
       <div className="mt-6 w-full max-w-[240px]">
         <Link href="/">
           <Button fullWidth>Back to your kitchen</Button>

@@ -17,8 +17,8 @@ export function EmptyState({
       >
         {icon}
       </div>
-      <h2 className="text-[17px] font-bold tracking-[-0.01em] text-ink">{title}</h2>
-      <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed text-ink-2">{children}</p>
+      <h2 className="text-lg font-bold tracking-[-0.01em] text-ink">{title}</h2>
+      <p className="mx-auto mt-2 max-w-[34ch] text-sm leading-relaxed text-ink-2">{children}</p>
       {action && <div className="mt-[18px] flex justify-center">{action}</div>}
     </div>
   );

@@ -11,22 +11,22 @@ export default function ResetPasswordPage() {
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <p className="text-sm text-ink-2">
+      <p className="text-base text-ink-2">
         Enter your email and we&apos;ll send a link to set a new password.
       </p>
       <TextField label="Email" name="email" type="email" autoComplete="email" placeholder="romy@example.com" required />
       {state?.error && (
-        <p role="alert" className="text-sm font-medium text-danger">
+        <p role="alert" className="text-base font-medium text-danger">
           {state.error}
         </p>
       )}
       {state?.message && (
-        <p role="status" className="rounded-sm bg-basil-tint px-4 py-3 text-sm text-basil">
+        <p role="status" className="rounded-sm bg-basil-tint px-4 py-3 text-base text-basil">
           {state.message}
         </p>
       )}
       <SubmitButton fullWidth>Send reset link</SubmitButton>
-      <p className="pt-1 text-center text-sm">
+      <p className="pt-1 text-center text-base">
         <Link href="/login" className="font-semibold text-basil">
           Back to log in
         </Link>

@@ -17,7 +17,7 @@ export function Spinner({ size = 18, tone = "basil" }: { size?: number; tone?: "
 /** A spinner with a status label — the "reading your recipe…" import row. */
 export function LoadingLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2.5 text-[14px] font-semibold text-basil">
+    <div className="flex items-center gap-2.5 text-base font-semibold text-basil">
       <Spinner />
       <span role="status">{children}</span>
     </div>

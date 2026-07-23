@@ -30,17 +30,17 @@ export default function SignupPage() {
         required
       />
       {state?.error && (
-        <p role="alert" className="text-sm font-medium text-danger">
+        <p role="alert" className="text-base font-medium text-danger">
           {state.error}
         </p>
       )}
       {state?.message && (
-        <p role="status" className="rounded-sm bg-basil-tint px-4 py-3 text-sm text-basil">
+        <p role="status" className="rounded-sm bg-basil-tint px-4 py-3 text-base text-basil">
           {state.message}
         </p>
       )}
       <SubmitButton fullWidth>Create account</SubmitButton>
-      <p className="pt-1 text-center text-sm text-ink-2">
+      <p className="pt-1 text-center text-base text-ink-2">
         Already have an account?{" "}
         <Link href="/login" className="font-semibold text-basil">
           Log in

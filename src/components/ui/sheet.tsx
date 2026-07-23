@@ -101,7 +101,7 @@ export function Sheet({
                 </button>
               )}
               {title && (
-                <h2 className="text-[19px] font-extrabold tracking-[-0.01em] text-ink">{title}</h2>
+                <h2 className="text-xl font-extrabold tracking-[-0.01em] text-ink">{title}</h2>
               )}
               {headerActions && <div className="ml-auto flex-none">{headerActions}</div>}
             </div>

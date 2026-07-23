@@ -87,7 +87,7 @@ function PasteForm({
       <div className="rounded-card border border-line bg-surface p-4 shadow-[var(--shadow)]">
         <div className="mb-3 flex items-center gap-2 text-basil">
           {isInsta ? <InstagramIcon size={20} /> : <GlobeIcon size={20} />}
-          <span className="text-[13px] font-semibold text-ink-2">
+          <span className="text-sm font-semibold text-ink-2">
             {isInsta ? "Import from Instagram" : "Import from a website"}
           </span>
         </div>
@@ -100,13 +100,13 @@ function PasteForm({
           aria-label="Recipe link"
           onChange={onEdit}
           placeholder={isInsta ? "Paste a Reel or post link" : "Paste a recipe URL"}
-          className="w-full rounded-sm border border-line bg-surface-2 px-4 py-3.5 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+          className="w-full rounded-sm border border-line bg-surface-2 px-4 py-3.5 text-base text-ink outline-none placeholder:text-ink-3 focus:border-basil"
         />
       </div>
       <Button type="submit" fullWidth>
         Get the recipe
       </Button>
-      <p className="text-center text-[12px] leading-relaxed text-ink-3">
+      <p className="text-center text-xs leading-relaxed text-ink-3">
         Deterministic first, AI only when needed — most imports cost a fraction of a cent.
       </p>
     </form>
@@ -192,7 +192,7 @@ function Review({
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-basil-tint px-3 py-1.5 text-[12px] font-semibold text-basil">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-basil-tint px-3 py-1.5 text-xs font-semibold text-basil">
           {source === "instagram" ? <InstagramIcon size={14} /> : <GlobeIcon size={14} />}
           {creatorLabel}
           {cached ? " · from your history" : ""}
@@ -231,8 +231,8 @@ function AlreadyImported({
     <>
       <CoverImage url={coverUrl} title={title} className="h-[56px] w-[56px] flex-none rounded-xl" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-bold text-ink">{title}</span>
-        <span className="block text-[12.5px] font-semibold text-basil">Open it</span>
+        <span className="block truncate text-base font-bold text-ink">{title}</span>
+        <span className="block text-xs font-semibold text-basil">Open it</span>
       </span>
     </>
   );
@@ -240,7 +240,7 @@ function AlreadyImported({
     "flex items-center gap-3.5 rounded-card border border-line bg-surface p-3 text-left transition-colors hover:border-basil hover:bg-basil-tint";
   return (
     <div className="flex flex-col gap-3.5 pb-1">
-      <p className="flex items-center gap-2 rounded-sm bg-basil-tint px-4 py-3 text-[13.5px] font-medium text-basil">
+      <p className="flex items-center gap-2 rounded-sm bg-basil-tint px-4 py-3 text-sm font-medium text-basil">
         <CheckIcon size={16} /> You&apos;ve already imported this recipe.
       </p>
       {onNavigate ? (

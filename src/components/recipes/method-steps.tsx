@@ -75,12 +75,12 @@ export function MethodSteps({
             system === "original" ? step.instruction : convertInstructionTemps(step.instruction, system);
           const body = (
             <>
-              <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-basil-tint text-[14px] font-bold text-basil">
+              <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-basil-tint text-base font-bold text-basil">
                 {i + 1}
               </span>
               <div className="min-w-0 flex-1 pt-0.5">
-                {step.title && <p className="mb-0.5 text-[16px] font-bold text-ink">{step.title}</p>}
-                <p className="text-[16px] leading-relaxed text-ink-2">
+                {step.title && <p className="mb-0.5 text-base font-bold text-ink">{step.title}</p>}
+                <p className="text-base leading-relaxed text-ink-2">
                   {highlightStep(instruction, step.terms).map((seg, j) =>
                     seg.bold ? (
                       <strong key={j} className="font-semibold text-ink">
@@ -92,7 +92,7 @@ export function MethodSteps({
                   )}
                 </p>
                 {tappable && (
-                  <span className="mt-1.5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-basil">
+                  <span className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-basil">
                     <ListIcon size={13} />
                     {step.ingredients.length} ingredient{step.ingredients.length === 1 ? "" : "s"} · tap to view
                   </span>
@@ -141,7 +141,7 @@ export function MethodSteps({
               return (
                 <li
                   key={ing.id}
-                  className="flex items-center gap-3 border-b border-line-2 py-2.5 text-[15px] text-ink last:border-b-0"
+                  className="flex items-center gap-3 border-b border-line-2 py-2.5 text-base text-ink last:border-b-0"
                 >
                   <FoodImage text={ing.name ?? ing.display_text} size={24} className="flex-none text-ink-3" />
                   <span>

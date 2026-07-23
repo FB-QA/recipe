@@ -79,19 +79,19 @@ export function PasteFlow({ onSaved, onNavigate }: { onSaved?: (id: string) => v
           keyRef.current = crypto.randomUUID();
         }}
         placeholder="Paste a recipe here — from ChatGPT, a blog, a note, anywhere. Any format works."
-        className={`w-full rounded-card border bg-surface-2 px-4 py-3.5 text-[15px] leading-relaxed text-ink outline-none placeholder:text-ink-3 focus:border-basil ${
+        className={`w-full rounded-card border bg-surface-2 px-4 py-3.5 text-base leading-relaxed text-ink outline-none placeholder:text-ink-3 focus:border-basil ${
           validationError ? "border-heart" : "border-line"
         }`}
       />
       {validationError && (
-        <p className="text-center text-[12.5px] font-medium text-heart">
+        <p className="text-center text-xs font-medium text-heart">
           That&apos;s a little short to read as a recipe — paste the full text and try again.
         </p>
       )}
       <Button type="submit" fullWidth>
         Extract the recipe
       </Button>
-      <p className="text-center text-[12px] leading-relaxed text-ink-3">
+      <p className="text-center text-xs leading-relaxed text-ink-3">
         No special format needed — I&apos;ll pull out the ingredients and steps.
       </p>
     </form>

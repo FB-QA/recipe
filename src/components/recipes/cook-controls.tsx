@@ -52,7 +52,7 @@ export function CookControls({
           </button>
           {/* Fixed width + tabular figures so "1 portion" and "50 portions" occupy
               the same space — the stepper never resizes, so nothing shifts. */}
-          <span className="w-[88px] text-center text-[13px] font-semibold tabular-nums text-ink">
+          <span className="w-[88px] text-center text-sm font-semibold tabular-nums text-ink">
             {formatServings(target)}
           </span>
           <button

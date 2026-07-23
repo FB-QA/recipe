@@ -10,7 +10,7 @@ export default function UpdatePasswordPage() {
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <p className="text-sm text-ink-2">Choose a new password for your account.</p>
+      <p className="text-base text-ink-2">Choose a new password for your account.</p>
       <TextField
         label="New password"
         name="password"
@@ -20,7 +20,7 @@ export default function UpdatePasswordPage() {
         required
       />
       {state?.error && (
-        <p role="alert" className="text-sm font-medium text-danger">
+        <p role="alert" className="text-base font-medium text-danger">
           {state.error}
         </p>
       )}

@@ -15,8 +15,8 @@ export default function Error({ error, reset }: { error: Error; reset: () => voi
       <div aria-hidden className="mb-4 grid h-[70px] w-[70px] place-items-center rounded-[22px] bg-basil-tint text-basil">
         <AlertIcon size={30} />
       </div>
-      <h1 className="text-[20px] font-bold text-ink">That didn&apos;t go to plan</h1>
-      <p className="mt-2 text-[14px] text-ink-2">
+      <h1 className="text-xl font-bold text-ink">That didn&apos;t go to plan</h1>
+      <p className="mt-2 text-base text-ink-2">
         Something went wrong our end. Give it another go.
       </p>
       <div className="mt-6 w-full max-w-[240px]">

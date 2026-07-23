@@ -71,27 +71,27 @@ export default async function RecipeDetailPage({
             <PencilIcon size={16} />
           </Link>
         </div>
-        <h1 className="relative text-[26px] font-extrabold leading-[1.12] tracking-[-0.02em] text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.35)] [text-wrap:balance]">
+        <h1 className="relative text-3xl font-extrabold leading-[1.12] tracking-[-0.02em] text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.35)] [text-wrap:balance]">
           {recipe.title}
         </h1>
       </CoverImage>
 
       {recipe.source_handle && (
-        <p className="mt-3 text-[13px] font-semibold text-basil">
+        <p className="mt-3 text-sm font-semibold text-basil">
           via {attributionLabel(recipe.source_handle, { at: recipe.source_type === "instagram" })}
         </p>
       )}
 
       {recipe.description && (
-        <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{recipe.description}</p>
+        <p className="mt-4 text-base leading-relaxed text-ink-2">{recipe.description}</p>
       )}
 
       {metrics.length > 0 && (
         <div className="mt-4 flex gap-2">
           {metrics.map((m) => (
             <div key={m.l} className="flex-1 rounded-[14px] border border-line bg-surface px-2 py-3 text-center">
-              <div className="text-[15px] font-bold">{m.n}</div>
-              <div className="mt-0.5 text-[10.5px] uppercase tracking-[0.05em] text-ink-3">{m.l}</div>
+              <div className="text-base font-bold">{m.n}</div>
+              <div className="mt-0.5 text-2xs uppercase tracking-[0.05em] text-ink-3">{m.l}</div>
             </div>
           ))}
         </div>
@@ -113,7 +113,7 @@ export default async function RecipeDetailPage({
           recipe.nutrition_per_serving === false ? "Nutrition (whole recipe)" : "Nutrition per serving";
         return (
           <div className="mt-3">
-            <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.04em] text-ink-3">
+            <p className="mb-1.5 text-2xs font-bold uppercase tracking-[0.04em] text-ink-3">
               {nutritionLabel}
             </p>
             <div className="grid grid-cols-3 gap-2">
@@ -122,8 +122,8 @@ export default async function RecipeDetailPage({
                   key={n.l}
                   className="rounded-[14px] border border-line bg-surface px-2 py-3 text-center"
                 >
-                  <div className="text-[15px] font-bold">{n.v}</div>
-                  <div className="mt-0.5 text-[10.5px] uppercase tracking-[0.05em] text-ink-3">{n.l}</div>
+                  <div className="text-base font-bold">{n.v}</div>
+                  <div className="mt-0.5 text-2xs uppercase tracking-[0.05em] text-ink-3">{n.l}</div>
                 </div>
               ))}
             </div>
@@ -169,7 +169,7 @@ export default async function RecipeDetailPage({
           <SectionHeading>Tips</SectionHeading>
           <div className="flex flex-col gap-2">
             {recipe.tips.map((tip) => (
-              <p key={tip.id} className="rounded-[14px] bg-basil-tint px-4 py-3.5 text-[13.5px] leading-relaxed text-ink-2">
+              <p key={tip.id} className="rounded-[14px] bg-basil-tint px-4 py-3.5 text-sm leading-relaxed text-ink-2">
                 {tip.text}
               </p>
             ))}
@@ -182,7 +182,7 @@ export default async function RecipeDetailPage({
           href={recipe.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-5 flex items-center justify-center gap-1.5 text-[13px] font-semibold text-basil"
+          className="mt-5 flex items-center justify-center gap-1.5 text-sm font-semibold text-basil"
         >
           <PlatformIcon url={recipe.source_url} /> View the original
         </a>
@@ -197,7 +197,7 @@ export default async function RecipeDetailPage({
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-3 mt-5 text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">{children}</h2>
+    <h2 className="mb-3 mt-5 text-sm font-bold uppercase tracking-[0.04em] text-ink-3">{children}</h2>
   );
 }
 

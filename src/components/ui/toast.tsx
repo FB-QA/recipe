@@ -50,7 +50,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.96 }}
                   transition={springSoft}
-                  className="pointer-events-auto flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-[13.5px] font-semibold text-white shadow-[var(--shadow)]"
+                  className="pointer-events-auto flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow)]"
                 >
                   <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-basil text-white">
                     <CheckIcon size={12} />

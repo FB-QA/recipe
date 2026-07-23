@@ -41,7 +41,7 @@ export function MeasurementToggle({
 }) {
   const display = labelFor(value);
   return (
-    <label className="relative inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-line bg-surface pl-3 pr-2.5 text-[13px] font-semibold text-ink">
+    <label className="relative inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-line bg-surface pl-3 pr-2.5 text-sm font-semibold text-ink">
       <span className="sr-only">Measurement units</span>
       <ConvertIcon size={15} className="flex-none text-ink-3" />
       {/* Fixed-width label box: every possible label sits invisibly in the same

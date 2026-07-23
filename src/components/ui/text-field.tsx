@@ -23,7 +23,7 @@ export function TextField({
     <div className="flex flex-col gap-1.5">
       <label
         htmlFor={fieldId}
-        className="text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3"
+        className="text-2xs font-semibold uppercase tracking-[0.05em] text-ink-3"
       >
         {label}
       </label>
@@ -32,7 +32,7 @@ export function TextField({
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         className={clsx(
-          "rounded-sm border bg-surface-2 px-4 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-ink-3",
+          "rounded-sm border bg-surface-2 px-4 py-3 text-base text-ink outline-none transition-colors placeholder:text-ink-3",
           error ? "border-danger" : "border-line focus:border-basil",
           className,
         )}

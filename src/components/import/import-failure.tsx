@@ -43,7 +43,7 @@ export function ImportFailure({
       <div aria-hidden className="mx-auto mb-4 grid h-[64px] w-[64px] place-items-center rounded-[20px] bg-basil-tint text-basil">
         <AlertIcon size={28} />
       </div>
-      <p role="alert" className="mx-auto max-w-[36ch] text-[14.5px] font-medium leading-relaxed text-ink-2">
+      <p role="alert" className="mx-auto max-w-[36ch] text-base font-medium leading-relaxed text-ink-2">
         {message}
       </p>
 
@@ -77,7 +77,7 @@ export function ImportFailure({
             }
             // upload_screenshots — described only this story.
             return (
-              <p key={kind} className="text-[12.5px] leading-relaxed text-ink-3">
+              <p key={kind} className="text-xs leading-relaxed text-ink-3">
                 {label}: {hint}
               </p>
             );

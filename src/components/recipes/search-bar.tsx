@@ -32,7 +32,7 @@ export function SearchBar({ initial }: { initial: string }) {
         placeholder="Search your recipes"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="w-full bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
+        className="w-full bg-transparent text-base text-ink outline-none placeholder:text-ink-3"
       />
     </div>
   );

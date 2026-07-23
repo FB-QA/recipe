@@ -50,7 +50,7 @@ export function ThemeToggle() {
           aria-checked={mode === m}
           onClick={() => apply(m)}
           className={clsx(
-            "rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors",
+            "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
             mode === m ? "bg-basil text-white" : "text-ink-2",
           )}
         >

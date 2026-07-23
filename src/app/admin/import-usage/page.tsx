@@ -45,8 +45,8 @@ export default async function ImportUsagePage({
   return (
     <main className="mx-auto max-w-[900px] px-4 py-8">
       <header className="mb-6">
-        <h1 className="text-[22px] font-bold text-ink">Import usage</h1>
-        <p className="text-[13px] text-ink-3">Cost and resolver performance across recipe imports.</p>
+        <h1 className="text-2xl font-bold text-ink">Import usage</h1>
+        <p className="text-sm text-ink-3">Cost and resolver performance across recipe imports.</p>
       </header>
 
       {/* Cost windows */}
@@ -74,7 +74,7 @@ export default async function ImportUsagePage({
         <Select name="provider" label="Provider" value={sp.provider} options={options.providers} />
         <Select name="model" label="Model" value={sp.model} options={options.models} />
         <input type="hidden" name="days" value={String(sinceDays)} />
-        <button type="submit" className="rounded-sm bg-basil px-3 py-1.5 text-[12px] font-semibold text-white">
+        <button type="submit" className="rounded-sm bg-basil px-3 py-1.5 text-xs font-semibold text-white">
           Apply
         </button>
       </form>
@@ -132,8 +132,8 @@ export default async function ImportUsagePage({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-card border border-line bg-surface p-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.03em] text-ink-3">{label}</div>
-      <div className="mt-1 text-[19px] font-bold text-ink">{value}</div>
+      <div className="text-2xs font-semibold uppercase tracking-[0.03em] text-ink-3">{label}</div>
+      <div className="mt-1 text-xl font-bold text-ink">{value}</div>
     </div>
   );
 }
@@ -141,7 +141,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-4 overflow-hidden rounded-card border border-line bg-surface">
-      <h2 className="border-b border-line-2 px-4 py-2.5 text-[12px] font-bold uppercase tracking-[0.03em] text-ink-2">{title}</h2>
+      <h2 className="border-b border-line-2 px-4 py-2.5 text-xs font-bold uppercase tracking-[0.03em] text-ink-2">{title}</h2>
       <div>{children}</div>
     </section>
   );
@@ -149,7 +149,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function Row({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-line-2 px-4 py-2.5 text-[13.5px] last:border-b-0">
+    <div className="flex items-center justify-between border-b border-line-2 px-4 py-2.5 text-sm last:border-b-0">
       <span className="text-ink-2">{k}</span>
       <span className="font-semibold text-ink">{v}</span>
     </div>
@@ -158,9 +158,9 @@ function Row({ k, v }: { k: string; v: string }) {
 
 function Select({ name, label, value, options }: { name: string; label: string; value?: string; options: string[] }) {
   return (
-    <label className="flex flex-col gap-0.5 text-[11px] font-semibold text-ink-3">
+    <label className="flex flex-col gap-0.5 text-2xs font-semibold text-ink-3">
       {label}
-      <select name={name} defaultValue={value ?? ""} className="rounded-sm border border-line bg-surface-2 px-2 py-1 text-[12px] text-ink">
+      <select name={name} defaultValue={value ?? ""} className="rounded-sm border border-line bg-surface-2 px-2 py-1 text-xs text-ink">
         <option value="">All</option>
         {options.map((o) => (
           <option key={o} value={o}>
@@ -174,7 +174,7 @@ function Select({ name, label, value, options }: { name: string; label: string; 
 
 function FilterWindow({ current, params }: { current: number; params: Record<string, string | undefined> }) {
   return (
-    <div className="flex flex-col gap-0.5 text-[11px] font-semibold text-ink-3">
+    <div className="flex flex-col gap-0.5 text-2xs font-semibold text-ink-3">
       Window
       <div className="flex overflow-hidden rounded-sm border border-line">
         {WINDOWS.map((w) => {
@@ -184,7 +184,7 @@ function FilterWindow({ current, params }: { current: number; params: Record<str
             <a
               key={w.days}
               href={`?${qs}`}
-              className={`px-2.5 py-1 text-[12px] ${active ? "bg-basil text-white" : "bg-surface-2 text-ink-2"}`}
+              className={`px-2.5 py-1 text-xs ${active ? "bg-basil text-white" : "bg-surface-2 text-ink-2"}`}
             >
               {w.label}
             </a>

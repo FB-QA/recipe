@@ -16,7 +16,7 @@ export function FilterChips({ active, query }: { active: string; query?: string 
           href={chip.href}
           aria-current={active === chip.key ? "true" : undefined}
           className={clsx(
-            "flex-none rounded-full border px-3.5 py-[7px] text-[13px] font-semibold transition-colors",
+            "flex-none rounded-full border px-3.5 py-[7px] text-sm font-semibold transition-colors",
             active === chip.key
               ? "border-basil bg-basil text-white"
               : "border-line bg-surface text-ink-2",

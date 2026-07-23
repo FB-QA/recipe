@@ -29,12 +29,12 @@ export function LoginForm({ next }: { next: string }) {
         required
       />
       {state?.error && (
-        <p role="alert" className="text-sm font-medium text-danger">
+        <p role="alert" className="text-base font-medium text-danger">
           {state.error}
         </p>
       )}
       <SubmitButton fullWidth>Log in</SubmitButton>
-      <div className="flex items-center justify-between pt-1 text-sm">
+      <div className="flex items-center justify-between pt-1 text-base">
         <Link href="/reset-password" className="font-semibold text-basil">
           Forgot password?
         </Link>

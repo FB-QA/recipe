@@ -211,7 +211,7 @@ export function RecipeForm({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={displayed} alt="Cover preview" className="h-full w-full object-cover" />
           ) : (
-            <span className="text-[13px] text-ink-3">Add a photo (optional)</span>
+            <span className="text-sm text-ink-3">Add a photo (optional)</span>
           )}
           {/* Deferred cover enrichment in flight: a subtle shimmer + spinner over the
               composite thumbnail while the clean cover is fetched (spec §4). */}
@@ -227,7 +227,7 @@ export function RecipeForm({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-sm"
+              className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-ink shadow-sm"
             >
               {displayed ? "Change" : "Add photo"}
             </button>
@@ -241,7 +241,7 @@ export function RecipeForm({
                   setCoverAction("remove");
                   if (fileRef.current) fileRef.current.value = "";
                 }}
-                className="rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-danger shadow-sm"
+                className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-danger shadow-sm"
               >
                 Remove
               </button>
@@ -294,7 +294,7 @@ export function RecipeForm({
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
           placeholder="A line about this recipe (optional)"
-          className="w-full rounded-sm border border-line bg-surface-2 px-4 py-3 text-[15px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+          className="w-full rounded-sm border border-line bg-surface-2 px-4 py-3 text-base text-ink outline-none placeholder:text-ink-3 focus:border-basil"
         />
       </div>
 
@@ -337,7 +337,7 @@ export function RecipeForm({
       />
 
       {formError && (
-        <p role="alert" className="text-sm font-medium text-danger">
+        <p role="alert" className="text-base font-medium text-danger">
           {formError}
         </p>
       )}
@@ -351,7 +351,7 @@ export function RecipeForm({
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+    <div className="mb-1.5 text-2xs font-semibold uppercase tracking-[0.05em] text-ink-3">
       {children}
     </div>
   );
@@ -385,12 +385,12 @@ function MethodEditor({
       <div className="flex flex-col gap-2">
         {list.map((step, i) => (
           <div key={i} className="flex items-start gap-2">
-            <span className="mt-2.5 grid h-6 w-6 flex-none place-items-center rounded-full bg-basil-tint text-[12px] font-bold text-basil">
+            <span className="mt-2.5 grid h-6 w-6 flex-none place-items-center rounded-full bg-basil-tint text-xs font-bold text-basil">
               {i + 1}
             </span>
             <div className="flex w-full flex-col gap-1">
               {step.title && (
-                <span className="text-[12px] font-semibold text-ink-2">{step.title}</span>
+                <span className="text-xs font-semibold text-ink-2">{step.title}</span>
               )}
               <textarea
                 value={step.instruction}
@@ -398,7 +398,7 @@ function MethodEditor({
                 onChange={(e) => update(i, e.target.value)}
                 placeholder="Describe this step…"
                 rows={2}
-                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-ink-3 focus:border-basil"
               />
             </div>
             <button
@@ -415,7 +415,7 @@ function MethodEditor({
       <button
         type="button"
         onClick={add}
-        className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-basil"
+        className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-basil"
       >
         <PlusIcon size={16} /> Add step
       </button>
@@ -458,7 +458,7 @@ function DynamicList({
         {list.map((value, i) => (
           <div key={i} className="flex items-start gap-2">
             {numbered && (
-              <span className="mt-2.5 grid h-6 w-6 flex-none place-items-center rounded-full bg-basil-tint text-[12px] font-bold text-basil">
+              <span className="mt-2.5 grid h-6 w-6 flex-none place-items-center rounded-full bg-basil-tint text-xs font-bold text-basil">
                 {i + 1}
               </span>
             )}
@@ -469,7 +469,7 @@ function DynamicList({
                 onChange={(e) => update(i, e.target.value)}
                 placeholder={placeholder}
                 rows={2}
-                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-ink-3 focus:border-basil"
               />
             ) : (
               <input
@@ -477,7 +477,7 @@ function DynamicList({
                 aria-label={`${label} ${i + 1}`}
                 onChange={(e) => update(i, e.target.value)}
                 placeholder={placeholder}
-                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-basil"
+                className="w-full rounded-sm border border-line bg-surface-2 px-3.5 py-2.5 text-base text-ink outline-none placeholder:text-ink-3 focus:border-basil"
               />
             )}
             <button
@@ -494,7 +494,7 @@ function DynamicList({
       <button
         type="button"
         onClick={add}
-        className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-basil"
+        className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-basil"
       >
         <PlusIcon size={16} /> {addLabel}
       </button>

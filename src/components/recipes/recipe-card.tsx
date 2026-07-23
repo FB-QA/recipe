@@ -31,7 +31,7 @@ export const CARD_COVER_H = "h-[118px]";
  * reserves the identical box — otherwise a single-line card visibly grows when the
  * placeholder resolves, the very reflow the shared-class pattern exists to prevent.
  */
-export const CARD_TITLE_BOX = "min-h-[2lh] text-[14.5px] leading-tight";
+export const CARD_TITLE_BOX = "min-h-[2lh] text-base leading-tight";
 
 /**
  * The title clamp and its reserved box are one decision: `line-clamp-2` gives the
@@ -79,7 +79,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
           </span>
         )}
         {(recipe.source_handle || recipe.source_type !== "manual") && (
-          <span className="relative max-w-[85%] truncate rounded-full bg-[rgba(20,28,22,0.55)] px-2 py-[3px] text-[10.5px] font-bold tracking-[0.03em] text-white backdrop-blur-sm">
+          <span className="relative max-w-[85%] truncate rounded-full bg-[rgba(20,28,22,0.55)] px-2 py-[3px] text-2xs font-bold tracking-[0.03em] text-white backdrop-blur-sm">
             {recipe.source_handle
               ? attributionLabel(recipe.source_handle, { at: recipe.source_type === "instagram" })
               : sourceLabel[recipe.source_type]}

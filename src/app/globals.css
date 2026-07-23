@@ -28,6 +28,12 @@
   --radius-lg: 26px;
   --scrim: rgba(10, 14, 11, 0.42); /* modal backdrop, fixed across themes */
   --width-app: 480px; /* the app's max content width */
+
+  /* Type scale — ONE lever. Every font size is a ratio of --fs-base, so bumping
+     the base rescales the whole app in proportion; the typeface is --font-sans.
+     Body is 16px, in line with the method. Never hardcode a px size — reach for a
+     text-* token (text-2xs … text-3xl). */
+  --fs-base: 16px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -104,6 +110,17 @@
   --radius-sm: var(--radius-sm);
   --radius-lg: var(--radius-lg);
   --font-sans: var(--font-geist-sans);
+
+  /* Semantic type scale (font-size only — line-height stays with the leading-*
+     utilities). Each step is a fixed ratio of --fs-base. */
+  --text-2xs: calc(var(--fs-base) * 0.75); /* 12px */
+  --text-xs: calc(var(--fs-base) * 0.8125); /* 13px */
+  --text-sm: calc(var(--fs-base) * 0.875); /* 14px */
+  --text-base: var(--fs-base); /* 16px */
+  --text-lg: calc(var(--fs-base) * 1.125); /* 18px */
+  --text-xl: calc(var(--fs-base) * 1.25); /* 20px */
+  --text-2xl: calc(var(--fs-base) * 1.5); /* 24px */
+  --text-3xl: calc(var(--fs-base) * 1.75); /* 28px */
 }
 
 html {

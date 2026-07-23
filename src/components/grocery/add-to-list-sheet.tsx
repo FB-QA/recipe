@@ -77,13 +77,13 @@ export function AddToListSheet({
       {/* Sheet stays mounted (not an early return) so it can animate closed. */}
       <Sheet open={open} onClose={() => setOpen(false)} title="Add to grocery list">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-[12px] font-semibold uppercase tracking-[0.05em] text-ink-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.05em] text-ink-3">
             {allOnList ? "All on your list" : `${selected.size} of ${selectable.length} selected`}
           </span>
           {!allOnList && (
             <button
               onClick={() => setSelected(allSelected ? new Set() : new Set(selectable.map((i) => i.id)))}
-              className="text-[13px] font-semibold text-basil"
+              className="text-sm font-semibold text-basil"
             >
               {allSelected ? "Select none" : "Select all"}
             </button>
@@ -115,11 +115,11 @@ export function AddToListSheet({
                     size={22}
                     className={clsx("flex-none text-ink-3", already && "opacity-50")}
                   />
-                  <span className={clsx("flex-1 text-[14px]", already ? "text-ink-3" : "text-ink")}>
+                  <span className={clsx("flex-1 text-base", already ? "text-ink-3" : "text-ink")}>
                     {scaleIngredientText(ing.display_text, scale)}
                   </span>
                   {already && (
-                    <span className="flex-none text-[11px] font-semibold uppercase tracking-[0.04em] text-basil">
+                    <span className="flex-none text-2xs font-semibold uppercase tracking-[0.04em] text-basil">
                       On list
                     </span>
                   )}
@@ -131,7 +131,7 @@ export function AddToListSheet({
 
         <div className="mt-4">
           {allOnList ? (
-            <p className="rounded-sm bg-basil-tint px-4 py-3 text-center text-[13.5px] font-medium text-basil">
+            <p className="rounded-sm bg-basil-tint px-4 py-3 text-center text-sm font-medium text-basil">
               Every ingredient is already on your list.
             </p>
           ) : (

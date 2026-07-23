@@ -31,8 +31,8 @@ function MenuRow({
         <Icon size={21} />
       </span>
       <span>
-        <span className="block text-[15px] font-bold text-ink">{title}</span>
-        <span className="block text-[12.5px] text-ink-3">{sub}</span>
+        <span className="block text-base font-bold text-ink">{title}</span>
+        <span className="block text-xs text-ink-3">{sub}</span>
       </span>
     </button>
   );

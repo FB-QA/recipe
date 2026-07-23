@@ -66,7 +66,7 @@ export function CookSections({
       {steps.length > 0 && (
         <section>
           <div className="mb-3 mt-5 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-[13px] font-bold uppercase tracking-[0.04em] text-ink-3">Method</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.04em] text-ink-3">Method</h2>
             {/* Method-only recipes (no ingredient list) still need the selector so
                 their explicit oven temperatures can convert. */}
             {ingredients.length === 0 && <MeasurementToggle value={system} onChange={setSystem} />}
