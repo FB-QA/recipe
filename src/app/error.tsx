@@ -3,12 +3,31 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertIcon } from "@/components/icons";
+import { Spinner } from "@/components/ui/spinner";
+import { canRecoveryReload, guardedReload, isDeployError, updateSeen } from "@/lib/version/version";
 
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
+  // Treat it as deploy-skew if the message looks like one OR we've already sniffed a
+  // newer version off the wire — the latter catches Server-Action mismatches without
+  // depending on their exact wording.
+  const deploy = isDeployError(error) || updateSeen();
+  // A stale client after a deploy recovers onto the new build with one reload instead of
+  // a dead-end screen. Only show the recovery spinner if a reload will actually fire —
+  // if we reloaded moments ago (persistent error) or can't guard against a loop, show
+  // the real error instead of spinning forever.
+  const recovering = deploy && canRecoveryReload();
   useEffect(() => {
-    // Hook point for an error monitor (e.g. Sentry) at deploy time.
-    console.error(error);
-  }, [error]);
+    if (deploy && canRecoveryReload()) guardedReload();
+    else if (!deploy) console.error(error); // hook point for an error monitor
+  }, [error, deploy]);
+
+  if (recovering) {
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-[440px] flex-col items-center justify-center px-6 text-center">
+        <Spinner />
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-[440px] flex-col items-center justify-center px-6 text-center">

@@ -1,6 +1,25 @@
 "use client";
 
-export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
+import { useEffect } from "react";
+import { canRecoveryReload, guardedReload, isDeployError, updateSeen } from "@/lib/version/version";
+
+export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
+  const deploy = isDeployError(error) || updateSeen();
+  // Root-level deploy error → recover onto the new build with one guarded reload. Only
+  // spin if a reload will actually fire (not recently reloaded, and loop-guardable).
+  const recovering = deploy && canRecoveryReload();
+  useEffect(() => {
+    if (deploy && canRecoveryReload()) guardedReload();
+  }, [error, deploy]);
+
+  if (recovering) {
+    return (
+      <html lang="en">
+        <body style={{ minHeight: "100dvh", background: "#f1f2ec" }} />
+      </html>
+    );
+  }
+
   return (
     <html lang="en">
       <body
