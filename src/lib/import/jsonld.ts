@@ -1,3 +1,4 @@
+import { decodeEntities } from "./entities";
 import type { AiExtractedRecipe, ExtractedIngredient, ExtractedNutrition, ExtractedRecipeStep } from "./schema";
 import { parseWprmIngredientGroups } from "./wprm";
 import { parseSectionedIngredientGroups } from "./ingredient-sections";
@@ -25,7 +26,10 @@ function asArray<T>(v: T | T[] | undefined | null): T[] {
 }
 
 function firstString(v: unknown): string | null {
-  if (typeof v === "string") return v.trim() || null;
+  // Decode HTML entities the page encoded inside its JSON-LD ("don&#39;t" → "don't",
+  // "AT&amp;T" → "AT&T"); this is the chokepoint for title, description, nutrition
+  // and HowToStep text. Correct for image URLs too (`&amp;` → `&`).
+  if (typeof v === "string") return decodeEntities(v).trim() || null;
   if (Array.isArray(v)) {
     for (const item of v) {
       const s = firstString(item);
@@ -137,7 +141,9 @@ function mapInstructions(raw: unknown): string[] {
   const out: string[] = [];
   for (const item of asArray(raw)) {
     if (typeof item === "string") {
-      expandInstruction(item).forEach((s) => out.push(s));
+      // A raw string instruction skips firstString, so decode entities here; the
+      // object path below goes through firstString, which already decodes.
+      expandInstruction(decodeEntities(item)).forEach((s) => out.push(s));
     } else if (item && typeof item === "object") {
       const obj = item as JsonLdNode;
       if (obj["@type"] && String(obj["@type"]).toLowerCase() === "howtosection") {
@@ -285,7 +291,7 @@ export function extractRecipeFromHtml(html: string): AiExtractedRecipe | null {
 
     const title = firstString(node.name);
     const ingredients = asArray(node.recipeIngredient)
-      .map((i) => (typeof i === "string" ? i.trim() : ""))
+      .map((i) => (typeof i === "string" ? decodeEntities(i).trim() : ""))
       .filter(Boolean);
     const instructions = mapInstructions(node.recipeInstructions);
 

@@ -128,4 +128,24 @@ describe("parseSectionedIngredientGroups", () => {
   it("returns null when there are no headed lists at all", () => {
     expect(parseSectionedIngredientGroups("<div>just prose, no lists</div>", ["a", "b"])).toBeNull();
   });
+
+  it("does not treat inline markup inside a PRIOR list item as the next list's heading (AC3)", () => {
+    // A <strong> wrapping a whole item in the first list must not become the second
+    // list's heading, or a flat recipe fabricates two sections (Codex finding).
+    const flat = ["1 cup flour", "1 egg"];
+    const html = `<h2>Ingredients</h2><ul><li><strong>1 cup flour</strong></li></ul><ul><li>1 egg</li></ul>`;
+    expect(parseSectionedIngredientGroups(html, flat)).toBeNull();
+  });
+
+  it("keeps Unicode-fraction quantities distinct so the right amount lands in each section", () => {
+    // ½ and ¼ must not collapse to the same match key, or emit pulls from a shared pool
+    // in flat order and swaps the amounts across sections (Codex finding). Flat lists ½
+    // before ¼, but the sections present ¼ first — exposes the ordering bug.
+    const flat = ["½ cup cream", "1 tsp sugar", "¼ cup cream", "1 tsp salt"];
+    const html = section("Sauce", ["¼ cup cream", "1 tsp salt"]) + section("Whipped", ["½ cup cream", "1 tsp sugar"]);
+    expect(parseSectionedIngredientGroups(html, flat)).toEqual([
+      { name: "Sauce", ingredients: ["¼ cup cream", "1 tsp salt"] },
+      { name: "Whipped", ingredients: ["½ cup cream", "1 tsp sugar"] },
+    ]);
+  });
 });

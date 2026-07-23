@@ -35,6 +35,30 @@ describe("durationToMinutes", () => {
 });
 
 describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zero AI)", () => {
+  it("decodes HTML entities the page encoded in its JSON-LD (title, description, steps, ingredients)", () => {
+    // RecipeTinEats etc. HTML-encode apostrophes and ampersands inside their JSON-LD
+    // strings; JSON.parse leaves them literal, so we must decode ("don&#39;t" → "don't").
+    const r = extractRecipeFromHtml(
+      withJsonLd({
+        ...RECIPE,
+        name: "Grandma&#39;s Mac &amp; Cheese",
+        description: "It&#39;s the best &ndash; you won&rsquo;t believe it.",
+        recipeIngredient: ["1&frac12; cups salt &amp; pepper", "2 tbsp Franks&#39;s hot sauce"],
+        recipeInstructions: [
+          { "@type": "HowToStep", text: "Don&#39;t overmix the batter." },
+          "Bake until it&#39;s golden.",
+        ],
+      }),
+    );
+    expect(r!.title).toBe("Grandma's Mac & Cheese");
+    expect(r!.description).toBe("It's the best – you won't believe it.");
+    expect(r!.ingredientGroups[0].ingredients.map((i) => i.originalText)).toEqual([
+      "1½ cups salt & pepper",
+      "2 tbsp Franks's hot sauce",
+    ]);
+    expect(r!.steps.map((s) => s.instruction)).toEqual(["Don't overmix the batter.", "Bake until it's golden."]);
+  });
+
   it("extracts a full recipe with a single unnamed group and verbatim ingredient text", () => {
     const r = extractRecipeFromHtml(withJsonLd(RECIPE));
     expect(r).not.toBeNull();

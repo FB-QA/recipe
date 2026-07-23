@@ -1,4 +1,5 @@
-import { stripTags, type WprmIngredientGroup } from "./wprm";
+import { stripTags } from "./entities";
+import type { WprmIngredientGroup } from "./wprm";
 
 /**
  * Generic (non-WPRM) ingredient-section recovery for server-rendered pages.
@@ -35,9 +36,14 @@ const HEADING_LOOKBEHIND = 400;
 /**
  * Comparison key aligning an HTML `<li>` with a schema.org ingredient string despite
  * inner markup (product `<a>` links), entities, and whitespace: tags stripped, entities
- * decoded (via {@link stripTags}), lowercased, reduced to alphanumerics.
+ * decoded (via {@link stripTags}), lowercased, reduced to letters and numbers.
+ *
+ * Uses the Unicode property classes (`\p{L}`/`\p{N}`) rather than `[a-z0-9]` so that
+ * vulgar-fraction quantities stay DISTINCT — `½ cup cream` and `¼ cup cream` must not
+ * both collapse to `cupcream`, or the multiset guard would accept a mismatched pair and
+ * `emit` could place the wrong quantity in a section (½ ¼ etc. are `\p{N}`, kept).
  */
-const matchKey = (s: string): string => stripTags(s).toLowerCase().replace(/[^a-z0-9]+/g, "");
+const matchKey = (s: string): string => stripTags(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 
 /** A multiset of match-keys → count, for exact-equality comparison. */
 function keyCounts(items: string[]): Map<string, number> {
@@ -69,8 +75,19 @@ function listItems(listInner: string): string[] {
  * The heading that immediately precedes a list: the LAST short heading element in the
  * lookbehind window, provided only whitespace/markup (no visible text) sits between it
  * and the list. Returns null when there is no such heading (a bare list, e.g. nav).
+ *
+ * The window is first clipped to everything AFTER the previous list's close
+ * (`</ul>`/`</ol>`/`</li>`), so inline markup INSIDE a prior list item — a `<strong>`
+ * or `<span>` wrapping a whole ingredient — can never be mistaken for this list's
+ * heading (which would fabricate sections for a flat recipe and regress AC3).
  */
 function precedingHeading(pre: string): string | null {
+  const lastClose = Math.max(
+    pre.toLowerCase().lastIndexOf("</ul>"),
+    pre.toLowerCase().lastIndexOf("</ol>"),
+    pre.toLowerCase().lastIndexOf("</li>"),
+  );
+  if (lastClose !== -1) pre = pre.slice(lastClose + 5);
   let last: { text: string; end: number } | null = null;
   for (const m of pre.matchAll(/<(p|h[2-6]|strong|b|span|div)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
     const text = stripTags(m[2]);
