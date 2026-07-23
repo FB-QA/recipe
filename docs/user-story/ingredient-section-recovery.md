@@ -3,9 +3,9 @@ slug: ingredient-section-recovery
 project: recipe
 type: user-story
 created: 2026-07-23
-status: shaped-not-built
+status: part-a-built
 shape: compute
-links: [lib/import/wprm.ts, lib/import/jsonld.ts, lib/import/schema.ts]
+links: [lib/import/wprm.ts, lib/import/jsonld.ts, lib/import/schema.ts, lib/import/ingredient-sections.ts]
 ---
 
 # Ingredient section recovery for non-WPRM sites (deterministic, no AI)
@@ -47,34 +47,63 @@ section source.
 - **Fetching is the real blocker for Dotdash sites.** The importer fetches with
   a plain browser-UA request (`resolvers/website.ts`, `BROWSER_USER_AGENT`).
   King Arthur has no bot-filter → the parser ships a win there immediately.
-  Serious Eats' edge rejects the plain fetch (a real browser gets 484 KB; the
-  server-side fetch gets a ~600-byte challenge). So Dotdash sections need the
+  Serious Eats' edge rejects the server-side fetch (a real browser gets 484 KB;
+  the server-side fetch gets a ~600-byte block). So Dotdash sections need the
   fetch solved first — a **separate spike (Part B)**, not part of this story's
   certainty.
 
-## Where to build it (how + where)
+  **Part B spike result (2026-07-23): header enrichment does NOT work.** Adding a
+  full browser header set (Accept-Language, Sec-Fetch-\*, sec-ch-ua, Upgrade-
+  Insecure-Requests, `--compressed`) to the server-side fetch returns the SAME
+  `HTTP 402`, 612 bytes as the plain fetch. The body is a People Inc (Dotdash's
+  parent) access-block page inviting `support@people.inc` / `contentlicensing@
+  people.inc` — an **IP-level block on datacentre ranges**, not a header or JS
+  challenge. So Dotdash needs a headless/residential-origin fetch or a licensing
+  arrangement — a bigger call, firmly out of this story. Part A's parser is proven
+  against Serious Eats' real markup (fixture) so sections light up the moment the
+  fetch is solved.
+
+## Where to build it (how + where) — BUILT (Part A)
 
 1. **New parser module** `src/lib/import/ingredient-sections.ts` — mirrors the
    shape of `wprm.ts`. Given the page HTML + the flat schema.org ingredient
-   list, return named sections or null.
-   - Find candidate blocks: a short heading element (`<p>`, `<h2>`–`<h6>`, or
-     `<strong>`; or a class matching `/ingredient.*(section|heading)|list-heading/i`)
-     immediately followed by a `<ul>`/`<ol>` whose `<li>` texts match schema.org
-     ingredient strings.
-   - Emit sections **only when** ≥2 headed lists exist **and** their combined
-     `<li>` set equals the flat schema.org `recipeIngredient` set (the same
-     "total === flat" safety check `jsonld.ts` already applies to WPRM). This is
-     the guard against grabbing a "You might also like" list.
-   - Heading text → group name; strip a trailing colon ("For the chicken:" →
-     "For the chicken").
-2. **Wire into** `src/lib/import/jsonld.ts` group recovery (see its §117-146
-   comment): try WPRM first (unchanged); if WPRM yields nothing, try this new
-   parser; else fall back to one unnamed group (today's behaviour).
-3. **Tests** — capture the two real pages as fixtures (KA almond bundt cake;
-   Serious Eats Halal Cart chicken — 4 sections). Verify: KA → Cake/Glaze;
-   Serious Eats → For the chicken/rice/sauce/To serve; a flat single-list recipe
-   → one unnamed group; a page with a decoy related-recipe `<ul>` → not grouped
-   (schema cross-check rejects it). Falsify: mismatched counts → single group.
+   list, returns named sections or null. `parseSectionedIngredientGroups(html, flat)`.
+   - Finds candidate blocks: a short heading element (`<p>`, `<h2>`–`<h6>`,
+     `<strong>`, `<b>`, or a `<span>`/`<div>`) that immediately precedes a
+     `<ul>`/`<ol>` — nothing but whitespace/markup between them, heading ≤12
+     words and not a bare number. `<li>` inner tags (product `<a>` links) are
+     stripped before comparison.
+   - Emits sections **only when** a contiguous run of ≥2 headed lists exists
+     **and** their combined `<li>` list is an EXACT **multiset** match to the
+     flat schema.org `recipeIngredient` list — count-equal, not set-equal, so a
+     repeated ingredient ("salt" ×2 vs ×3) is caught, not silently accepted.
+   - This exact-multiset guard is **deliberately STRICTER** than the WPRM path's
+     check. The WPRM guard in `buildIngredientGroups` is a *fuzzy* bound
+     (`total` within 0.5×–1.4× of `flat.length`) because WPRM's own scrape can
+     diverge slightly from the JSON-LD. A from-scratch DOM parser gets no such
+     benefit of the doubt: exact equality is what makes it safe.
+   - The exact-multiset match is also the **recipe-scoping mechanism**. WPRM
+     scopes by its `wprm-recipe-name` markup (`scopeToRecipe`); King Arthur /
+     Serious Eats have no equivalent, so scoping falls to the count oracle — a
+     second recipe card's *different* ingredients cannot satisfy equality with
+     the selected recipe's flat list, so its sections are excluded. (A decoy card
+     with a byte-identical ingredient multiset is a documented residual edge; not
+     seen in the wild.)
+   - Heading text → group name; strips a trailing colon ("For the chicken:" →
+     "For the chicken"). Emitted wording is the **verbatim schema.org string**
+     (drawn from `flat` by match-key) — identical to today's flat import, grouped.
+2. **Wired into** `src/lib/import/jsonld.ts` `buildIngredientGroups` (the real
+   group-recovery function): WPRM tried first (unchanged); if WPRM yields no named
+   sections, the generic parser is tried; else fall back to one unnamed group
+   (today's behaviour). Group `temporaryId` is `sec-g*` for provenance.
+3. **Tests** — `ingredient-sections.test.ts` (parser unit, 10 cases) +
+   `jsonld.test.ts` (integration). Fixture = the **real captured** King Arthur
+   "Glazed Lemon Bundt Cake" HTML (`__fixtures__/king-arthur-lemon-bundt.html`:
+   Cake / Glaze / Icing, product `<a>` links, footnote `<p>`). Verified: KA →
+   three named groups verbatim; multiset duplicates accepted when matched, rejected
+   when over-count; flat recipe → one unnamed group (AC3); decoy related-recipe
+   list ignored (AC4); two recipe cards → only the selected recipe's flat list
+   matches (scoping); WPRM page unaffected (AC5).
 
 ## Acceptance criteria
 
@@ -91,11 +120,16 @@ section source.
 
 ## Out of scope (the cut)
 
-- **The Serious Eats / Dotdash FETCH** — getting past the edge bot-filter. Cheap
-  spike first (add a complete browser header set to the importer fetch and
-  re-test); if it fails, those sites stay on the AI resolver or need a headless
-  fetch — a separate, bigger call. **This story delivers King Arthur-class sites
-  now and is ready for Dotdash the moment the fetch works.**
+- **The Serious Eats / Dotdash FETCH** — getting past the edge block. The cheap
+  spike (fuller browser header set) was **tried and failed** (HTTP 402, IP-level
+  block — see the Part B result above); those sites need a headless/residential
+  fetch or a licensing deal, a separate bigger call. Note the **real** user
+  fallback when the website fetch fails is **paste/manual**, NOT an AI resolver:
+  `buildResolverChain` registers only `websiteResolver` for `sourceKind ===
+  "website"` (`registry.ts:42-44`), so a blocked fetch exhausts the chain and the
+  engine renders the paste-text path — there is no website→AI rung to fall back to.
+  **This story delivers King Arthur-class sites now and is ready for Dotdash the
+  moment the fetch is solved.**
 - **NYT Cooking** — subscription-gated; the free fetch returns a wall page with
   no ingredient data. Out until the fetch/access is solved.
 - Any change to the AI/caption path (already handles sections).

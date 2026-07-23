@@ -32,14 +32,14 @@ const NAMED_ENTITIES: Record<string, string> = {
   "&frac45;": "⅘", "&frac56;": "⅚", "&frac58;": "⅝", "&frac78;": "⅞",
 };
 const NAMED_RE = new RegExp(Object.keys(NAMED_ENTITIES).join("|"), "g");
-const decodeEntities = (s: string): string =>
+export const decodeEntities = (s: string): string =>
   s
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
     .replace(NAMED_RE, (m) => NAMED_ENTITIES[m])
     .replace(/&amp;/g, "&");
 
-const stripTags = (s: string): string => decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+export const stripTags = (s: string): string => decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 
 /** Reassemble one ingredient from its amount/unit/name/notes spans, in order. */
 function ingredientText(liInner: string): string {

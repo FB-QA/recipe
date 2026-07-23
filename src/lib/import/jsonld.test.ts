@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { extractRecipeFromHtml, durationToMinutes, jsonLdImageUrl } from "@/lib/import/jsonld";
 
@@ -106,6 +107,57 @@ describe("extractRecipeFromHtml — v2 shape (AC1: complete structured data, zer
     const r = extractRecipeFromHtml(html);
     expect(r!.ingredientGroups.map((g) => g.name)).toEqual(["The bird"]);
     expect(r!.ingredientGroups[0].ingredients.map((i) => i.originalText)).toEqual(["1 whole chicken"]);
+  });
+
+  it("recovers GENERIC (non-WPRM) sections from real King Arthur markup, verbatim (AC1)", () => {
+    // Real captured "Glazed Lemon Bundt Cake": div.ingredient-section > p + ul.list--bullets,
+    // product <a> links inside the <li>s, JSON-LD stays flat. No WPRM markup, no AI.
+    const html = readFileSync("src/lib/import/__fixtures__/king-arthur-lemon-bundt.html", "utf8");
+    const r = extractRecipeFromHtml(html);
+    expect(r!.ingredientGroups.map((g) => g.name)).toEqual(["Cake", "Glaze", "Icing (optional)"]);
+    expect(r!.ingredientGroups[0].ingredients.map((i) => i.originalText)).toEqual([
+      "16 tablespoons (227g) unsalted butter, at room temperature, at least 65°F*",
+      "2 cups (397g) granulated sugar",
+      "1 teaspoon table salt",
+      "4 large eggs, at room temperature",
+      "2 teaspoons baking powder",
+      "3 cups (360g) King Arthur Unbleached All-Purpose Flour",
+      "1 cup (227g) milk, whole milk preferred, at room temperature",
+      "zest of 2 lemons or 3/4 teaspoon lemon oil",
+      "1/4 cup (24g) King Arthur Almond Flour, for dusting baking pan, optional",
+    ]);
+    expect(r!.ingredientGroups[1].ingredients.map((i) => i.originalText)).toEqual([
+      "1/3 cup (74g) freshly squeezed lemon juice, the juice of about 1 1/2 juicy lemons",
+      "3/4 cup (149g) granulated sugar",
+    ]);
+    // Positions stay continuous across all three sections (14 ingredients).
+    expect(r!.ingredientGroups.flatMap((g) => g.ingredients).map((i) => i.position)).toEqual(
+      Array.from({ length: 14 }, (_, i) => i),
+    );
+  });
+
+  it("WPRM still wins first — a WPRM page is unaffected by the generic parser (AC5)", () => {
+    const recipe = { ...RECIPE, recipeIngredient: ["2 chicken breasts", "100g feta", "1 tbsp olive oil", "1 lemon"] };
+    const wprm = `
+      <div class="wprm-recipe-ingredient-group">
+        <h4 class="wprm-recipe-ingredient-group-name">Burgers</h4>
+        <ul>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-name">2 chicken breasts</span></li>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-name">100g feta</span></li>
+        </ul>
+      </div>
+      <div class="wprm-recipe-ingredient-group">
+        <h4 class="wprm-recipe-ingredient-group-name">To serve</h4>
+        <ul>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-name">1 tbsp olive oil</span></li>
+          <li class="wprm-recipe-ingredient"><span class="wprm-recipe-ingredient-name">1 lemon</span></li>
+        </ul>
+      </div>`;
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify(recipe)}</script></head><body>${wprm}</body></html>`;
+    const r = extractRecipeFromHtml(html);
+    expect(r!.ingredientGroups.map((g) => g.name)).toEqual(["Burgers", "To serve"]);
+    // The group carries the WPRM provenance marker — not the generic `sec-g*` one.
+    expect(r!.ingredientGroups[0].temporaryId).toBe("wprm-g0");
   });
 
   it("splits newline-joined string instructions and keeps step order", () => {
