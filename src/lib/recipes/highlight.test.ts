@@ -343,3 +343,26 @@ describe("matchStep — 'A or B' alternatives and trailing prep (HBH red curry b
     expect(inStep("Add the diced tomatoes", rows).map((i) => i.id)).toEqual(["d"]);
   });
 });
+
+describe("matchStep — 'A and B' combinations and shared specific nouns", () => {
+  const mk = (id: string, text: string) => ({ id, display_text: text, name: text });
+  it("surfaces a combination row in a step naming EITHER part (basil and cilantro)", () => {
+    const rows = [mk("mix", "1 cup mixed Thai basil and cilantro")];
+    expect(inStep("Stir through the basil", rows).map((i) => i.id)).toEqual(["mix"]);
+    expect(inStep("Fold in the cilantro", rows).map((i) => i.id)).toEqual(["mix"]);
+    expect(inStep("Combine the basil and cilantro", rows).map((i) => i.id)).toEqual(["mix"]);
+  });
+  it("puts a combination in the respective drawer when parts fall in different steps", () => {
+    const rows = [mk("mix", "1 cup basil and cilantro")];
+    expect(inStep("Bruise the basil in a mortar", rows).map((i) => i.id)).toEqual(["mix"]);
+    expect(inStep("Scatter the cilantro to serve", rows).map((i) => i.id)).toEqual(["mix"]);
+  });
+  it("shows two rows that share a specific noun when both genuinely are it (combo + standalone cilantro)", () => {
+    const rows = [mk("mix", "1 cup basil and cilantro"), mk("cil", "1/4 cup chopped fresh cilantro")];
+    expect(inStep("Stir in the cilantro", rows).map((i) => i.id).sort()).toEqual(["cil", "mix"]);
+  });
+  it("still does NOT pull a defining-modifier sibling in on a bare noun (spring onions vs onion)", () => {
+    const rows = [mk("o", "1 onion"), mk("s", "3 spring onions")];
+    expect(inStep("Add the diced onion", rows).map((i) => i.id)).toEqual(["o"]);
+  });
+});

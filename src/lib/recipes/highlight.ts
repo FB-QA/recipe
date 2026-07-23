@@ -15,7 +15,7 @@ const STOPWORDS = new Set([
 // since in that position it distinguishes the ingredient. Two flavours: state
 // qualifiers and prep/cut past-participles.
 const QUALIFIERS = new Set([
-  "fresh", "frozen", "optional", "divided", "drained", "rinsed", "softened", "melted", "thawed", "chilled", "taste",
+  "fresh", "frozen", "dried", "optional", "divided", "drained", "rinsed", "softened", "melted", "thawed", "chilled", "taste",
 ]);
 const PREP = new Set([
   "chopped", "sliced", "diced", "minced", "grated", "crushed", "cubed", "shredded", "halved", "quartered",
@@ -38,11 +38,13 @@ const LEAD_UNIT =
   /^(?:tsp|teaspoons?|tbsp|tablespoons?|cups?|cloves?|slices?|sprigs?|pinch(?:es)?|handfuls?|knobs?|dash(?:es)?|cans?|tins?|jars?|packets?|packs?|bottles?|box(?:es)?|tubs?|cartons?|bags?|sticks?|blocks?|bunch(?:es)?|g|kg|ml|l|litres?|oz|lb|lbs|grams?|kilograms?|millilitres?)\b\.?\s*/;
 
 /** The matchable phrases of one ingredient, each an ordered significant-word list —
- *  quantity, unit and stopwords stripped. Usually one, but an "A or B" ingredient
- *  yields one per alternative name ("tamari or soy sauce" → ["tamari"], ["soy",
- *  "sauce"]), since the step may quote either. Empty list when nothing survives.
- *  A step may quote any contiguous run of a phrase's words ("whole milk cottage
- *  cheese" → "cottage cheese"), so each phrase keeps its full ordered list. */
+ *  quantity, unit and stopwords stripped. Usually one, but an ingredient joined by
+ *  "or" (an alternative name) or "and" (a combination) yields one phrase per part —
+ *  "tamari or soy sauce" → ["tamari"], ["soy","sauce"]; "basil and cilantro" →
+ *  ["basil"], ["cilantro"] — since a step may quote either. So a combination row
+ *  surfaces in every step that names one of its parts. Empty list when nothing
+ *  survives. A step may quote any contiguous run of a phrase's words ("whole milk
+ *  cottage cheese" → "cottage cheese"), so each phrase keeps its full ordered list. */
 function significantWordAlts(ing: { display_text: string; name: string | null }): string[][] {
   let t = (ing.name ?? ing.display_text).toLowerCase().replace(/\([^)]*\)/g, " ");
   t = t.replace(LEAD_QTY, "").replace(LEAD_UNIT, "");
@@ -52,20 +54,21 @@ function significantWordAlts(ing: { display_text: string; name: string | null })
   // "parmesan") BEFORE flattening punctuation — otherwise the comma is gone and the
   // split never fires. A leading prep adjective ("chopped tomatoes") is kept.
   t = t.split(/\bfor\b|,/)[0].replace(/[(),.]/g, " ");
-  // Keep "or" as a separator token so genuine alternatives can be split out; drop
-  // stopwords and short noise otherwise.
-  const toks = t.split(/\s+/).filter((w) => w === "or" || (w.length >= 3 && !STOPWORDS.has(w)));
-  // Strip a trailing qualifier tail, INCLUDING an "or" that joins qualifiers
-  // ("… fresh or frozen" → …, "… to taste" → …). Doing this before the alternative
-  // split is what stops "fresh or frozen" being mistaken for two alternatives.
-  while (toks.length > 1 && (toks[toks.length - 1] === "or" || TRAILING.has(toks[toks.length - 1]))) toks.pop();
+  // Keep "or"/"and" as separator tokens so genuine alternatives and combinations can
+  // be split out; drop other stopwords and short noise.
+  const isJoiner = (w: string) => w === "or" || w === "and";
+  const toks = t.split(/\s+/).filter((w) => isJoiner(w) || (w.length >= 3 && !STOPWORDS.has(w)));
+  // Strip a trailing qualifier tail, INCLUDING a joiner between qualifiers ("… fresh
+  // or frozen" → …, "… to taste" → …). Doing this before the split is what stops
+  // "fresh or frozen" being mistaken for two parts.
+  while (toks.length > 1 && (isJoiner(toks[toks.length - 1]) || TRAILING.has(toks[toks.length - 1]))) toks.pop();
   return (
     toks
       .join(" ")
-      .split(/\bor\b/)
+      .split(/\b(?:or|and)\b/)
       .map((part) => part.split(/\s+/).filter(Boolean))
-      // Keep an alternative only if it carries a word that actually names something
-      // (not a lone leading qualifier like the "fresh" of "fresh or frozen berries").
+      // Keep a part only if it carries a word that actually names something (not a
+      // lone leading qualifier like the "fresh" of "fresh or frozen berries").
       .filter((a) => a.some((w) => !TRAILING.has(w)))
   );
 }
@@ -191,12 +194,17 @@ export function matchStep<T extends Ingredientish>(
         }
       }
     }
-    // Single-word phrase (salt, or the "tamari" of "tamari or soy sauce"): match on
-    // the word itself. Otherwise fall back to the head noun, but only when that noun
-    // is unique to this ingredient — so "heat the oil" never pulls in both oils.
+    // No multi-word run matched: fall back to the head noun. Allow it when the head
+    // is the ingredient's whole identity — a single word, or the extra words are all
+    // non-defining prep/state ("chopped fresh cilantro" IS cilantro, so it may share
+    // "cilantro" with another cilantro row and both surface). Require uniqueness only
+    // when a DEFINING extra makes it a distinct thing ("spring onions", "olive oil"),
+    // so a bare "onion" never pulls in spring onions. A shared head matched INSIDE a
+    // longer phrase is still removed positionally below.
     if (!term) {
       const head = words[words.length - 1];
-      if ((words.length === 1 || headUnique(head)) && wordRe(head).test(text)) term = head;
+      const definedByHeadAlone = words.slice(0, -1).every((w) => TRAILING.has(w));
+      if ((definedByHeadAlone || headUnique(head)) && wordRe(head).test(text)) term = head;
     }
     if (term) {
       const termSet = new Set(term.split(" "));
@@ -243,6 +251,10 @@ export function matchStep<T extends Ingredientish>(
   const kept = subsetKept.filter(
     (h) =>
       h.full ||
+      // The head IS the ingredient's identity — the only left-behind words are
+      // non-defining prep/state ("chopped fresh cilantro" matched on "cilantro").
+      // Not a spurious shortening, so it co-exists with another cilantro row.
+      h.leftover.every((w) => TRAILING.has(w)) ||
       leftoverBesideTerm(h) ||
       !subsetKept.some((o) => o !== h && o.full && canonPhrase(o.term) === canonPhrase(h.term)),
   );
