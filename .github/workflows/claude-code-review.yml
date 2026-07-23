@@ -2,6 +2,12 @@ name: Claude code review
 
 # Reviews every pull request automatically, and again on each push to it.
 #
+# CANONICAL FILE — do not hand-edit per repo. The source of truth is
+#   core/templates/project-scaffold/.github/workflows/claude-code-review.yml
+# in the ecosystem. Change it there and run scripts/sync-github-workflows.sh to
+# push the identical file to every managed GitHub repo (and --check to detect
+# drift). Editing a repo's copy directly is exactly how these fell out of sync.
+#
 # SETUP (once per repo — neither step can be done by an agent):
 #   1. Install the Claude GitHub App on the repo.
 #   2. Add the repo secret CLAUDE_CODE_OAUTH_TOKEN, minted with `claude setup-token`.
@@ -11,6 +17,11 @@ name: Claude code review
 # It runs on the Claude SUBSCRIPTION, not an API key: `claude_code_oauth_token` is
 # a declared input of claude-code-action@v1 ("alternative to anthropic_api_key").
 # The action's README doesn't mention it; action.yml does.
+#
+# A repo may also have Codex reviewing PRs — that is deliberate, not duplication:
+# the two catch different things. This reviewer is tuned to match Codex's style —
+# findings land as INLINE comments on the exact line, and the PR description carries
+# an 👀 reaction while the review runs and a 👍 when it is done.
 
 on:
   pull_request:
@@ -46,37 +57,54 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
-          # The trailing instruction is load-bearing. Without it the review completes,
-          # posts its findings, and THEN spends every remaining turn being denied
-          # `npm ci` / `npm test` over and over until it dies on error_max_turns — a
-          # red cross on a PR it had already reviewed correctly. ci.yml runs the gates;
-          # the reviewer's job is to read the code, not to re-run the build.
+          # The prompt drives three things: the in-progress/done reactions on the PR
+          # description, the review itself, and — load-bearing — that findings are
+          # posted INLINE per line rather than gathered into one summary comment.
+          # The trailing static-review instruction is also load-bearing: without it
+          # the review finishes, posts, and THEN spends every remaining turn being
+          # denied `npm ci` / `npm test` until it dies on error_max_turns — a red
+          # cross on a PR it had already reviewed correctly.
           prompt: |
-            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+            Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}.
+
+            STEP 1 — mark the PR in progress. Add an 👀 (eyes) reaction to the PR
+            description (best-effort; if it fails, carry on with the review):
+              gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions -f content=eyes
+
+            STEP 2 — review. Run:
+              /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+            Post EVERY finding as an INLINE review comment anchored to the exact
+            file and line it concerns, using the create_inline_comment tool — the
+            way Codex does, so the author sees precisely which code each point is
+            about. Do NOT gather the findings into one summary comment. The tracking
+            comment carries only a one-line overview and the count of inline
+            findings; put a finding in it only if it genuinely spans the whole diff
+            with no single line to anchor to.
 
             Review statically. Do NOT run package-manager or build commands
             (npm/pnpm/tsc/eslint/vitest/playwright) — you will be denied, and the
             retries will exhaust your turn budget before you can post. The typecheck,
-            lint and unit-test gates run separately in ci.yml; read its result rather
-            than reproducing it.
+            lint and unit-test gates run separately in ci.yml; read its result
+            rather than reproducing it.
+
+            STEP 3 — mark done. Once the review is posted, add a 👍 (+1) reaction to
+            the PR description and remove the 👀 reaction you added in STEP 1
+            (best-effort — do not fail the run over the reactions):
+              gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions -f content=+1
+              EID=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions --jq 'map(select(.content=="eyes" and .user.login=="claude[bot]"))[0].id // empty')
+              [ -n "$EID" ] && gh api --method DELETE repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/reactions/$EID || true
           # Post a tracking comment. Without it, a run that reviews the diff and then
-          # fails to publish looks identical to a run that had nothing to say — which
-          # is exactly how the first one went unnoticed.
+          # fails to publish looks identical to a run that had nothing to say.
           track_progress: true
-          # Setting `prompt` puts the action in AGENT mode, and agent mode grants NO
-          # tools by default. On a runner there is nobody to approve a prompt, so every
-          # ungranted call is denied. The tools below are what /code-review actually
-          # reaches for: it fans out to subagents (Task), keeps the checklist (TodoWrite),
-          # reads the tree, and then speaks (inline comments, gh pr comment).
+          # Setting `prompt` puts the action in AGENT mode, which grants NO tools by
+          # default; on a runner nobody can approve a prompt, so every ungranted call
+          # is denied. These are what the review reaches for: fan-out (Task), the
+          # checklist (TodoWrite), reading the tree, inline comments, the tracking
+          # comment, and gh for the reactions. This job CANNOT push (contents: read).
           #
-          # This job CANNOT push: `contents: read` above. Bash is bounded to git/gh,
-          # and gh is bounded by what the App token is scoped to.
-          #
-          # --max-turns 40, not 15: /code-review is a multi-stage skill — gather, read,
-          # review, then post. At 15 it hit the ceiling one step from posting its
-          # findings and threw error_max_turns, having done the whole review. The
-          # ceiling exists so a pathological diff cannot spiral; it has to sit above
-          # the cost of a normal review, not below it.
+          # --max-turns 40, not 15: this is a multi-stage skill — react, gather, read,
+          # review, post inline, react. At 15 it hit the ceiling one step from posting.
           claude_args: >-
             --max-turns 40
             --allowedTools "Read,Grep,Glob,LS,Task,TodoWrite,mcp__github_inline_comment__create_inline_comment,mcp__github_comment__update_claude_comment,Bash(git:*),Bash(gh:*)"
