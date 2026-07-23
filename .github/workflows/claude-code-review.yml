@@ -1,37 +1,33 @@
 name: Claude code review
 
-# THIN CALLER — all review logic lives centrally in the ecosystem's reusable workflow
-#   FB-QA/ecosystem/.github/workflows/claude-code-review-reusable.yml@main
-# Edit the behaviour THERE, once, and the change reaches every repo on its next PR —
-# no per-repo sync, no per-repo PR, no drift. Do NOT add logic to this file; it is
-# byte-identical in every repo and exists only to trigger and to grant the token scope.
+# THIN CALLER — all review logic lives in the public FB-QA/workflows repo:
+#   FB-QA/workflows/.github/workflows/claude-code-review.yml@main
+# Edit the behaviour THERE, once, and it reaches every repo on its next PR — no per-repo
+# sync, no per-repo PR, no drift. Do NOT add logic here; this file is byte-identical in
+# every repo and exists only to trigger and to grant the token scope.
 #
-# SETUP, once per repo (neither step can be done by an agent):
-#   1. Install the Claude GitHub App on the repo.
-#   2. Add the repo secret CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
-# `secrets: inherit` passes that secret through to the reusable workflow.
+# SETUP, once per repo (cannot be automated): install the Claude GitHub App and add the
+# repo secret CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-# Only ever review the newest push on a branch — cancel a review made stale by a newer push.
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   review:
-    # Permissions are set HERE (the caller) because they are the ceiling for the token
-    # passed to the reusable workflow. contents: read == can review, cannot commit.
+    # Permissions are the ceiling for the token passed to the reusable workflow.
+    # contents: read == can review, cannot commit.
     permissions:
       contents: read
       pull-requests: write
       issues: write
       id-token: write
-    # Central logic lives in the public FB-QA/workflows repo, so any repo can call it
-    # with no cross-repo access config. Secret passed explicitly (not `secrets: inherit`,
-    # which only works within an org/enterprise, and FB-QA is a user account).
     uses: FB-QA/workflows/.github/workflows/claude-code-review.yml@main
+    # Secret passed explicitly (not `secrets: inherit`, which only works within an
+    # org/enterprise; FB-QA is a user account).
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
