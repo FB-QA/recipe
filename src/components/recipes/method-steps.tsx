@@ -141,7 +141,7 @@ export function MethodSteps({
               return (
                 <li
                   key={ing.id}
-                  className="flex items-center gap-3 border-b border-line-2 py-2.5 text-[15px] text-ink last:border-b-0"
+                  className="flex items-center gap-3 border-b border-line-2 py-2.5 text-ingredient text-ink last:border-b-0"
                 >
                   <FoodImage text={ing.name ?? ing.display_text} size={24} className="flex-none text-ink-3" />
                   <span>

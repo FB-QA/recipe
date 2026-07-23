@@ -115,7 +115,7 @@ export function AddToListSheet({
                     size={22}
                     className={clsx("flex-none text-ink-3", already && "opacity-50")}
                   />
-                  <span className={clsx("flex-1 text-[14px]", already ? "text-ink-3" : "text-ink")}>
+                  <span className={clsx("flex-1 text-ingredient", already ? "text-ink-3" : "text-ink")}>
                     {scaleIngredientText(ing.display_text, scale)}
                   </span>
                   {already && (
