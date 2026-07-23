@@ -62,15 +62,24 @@ function significantWordAlts(ing: { display_text: string; name: string | null })
   // or frozen" → …, "… to taste" → …). Doing this before the split is what stops
   // "fresh or frozen" being mistaken for two parts.
   while (toks.length > 1 && (isJoiner(toks[toks.length - 1]) || TRAILING.has(toks[toks.length - 1]))) toks.pop();
-  return (
-    toks
-      .join(" ")
-      .split(/\b(?:or|and)\b/)
-      .map((part) => part.split(/\s+/).filter(Boolean))
-      // Keep a part only if it carries a word that actually names something (not a
-      // lone leading qualifier like the "fresh" of "fresh or frozen berries").
-      .filter((a) => a.some((w) => !TRAILING.has(w)))
-  );
+  // Split into parts. "or" always separates (alternative names). "and" separates
+  // ONLY when it joins the final token — a genuine list tail ("basil and cilantro",
+  // "salt and pepper") — not a compound NAME where a noun still follows ("bread and
+  // butter pickles", "sweet and sour sauce"), where "and" is part of the identity.
+  const parts: string[][] = [];
+  let cur: string[] = [];
+  toks.forEach((w, i) => {
+    if (w === "or" || (w === "and" && i === toks.length - 2)) {
+      if (cur.length) parts.push(cur);
+      cur = [];
+    } else if (!isJoiner(w)) {
+      cur.push(w);
+    }
+  });
+  if (cur.length) parts.push(cur);
+  // Keep a part only if it carries a word that actually names something (not a lone
+  // leading qualifier like the "fresh" of "fresh or frozen berries").
+  return parts.filter((a) => a.some((w) => !TRAILING.has(w)));
 }
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -143,24 +152,53 @@ export function matchStep<T extends Ingredientish>(
   ingredients: T[],
 ): { ingredients: T[]; terms: string[] } {
   const text = instruction.toLowerCase();
-  // A "unit" is one matchable phrase; an "A or B" ingredient contributes one per
-  // alternative, all pointing back to the same ingredient index.
-  const units: Array<{ index: number; words: string[] }> = [];
+  // A "unit" is one matchable phrase; an "A or B"/"A and B" ingredient contributes
+  // one per part, all pointing back to the same ingredient index.
+  const allUnits: Array<{ index: number; words: string[]; derived: boolean }> = [];
   ingredients.forEach((ing, index) => {
-    for (const words of significantWordAlts(ing)) units.push({ index, words });
+    const alts = significantWordAlts(ing);
+    for (const words of alts) allUnits.push({ index, words, derived: alts.length > 1 });
+  });
+  // Words that appear as a MODIFIER (non-head) in some ingredient → the indices
+  // using them so. A single-word part that was SPLIT OFF a name ("red" of "red or
+  // white wine") and is only ever a modifier elsewhere (a "red onion" row) is an
+  // elided adjective, not a standalone ingredient — drop it so it can't match a bare
+  // "red …". A whole single-word ingredient ("peas" beside "pea shoots") is never
+  // touched, since it wasn't derived from a split.
+  const modifierOf = new Map<string, Set<number>>();
+  for (const u of allUnits) {
+    for (const w of u.words.slice(0, -1)) {
+      const k = canonicalNoun(w);
+      (modifierOf.get(k) ?? modifierOf.set(k, new Set()).get(k)!).add(u.index);
+    }
+  }
+  const units = allUnits.filter((u) => {
+    if (u.words.length !== 1 || !u.derived) return true;
+    const idxs = modifierOf.get(canonicalNoun(u.words[0]));
+    return !idxs || [...idxs].every((i) => i === u.index);
   });
   // Head nouns keyed by plural-invariant form → the DISTINCT ingredients carrying
   // that head. Distinct-ingredient count (not unit count) is what "unique" means,
   // so a single "basil or Thai basil" row doesn't shadow its own head noun.
   const headIndexes = new Map<string, Set<number>>();
+  // Prep/state "signatures" per head, among rows the head alone would define. Two
+  // DIFFERENT non-empty signatures make the head prep-contested ("chopped tomatoes"
+  // vs "diced tomatoes"), so a bare "tomatoes" resolves neither — while "chopped
+  // fresh cilantro" beside a plain "… cilantro" (empty signature) is uncontested and
+  // both surface.
+  const headSignatures = new Map<string, Set<string>>();
   for (const u of units) {
     const head = u.words[u.words.length - 1];
-    if (head) {
-      const k = canonicalNoun(head);
-      (headIndexes.get(k) ?? headIndexes.set(k, new Set()).get(k)!).add(u.index);
+    if (!head) continue;
+    const k = canonicalNoun(head);
+    (headIndexes.get(k) ?? headIndexes.set(k, new Set()).get(k)!).add(u.index);
+    const extras = u.words.slice(0, -1);
+    if (extras.length > 0 && extras.every((w) => TRAILING.has(w))) {
+      (headSignatures.get(k) ?? headSignatures.set(k, new Set()).get(k)!).add([...extras].sort().join(" "));
     }
   }
   const headUnique = (w: string) => (headIndexes.get(canonicalNoun(w))?.size ?? 0) === 1;
+  const headContested = (w: string) => (headSignatures.get(canonicalNoun(w))?.size ?? 0) >= 2;
 
   // Every span in the step where a term matches (plural-tolerant, non-overlapping),
   // EXCLUDING an occurrence that heads an "X of Y" compound where Y is itself an
@@ -203,7 +241,10 @@ export function matchStep<T extends Ingredientish>(
     // longer phrase is still removed positionally below.
     if (!term) {
       const head = words[words.length - 1];
-      const definedByHeadAlone = words.slice(0, -1).every((w) => TRAILING.has(w));
+      // The head defines the ingredient when the extras are all prep/state AND the
+      // head isn't prep-contested (chopped vs diced tomatoes). Otherwise require the
+      // head to be unique, so a bare noun never pulls in a distinct variant.
+      const definedByHeadAlone = words.slice(0, -1).every((w) => TRAILING.has(w)) && !headContested(head);
       if ((definedByHeadAlone || headUnique(head)) && wordRe(head).test(text)) term = head;
     }
     if (term) {
