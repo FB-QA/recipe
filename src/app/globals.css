@@ -28,6 +28,11 @@
   --radius-lg: 26px;
   --scrim: rgba(10, 14, 11, 0.42); /* modal backdrop, fixed across themes */
   --width-app: 480px; /* the app's max content width */
+
+  /* Ingredient / grocery line text — sized to read at a glance. One lever for
+     every ingredient list (recipe detail, per-step drawer, grocery, add-to-list);
+     change it here and all of them follow. Use the `text-ingredient` utility. */
+  --fs-ingredient: 16px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -104,6 +109,7 @@
   --radius-sm: var(--radius-sm);
   --radius-lg: var(--radius-lg);
   --font-sans: var(--font-geist-sans);
+  --text-ingredient: var(--fs-ingredient); /* → the `text-ingredient` utility */
 }
 
 html {

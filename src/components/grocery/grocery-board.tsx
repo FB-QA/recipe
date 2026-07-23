@@ -372,7 +372,7 @@ function Item({ item, onToggle }: { item: GroceryItem; onToggle: (id: string, c:
       <div className="min-w-0 flex-1">
         <span
           className={clsx(
-            "block text-[14.5px] transition-colors",
+            "block text-ingredient transition-colors",
             item.is_completed ? "text-ink-3 line-through" : "text-ink",
           )}
         >

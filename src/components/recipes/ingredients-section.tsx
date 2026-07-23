@@ -66,7 +66,7 @@ export function IngredientsSection({
                 return (
                 <li
                   key={ing.id}
-                  className="flex items-center gap-3 border-b border-line-2 px-4 py-3 text-[14px] last:border-b-0"
+                  className="flex items-center gap-3 border-b border-line-2 px-4 py-3 text-ingredient last:border-b-0"
                 >
                   <FoodImage text={ing.name ?? ing.display_text} size={22} className="flex-none text-ink-3" />
                   <span className="text-ink-2">
