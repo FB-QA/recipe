@@ -52,7 +52,7 @@ export default async function RecipeDetailPage({
   return (
     <div className="-mt-2">
       {created && <SavedToast recipeId={recipe.id} message={`Saved “${recipe.title}”`} />}
-      <CoverImage url={recipe.coverUrl} title={recipe.title} className={DETAIL_COVER}>
+      <CoverImage url={recipe.coverUrl} title={recipe.title} className={DETAIL_COVER} loading="eager">
         <Link
           href="/recipes"
           aria-label="Back"

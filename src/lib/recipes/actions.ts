@@ -7,9 +7,9 @@ import { currentUser, SIGNED_OUT_ERROR } from "@/lib/auth/session";
 import { parseRecipePayload, type RecipeInput } from "./schema";
 import { resolveGroups, flattenIngredients } from "./groups";
 import { markImportSaved } from "@/lib/import/store";
-import { optimizeCover } from "@/lib/images/optimize";
+import { optimizeRenditions } from "@/lib/images/optimize";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
-import { storeCoverFromUrl } from "./cover";
+import { backfillMissingThumb, storeCoverFromUrl, storeRenditions, type StoredCover } from "./cover";
 
 export type RecipeFormState = { error?: string } | { ok: true; id: string } | undefined;
 
@@ -21,14 +21,16 @@ function readPayload(formData: FormData) {
   }
 }
 
-async function uploadCover(supabase: Client, userId: string, recipeId: string, file: File) {
-  const optimized = await optimizeCover(await file.arrayBuffer());
-  const path = `${userId}/${recipeId}/cover.webp`;
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, optimized, { contentType: "image/webp", upsert: true });
-  if (error) throw new Error("upload failed");
-  return path;
+async function uploadCover(
+  supabase: Client,
+  userId: string,
+  recipeId: string,
+  file: File,
+): Promise<StoredCover> {
+  const renditions = await optimizeRenditions(await file.arrayBuffer());
+  const stored = await storeRenditions(supabase.storage, userId, recipeId, renditions);
+  if (!stored) throw new Error("upload failed");
+  return stored;
 }
 
 const uploadCoverFromUrl = (supabase: Client, userId: string, recipeId: string, url: string) =>
@@ -156,13 +158,18 @@ export async function createRecipe(
   const cover = formData.get("cover");
   const importCoverUrl = String(formData.get("importCoverUrl") ?? "").trim();
   try {
-    let path: string | null = null;
+    let paths: StoredCover | null = null;
     if (cover instanceof File && cover.size > 0) {
-      path = await uploadCover(supabase, user.id, recipe.id, cover);
+      paths = await uploadCover(supabase, user.id, recipe.id, cover);
     } else if (importCoverUrl) {
-      path = await uploadCoverFromUrl(supabase, user.id, recipe.id, importCoverUrl);
+      paths = await uploadCoverFromUrl(supabase, user.id, recipe.id, importCoverUrl);
     }
-    if (path) await supabase.from("recipes").update({ cover_image_path: path }).eq("id", recipe.id);
+    if (paths) {
+      await supabase
+        .from("recipes")
+        .update({ cover_image_path: paths.cover, thumb_image_path: paths.thumb })
+        .eq("id", recipe.id);
+    }
   } catch {
     // Non-fatal: the recipe is saved; the cover just didn't stick.
   }
@@ -228,14 +235,21 @@ export async function updateRecipe(
   const cover = formData.get("cover");
   if (coverAction === "remove") {
     await removeRecipeFolder(supabase, user.id, id);
-    await supabase.from("recipes").update({ cover_image_path: null }).eq("id", id);
+    await supabase.from("recipes").update({ cover_image_path: null, thumb_image_path: null }).eq("id", id);
   } else if (cover instanceof File && cover.size > 0) {
     try {
-      const path = await uploadCover(supabase, user.id, id, cover);
-      await supabase.from("recipes").update({ cover_image_path: path }).eq("id", id);
+      const paths = await uploadCover(supabase, user.id, id, cover);
+      await supabase
+        .from("recipes")
+        .update({ cover_image_path: paths.cover, thumb_image_path: paths.thumb })
+        .eq("id", id);
     } catch {
       /* non-fatal */
     }
+  } else {
+    // Cover retained: if this recipe predates thumbnails, generate the missing one now,
+    // so a normal edit lets its shelf card catch up without any bulk migration.
+    await backfillMissingThumb(supabase, user.id, id);
   }
 
   const saved = await replaceChildren(supabase, id, input);

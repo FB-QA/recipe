@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { signStoragePaths } = vi.hoisted(() => ({
   signStoragePaths: vi.fn(async () => ({}) as Record<string, string>),
 }));
-vi.mock("@/lib/supabase/storage", () => ({ signStoragePaths }));
+vi.mock("@/lib/supabase/storage", () => ({ signStoragePaths, SHELF_SIGNED_TTL: 43200 }));
 
 let queryResult: { data: unknown; error: unknown };
 let countResult: { count: number | null; error?: unknown };
@@ -60,7 +60,11 @@ describe("listRecipes — a query error surfaces, an empty result does not", () 
     await expect(listRecipes()).resolves.toEqual([]);
   });
 
-  it("maps rows on success", async () => {
+  it("maps rows on success, resolving the thumb URL for the shelf card", async () => {
+    signStoragePaths.mockResolvedValue({
+      "u/r1/cover.webp": "https://signed/cover",
+      "u/r1/thumb.webp": "https://signed/thumb",
+    });
     queryResult = {
       data: [
         {
@@ -71,7 +75,8 @@ describe("listRecipes — a query error surfaces, an empty result does not", () 
           source_handle: "recipetineats",
           is_favourite: false,
           tags: [],
-          cover_image_path: null,
+          cover_image_path: "u/r1/cover.webp",
+          thumb_image_path: "u/r1/thumb.webp",
           recipe_ingredients: [{ count: 22 }],
         },
       ],
@@ -79,7 +84,41 @@ describe("listRecipes — a query error surfaces, an empty result does not", () 
     };
     const rows = await listRecipes();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: "r1", title: "Jambalaya", ingredientCount: 22 });
+    expect(rows[0]).toMatchObject({
+      id: "r1",
+      title: "Jambalaya",
+      ingredientCount: 22,
+      coverUrl: "https://signed/cover",
+      thumbUrl: "https://signed/thumb",
+    });
+  });
+
+  it("signs shelf covers with the long shelf TTL, not the 1h default (lazy cards outlive it)", async () => {
+    queryResult = {
+      data: [
+        {
+          id: "r1",
+          title: "Jambalaya",
+          servings: "4",
+          source_type: "url",
+          source_handle: null,
+          is_favourite: false,
+          tags: [],
+          cover_image_path: "u/r1/cover.webp",
+          thumb_image_path: "u/r1/thumb.webp",
+          recipe_ingredients: [{ count: 3 }],
+        },
+      ],
+      error: null,
+    };
+    await listRecipes();
+    // Positional TTL arg — pin it so a future refactor that drops or reorders it can't
+    // silently regress lazy-loaded thumbnails back to 1h expiry.
+    expect(signStoragePaths).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining(["u/r1/cover.webp", "u/r1/thumb.webp"]),
+      43200,
+    );
   });
 });
 

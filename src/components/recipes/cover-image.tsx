@@ -29,20 +29,37 @@ export function CoverImage({
   url,
   title,
   className,
+  loading = "lazy",
   children,
 }: {
   url: string | null;
   title: string;
   className?: string;
+  /** "lazy" (default) suits the shelf grid, where most cards are off-screen. The
+   *  recipe-detail hero is the always-in-viewport LCP element and passes "eager" so its
+   *  fetch isn't deprioritised. */
+  loading?: "eager" | "lazy";
   children?: React.ReactNode;
 }) {
   return (
     <div
-      className={clsx("relative flex items-end overflow-hidden bg-cover bg-center", className)}
-      style={url ? { backgroundImage: `url(${url})` } : { backgroundImage: gradientFor(title) }}
+      className={clsx("relative flex items-end overflow-hidden", className)}
+      // The gradient is always the base layer: it fills a photo-less recipe, and sits
+      // behind the <img> as a graceful fallback if the photo ever fails to load. The
+      // photo rides on the single <img> only — no duplicate background-image URL, so the
+      // browser fetches it once and a lazy card can actually defer off-screen.
+      style={{ backgroundImage: gradientFor(title) }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {url && <img src={url} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />}
+      {url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt=""
+          aria-hidden
+          loading={loading}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
       {children}
     </div>
   );
