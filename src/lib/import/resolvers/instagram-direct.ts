@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { decodeEntities } from "@/lib/import/entities";
 import { BROWSER_USER_AGENT } from "@/lib/http";
 import { safeFetchDetailed, readCapped } from "@/lib/safe-fetch";
 import type {
@@ -50,15 +51,6 @@ function metaContent(html: string, property: string): string | null {
     html.match(new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']${esc}["']`, "i"));
   const value = m?.[1]?.trim() ?? "";
   return value ? decodeEntities(value) : null;
-}
-
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;|&#39;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
 }
 
 /** OG module: title / description / image / video. */
