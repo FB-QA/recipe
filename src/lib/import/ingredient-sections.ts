@@ -102,7 +102,18 @@ function precedingHeading(pre: string): string | null {
   return name;
 }
 
-/** All heading+list candidates on the page, in document order. */
+/**
+ * All heading+list candidates on the page, in document order.
+ *
+ * Known limitation (deliberate, not a bug): the non-greedy `<ul>…</ul>` match closes
+ * at the first `</ul>`, so a list containing a NESTED `<ul>` is captured only up to the
+ * inner close. This can only ever cause a false NEGATIVE — the section's item count
+ * comes up short, the exact-multiset guard in the caller rejects the whole run, and the
+ * import falls back to one flat group (today's behaviour). It can never fabricate or
+ * mis-assign a section, because nothing is emitted unless the multiset matches `flat`
+ * exactly. Real recipe ingredient lists don't nest; a DOM parser would be the fix if a
+ * genuine nested-list site ever appears. Same regex-not-DOM tradeoff as `wprm.ts`.
+ */
 function findCandidates(html: string): Candidate[] {
   const out: Candidate[] = [];
   for (const m of html.matchAll(/<(ul|ol)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
@@ -149,6 +160,11 @@ export function parseSectionedIngredientGroups(html: string, flat: string[]): Wp
 /**
  * Turn a matched window into groups whose ingredient wording is the verbatim schema.org
  * string (drawn from `flat` by match-key), so display text is identical to a flat import.
+ *
+ * PRECONDITION: only call this once `window`'s combined `<li>` multiset has been proven
+ * equal to `flat` (the guard in `parseSectionedIngredientGroups`). This function has no
+ * safety check of its own — it consumes the by-key pool with `.shift()` and trusts that
+ * every `<li>` has a matching flat string. The `?? it` is a belt-and-braces fallback only.
  */
 function emit(window: Candidate[], flat: string[]): WprmIngredientGroup[] {
   const pool = new Map<string, string[]>();
