@@ -16,9 +16,14 @@ export interface CoverRenditions {
   thumb: Buffer;
 }
 
-/** Auto-orient from EXIF (then strip it), cap the longest edge, re-encode as WebP. */
-function toWebp(buffer: Buffer, maxDimension: number, quality: number): Promise<Buffer> {
-  return sharp(buffer)
+function toBuffer(input: ArrayBuffer | Buffer): Buffer {
+  return Buffer.isBuffer(input) ? input : Buffer.from(new Uint8Array(input));
+}
+
+/** Auto-orient from EXIF (then strip it), cap the longest edge, re-encode as WebP.
+ *  Takes a sharp pipeline so callers can branch several outputs off one decoded input. */
+function toWebp(pipeline: sharp.Sharp, maxDimension: number, quality: number): Promise<Buffer> {
+  return pipeline
     .rotate()
     .resize({ width: maxDimension, height: maxDimension, fit: "inside", withoutEnlargement: true })
     .webp({ quality })
@@ -28,14 +33,21 @@ function toWebp(buffer: Buffer, maxDimension: number, quality: number): Promise<
 /**
  * Optimise a user-supplied image into both renditions before it ever reaches storage.
  * A 6 MB phone photo lands around 80–200 KB for the cover and ~15–25 KB for the thumb.
+ * One decode, two outputs: `clone()` branches the pipeline off a single read of the source.
  */
 export async function optimizeRenditions(input: ArrayBuffer | Buffer): Promise<CoverRenditions> {
-  const buffer = Buffer.isBuffer(input) ? input : Buffer.from(new Uint8Array(input));
+  const source = sharp(toBuffer(input));
   const [cover, thumb] = await Promise.all([
-    toWebp(buffer, COVER_MAX_DIMENSION, COVER_WEBP_QUALITY),
-    toWebp(buffer, THUMB_MAX_DIMENSION, THUMB_WEBP_QUALITY),
+    toWebp(source.clone(), COVER_MAX_DIMENSION, COVER_WEBP_QUALITY),
+    toWebp(source.clone(), THUMB_MAX_DIMENSION, THUMB_WEBP_QUALITY),
   ]);
   return { cover, thumb };
+}
+
+/** Just the thumb rendition — for backfilling a recipe whose cover predates thumbnails,
+ *  where only the smaller size is missing. */
+export async function optimizeThumb(input: ArrayBuffer | Buffer): Promise<Buffer> {
+  return toWebp(sharp(toBuffer(input)), THUMB_MAX_DIMENSION, THUMB_WEBP_QUALITY);
 }
 
 /** Fetch a remote image (e.g. an imported Reel thumbnail) and optimise it into both

@@ -1,4 +1,4 @@
-import { optimizeRenditionsFromUrl, type CoverRenditions } from "@/lib/images/optimize";
+import { optimizeRenditionsFromUrl, optimizeThumb, type CoverRenditions } from "@/lib/images/optimize";
 import { RECIPE_IMAGES_BUCKET as BUCKET } from "@/lib/supabase/storage";
 
 /** The stable storage path for a recipe's full cover — one webp per recipe, upserted. */
@@ -49,6 +49,22 @@ export async function storeRenditions(
   ]);
   if (coverRes.error) return null;
   return { cover: coverPath, thumb: thumbRes.error ? null : thumbPath };
+}
+
+/** Generate a thumb from an already-stored cover's bytes and upsert it at the recipe's
+ *  stable thumb path. For backfilling a recipe that predates thumbnails — only the
+ *  smaller size is missing, so the full cover is reused rather than re-fetched. Returns
+ *  the thumb path, or null if the upload failed. */
+export async function backfillThumb(
+  storage: StorageLike,
+  userId: string,
+  recipeId: string,
+  coverBytes: ArrayBuffer | Buffer,
+): Promise<string | null> {
+  const thumb = await optimizeThumb(coverBytes);
+  const thumbPath = recipeThumbPath(userId, recipeId);
+  const { error } = await storage.from(BUCKET).upload(thumbPath, thumb, WEBP);
+  return error ? null : thumbPath;
 }
 
 /**

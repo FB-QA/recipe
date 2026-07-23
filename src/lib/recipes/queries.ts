@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { signStoragePaths } from "@/lib/supabase/storage";
+import { signStoragePaths, SHELF_SIGNED_TTL } from "@/lib/supabase/storage";
 import type { Database } from "@/lib/supabase/database.types";
 
 export type RecipeListItem = {
@@ -47,6 +47,7 @@ export async function listRecipes(opts: { search?: string; favourite?: boolean }
   const covers = await signStoragePaths(
     supabase,
     data.flatMap((r) => [r.cover_image_path, r.thumb_image_path]).filter((p): p is string => Boolean(p)),
+    SHELF_SIGNED_TTL, // lazy cards may be fetched long after render — see SHELF_SIGNED_TTL
   );
 
   return data.map((r) => ({

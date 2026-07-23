@@ -4,6 +4,7 @@ import sharp from "sharp";
 import {
   COVER_MAX_DIMENSION,
   optimizeRenditions,
+  optimizeThumb,
   THUMB_MAX_DIMENSION,
 } from "./optimize";
 
@@ -50,6 +51,12 @@ describe("optimizeRenditions", () => {
     const { cover, thumb } = await optimizeRenditions(small);
     expect(await longestEdge(cover)).toBe(200);
     expect(await longestEdge(thumb)).toBe(200);
+  });
+
+  it("optimizeThumb produces a lone capped webp thumb (for backfill)", async () => {
+    const thumb = await optimizeThumb(await sourceImage());
+    expect((await sharp(thumb).metadata()).format).toBe("webp");
+    expect(await longestEdge(thumb)).toBeLessThanOrEqual(THUMB_MAX_DIMENSION);
   });
 
   it("rejects on a non-image buffer, so callers can treat it as a failed cover", async () => {

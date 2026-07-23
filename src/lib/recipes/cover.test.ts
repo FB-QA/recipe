@@ -6,10 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // not about sharp or the network.
 vi.mock("@/lib/images/optimize", () => ({
   optimizeRenditionsFromUrl: vi.fn(),
+  optimizeThumb: vi.fn(async () => Buffer.from("THUMB")),
 }));
 
 import { optimizeRenditionsFromUrl } from "@/lib/images/optimize";
-import { recipeCoverPath, recipeThumbPath, storeCoverFromUrl } from "./cover";
+import { backfillThumb, recipeCoverPath, recipeThumbPath, storeCoverFromUrl } from "./cover";
 
 const mockOptimize = vi.mocked(optimizeRenditionsFromUrl);
 
@@ -72,5 +73,20 @@ describe("storeCoverFromUrl", () => {
     const result = await storeCoverFromUrl(storage, USER, RECIPE, "https://x/y.jpg");
     expect(result).toBeNull();
     expect(storage.uploads).toHaveLength(0);
+  });
+});
+
+describe("backfillThumb", () => {
+  it("uploads a thumb generated from the cover bytes and returns its path", async () => {
+    const storage = fakeStorage();
+    const path = await backfillThumb(storage, USER, RECIPE, Buffer.from("COVER-BYTES"));
+    expect(path).toBe("user-1/recipe-9/thumb.webp");
+    expect(storage.uploads.map((u) => u.path)).toEqual(["user-1/recipe-9/thumb.webp"]);
+    expect(storage.uploads[0].contentType).toBe("image/webp");
+  });
+
+  it("returns null when the thumb upload fails", async () => {
+    const storage = fakeStorage({ "user-1/recipe-9/thumb.webp": true });
+    expect(await backfillThumb(storage, USER, RECIPE, Buffer.from("X"))).toBeNull();
   });
 });

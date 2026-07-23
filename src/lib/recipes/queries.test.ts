@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { signStoragePaths } = vi.hoisted(() => ({
   signStoragePaths: vi.fn(async () => ({}) as Record<string, string>),
 }));
-vi.mock("@/lib/supabase/storage", () => ({ signStoragePaths }));
+vi.mock("@/lib/supabase/storage", () => ({ signStoragePaths, SHELF_SIGNED_TTL: 43200 }));
 
 let queryResult: { data: unknown; error: unknown };
 let countResult: { count: number | null; error?: unknown };
