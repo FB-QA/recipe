@@ -97,6 +97,8 @@ src/
     recipes/                queries, actions, validation schema
     import/                 extraction pipeline (see below)
     images/                 sharp optimisation
+    version/                deploy-skew recovery (see Client resilience)
+    nav/                    in-app history position tracking (Back control)
 supabase/migrations/        schema + RLS (one file per concern)
 docs/design/v1-core/        the design record (frame -> validate) + prototype
 docs/spikes/                the import risk-spike findings
@@ -119,6 +121,28 @@ approach was evaluated and parked (`docs/spikes/`).
 
 Every import records its method + estimated cost in `recipe_imports`, which also
 caches results and backs a per-user daily rate limit.
+
+### Client resilience (`src/lib/version/`, `src/lib/nav/`)
+
+Two navigation patterns that are each easy to get subtly wrong — the full reasoning
+lives in the code comments; the short of it:
+
+- **Deploy-skew recovery** (`version/`) — a long-lived client (PWA, old tab) holds the
+  build it first loaded; after a deploy its RSC / Server-Action ids no longer match the
+  live deployment and it throws. The middleware stamps the live build on an
+  `x-app-version` response header; `VersionManager` reads it off traffic the app already
+  makes (no polling, no endpoint) and reloads onto the new build at a safe seam. The
+  "newer build seen" mark is **version-scoped** in `sessionStorage` — a bare flag
+  persists across the reload and poisons every later error in the tab — and the error
+  boundary offers a hard reload, never a `reset()` that just re-renders the stale build.
+
+- **True history-back** (`nav/` + `components/ui/back-button.tsx`) — a `<Link>`-based
+  "Back" is a *forward* navigation: it re-renders the target from the server and lands
+  at scroll-top. `BackButton` calls `router.back()`, so the previous page is restored
+  from the client Router Cache with its tree **and** scroll position, falling back to a
+  shelf href when there is no in-app page behind us. "In-app" is decided by tracking
+  **history position** (an index stamped into `history.state`), not `history.length` —
+  a high-water mark that never shrinks on back and would send Back off-site.
 
 ## Credits
 
