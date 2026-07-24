@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  APP_VERSION,
   canRecoveryReload,
   clearUpdateSeen,
   isDeployError,
@@ -8,6 +9,8 @@ import {
   RELOAD_WINDOW_MS,
   updateSeen,
 } from "./version";
+
+const UPDATE_SEEN_KEY = "cookdex:update-seen";
 
 describe("isDeployError", () => {
   it("matches the chunk/module errors a stale client throws after a deploy", () => {
@@ -44,6 +47,20 @@ describe("updateSeen", () => {
     markUpdateSeen();
     expect(updateSeen()).toBe(true);
     clearUpdateSeen();
+    expect(updateSeen()).toBe(false);
+  });
+
+  it("scopes the mark to the observing build, so it stores the current version", () => {
+    markUpdateSeen();
+    expect(sessionStorage.getItem(UPDATE_SEEN_KEY)).toBe(APP_VERSION);
+  });
+
+  it("ignores a mark left by a DIFFERENT build — the flag self-expires across a reload", () => {
+    // A previous build saw a newer deploy and set the flag, then the client reloaded
+    // onto that newer build (this test's APP_VERSION). The old mark must not poison the
+    // fresh build's error boundary, or every unrelated error becomes "deploy skew" until
+    // the tab is closed.
+    sessionStorage.setItem(UPDATE_SEEN_KEY, `${APP_VERSION}-previous`);
     expect(updateSeen()).toBe(false);
   });
 });

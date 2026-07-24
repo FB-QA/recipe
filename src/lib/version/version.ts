@@ -47,14 +47,22 @@ const UPDATE_SEEN_KEY = "cookdex:update-seen";
  *  we would otherwise have to chase across framework versions. */
 export function markUpdateSeen(): void {
   try {
-    sessionStorage.setItem(UPDATE_SEEN_KEY, "1");
+    // Scope the mark to the OBSERVING build. "A newer build exists" is only true from
+    // the perspective of the build that saw it; once the client reloads onto that newer
+    // build, APP_VERSION changes and the mark self-expires (see updateSeen). Without
+    // this the flag is a bare, sticky "1" that survives the reload — poisoning EVERY
+    // later error in the tab into "That didn't go to plan" until the tab is closed.
+    sessionStorage.setItem(UPDATE_SEEN_KEY, APP_VERSION);
   } catch {
     // ignore — the header sniff will simply set it again on the next response.
   }
 }
 export function updateSeen(): boolean {
   try {
-    return sessionStorage.getItem(UPDATE_SEEN_KEY) === "1";
+    // Only honour a mark set by the build we are CURRENTLY running. A mark left by an
+    // older build (still in sessionStorage after a reload landed us here) is stale by
+    // definition and must not classify this build's errors as deploy-skew.
+    return sessionStorage.getItem(UPDATE_SEEN_KEY) === APP_VERSION;
   } catch {
     return false;
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { canRecoveryReload, guardedReload, isDeployError, updateSeen } from "@/lib/version/version";
+import { canRecoveryReload, forceReload, guardedReload, isDeployError, updateSeen } from "@/lib/version/version";
 
 export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
   const deploy = isDeployError(error) || updateSeen();
@@ -38,8 +38,10 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>Something went wrong</h1>
           <p style={{ marginTop: 8, color: "#49554b" }}>Please reload the app.</p>
+          {/* A deploy skew is only fixed by a hard reload onto the live build; reset()
+              re-renders the same mismatched tree. Route the button accordingly. */}
           <button
-            onClick={reset}
+            onClick={deploy ? () => forceReload() : reset}
             style={{
               marginTop: 20,
               padding: "12px 20px",
