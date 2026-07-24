@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getRecipe } from "@/lib/recipes/queries";
+import { BackButton } from "@/components/ui/back-button";
 import { CoverImage, DETAIL_COVER } from "@/components/recipes/cover-image";
 import { FavouriteButton } from "@/components/recipes/favourite-button";
 import { ShareButton } from "@/components/recipes/share-button";
@@ -53,13 +54,12 @@ export default async function RecipeDetailPage({
     <div className="-mt-2">
       {created && <SavedToast recipeId={recipe.id} message={`Saved “${recipe.title}”`} />}
       <CoverImage url={recipe.coverUrl} title={recipe.title} className={DETAIL_COVER} loading="eager">
-        <Link
-          href="/recipes"
+        <BackButton
           aria-label="Back"
           className="absolute left-4 top-4 grid h-[38px] w-[38px] place-items-center rounded-full bg-white/85 text-ink"
         >
           <ChevronLeftIcon size={18} />
-        </Link>
+        </BackButton>
         <div className="absolute right-4 top-4 flex gap-2">
           <FavouriteButton id={recipe.id} initial={recipe.is_favourite} />
           <ShareButton recipe={recipe} />

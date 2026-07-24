@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { VersionManager } from "@/lib/version/version-manager";
+import { HistoryBaseline } from "@/components/nav/history-baseline";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           Skip to content
         </a>
         {children}
+        <HistoryBaseline />
         <VersionManager />
       </body>
     </html>
