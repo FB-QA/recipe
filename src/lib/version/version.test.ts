@@ -7,10 +7,9 @@ import {
   markUpdateSeen,
   mayRecoveryReload,
   RELOAD_WINDOW_MS,
+  UPDATE_SEEN_KEY,
   updateSeen,
 } from "./version";
-
-const UPDATE_SEEN_KEY = "cookdex:update-seen";
 
 describe("isDeployError", () => {
   it("matches the chunk/module errors a stale client throws after a deploy", () => {

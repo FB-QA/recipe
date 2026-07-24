@@ -40,7 +40,9 @@ export function isDeployError(error: unknown): boolean {
   );
 }
 
-const UPDATE_SEEN_KEY = "cookdex:update-seen";
+/** sessionStorage key for the "a newer build exists" mark. Exported so tests assert
+ *  against the one definition rather than a copy that could drift silently. */
+export const UPDATE_SEEN_KEY = "cookdex:update-seen";
 /** Record that we have observed a NEWER deploy than the one this client is running.
  *  Once set, any subsequent error is treated as deploy-skew and recovered — a
  *  message-independent signal, so it catches Server-Action mismatches whose wording
