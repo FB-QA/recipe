@@ -1,16 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { canRecoveryReload, guardedReload, isDeployError, updateSeen } from "@/lib/version/version";
+import { useDeployRecovery } from "@/lib/version/use-deploy-recovery";
 
 export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
-  const deploy = isDeployError(error) || updateSeen();
-  // Root-level deploy error → recover onto the new build with one guarded reload. Only
-  // spin if a reload will actually fire (not recently reloaded, and loop-guardable).
-  const recovering = deploy && canRecoveryReload();
-  useEffect(() => {
-    if (deploy && canRecoveryReload()) guardedReload();
-  }, [error, deploy]);
+  const { recovering, recover } = useDeployRecovery(error, reset);
 
   if (recovering) {
     return (
@@ -38,8 +31,10 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>Something went wrong</h1>
           <p style={{ marginTop: 8, color: "#49554b" }}>Please reload the app.</p>
+          {/* `recover` hard-reloads on a deploy skew (the only fix) and retries via
+              reset() on a genuine error — the shared decision lives in the hook. */}
           <button
-            onClick={reset}
+            onClick={recover}
             style={{
               marginTop: 20,
               padding: "12px 20px",
