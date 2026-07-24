@@ -1,51 +1,68 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-function setHistoryLength(n: number) {
-  Object.defineProperty(window.history, "length", { configurable: true, value: n });
-}
+const KEY = "__cookdexHistIdx";
 
-// Fresh module state per test — the baseline is a module singleton by design.
+// Fresh module state per test — the trackers are module singletons by design.
 async function freshModule() {
   vi.resetModules();
   return import("./history-baseline");
 }
 
-describe("history baseline", () => {
-  beforeEach(() => setHistoryLength(1));
-  afterEach(() => setHistoryLength(1));
+/** Simulate a Next forward push: a brand-new entry whose state carries no index. */
+function simulatePush() {
+  window.history.pushState({}, "");
+}
+
+/** Simulate landing (via back/forward popstate) on an entry already stamped `idx`. */
+function simulateReturnTo(idx: number) {
+  window.history.replaceState({ [KEY]: idx }, "");
+}
+
+describe("history position tracking", () => {
+  beforeEach(() => {
+    // Reset to a clean, unstamped entry before each test.
+    window.history.replaceState({}, "");
+  });
 
   it("reports no in-app history before the baseline is captured", async () => {
     const { hasInAppHistory } = await freshModule();
     expect(hasInAppHistory()).toBe(false);
   });
 
-  it("reports in-app history once the tab has navigated beyond the load-time depth", async () => {
-    setHistoryLength(1);
-    const { captureHistoryBaseline, hasInAppHistory } = await freshModule();
+  it("reports in-app history after a forward push, and NOT before", async () => {
+    const { captureHistoryBaseline, markNavigation, hasInAppHistory } = await freshModule();
     captureHistoryBaseline();
-    expect(hasInAppHistory()).toBe(false); // nothing pushed yet
-    setHistoryLength(2); // an in-app push
+    expect(hasInAppHistory()).toBe(false); // sitting on the entry point
+    simulatePush();
+    markNavigation();
     expect(hasInAppHistory()).toBe(true);
   });
 
-  it("does NOT count pre-existing tab history as in-app — the deep-link-into-a-busy-tab case", async () => {
-    // Opened from an in-app browser / link preview: the tab already had history, so
-    // length is > 1 at load. Without a baseline this would look like in-app history and
-    // pop the user back out to the external site. It must not.
-    setHistoryLength(6);
+  it("stops reporting in-app history once the user returns to the entry point — position, not length", async () => {
+    // This is the high-water-mark bug: length would still be inflated here and wrongly
+    // say "yes". Position must say "no" — we are back at the baseline.
+    const { captureHistoryBaseline, markNavigation, hasInAppHistory } = await freshModule();
+    captureHistoryBaseline(); // baseline idx 0
+    simulatePush();
+    markNavigation(); // idx 1
+    expect(hasInAppHistory()).toBe(true);
+    simulateReturnTo(0); // browser Back to the entry point
+    markNavigation();
+    expect(hasInAppHistory()).toBe(false);
+  });
+
+  it("does not count a busy tab's prior history as in-app (cold entry into an existing tab)", async () => {
+    // The tab already had entries, but the app's entry point is still the baseline. No
+    // in-app navigation has happened, so there is nothing of ours to go back to.
     const { captureHistoryBaseline, hasInAppHistory } = await freshModule();
     captureHistoryBaseline();
     expect(hasInAppHistory()).toBe(false);
-    setHistoryLength(7); // now the app itself navigates once
-    expect(hasInAppHistory()).toBe(true);
   });
 
-  it("captures only once — a later call does not move the baseline", async () => {
-    setHistoryLength(1);
+  it("adopts an existing stamp as the baseline rather than resetting it", async () => {
+    simulateReturnTo(5); // e.g. a state restored with our stamp already present
     const { captureHistoryBaseline, hasInAppHistory } = await freshModule();
     captureHistoryBaseline();
-    setHistoryLength(4);
-    captureHistoryBaseline(); // ignored — baseline already set at 1
-    expect(hasInAppHistory()).toBe(true);
+    expect(hasInAppHistory()).toBe(false); // currentIdx === baseline (5)
   });
 });

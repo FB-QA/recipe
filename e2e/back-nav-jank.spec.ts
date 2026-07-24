@@ -87,4 +87,32 @@ test.describe("recipe → Back navigation", () => {
     await expect(cold).toHaveURL("/");
     await cold.close();
   });
+
+  test("after a fallback + browser-Back, the next Back still doesn't leave the app", async ({
+    page,
+    context,
+  }) => {
+    // The high-water-mark trap: history.length stays inflated after the fallback push,
+    // so a length-based check would send this second Back off-site.
+    await signUp(page);
+    await createRecipe(page, "Cold recipe again");
+    const recipeUrl = page.url();
+
+    const cold = await context.newPage();
+    await cold.goto(recipeUrl);
+    await expect(cold.getByRole("heading", { name: "Cold recipe again" })).toBeVisible();
+
+    // First Back → fallback to the shelf (nothing of ours behind us).
+    await cold.getByRole("button", { name: "Back" }).click();
+    await expect(cold).toHaveURL("/");
+
+    // Browser Back → return to the recipe (now the app's entry point again).
+    await cold.goBack();
+    await expect(cold).toHaveURL(recipeUrl);
+
+    // Second Back must fall back to the shelf, NOT router.back() out of the app.
+    await cold.getByRole("button", { name: "Back" }).click();
+    await expect(cold).toHaveURL("/");
+    await cold.close();
+  });
 });
