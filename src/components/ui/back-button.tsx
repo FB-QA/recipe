@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
+import { hasInAppHistory } from "@/lib/nav/history-baseline";
 
 /**
  * A true history-back control.
@@ -12,11 +13,13 @@ import type { ReactNode } from "react";
  * instead, so Next serves the previous page from the client Router Cache with its
  * tree AND scroll position intact: instant, no round-trip, no jump.
  *
- * When there is no in-app history to return to — a deep link, a shared URL, a
- * fresh tab — there is nothing to pop, so it navigates to `fallbackHref` rather
- * than stranding the user (or stepping back to whatever external page preceded
- * the app). `history.length > 1` is that signal: more than the single entry a
- * cold load starts with.
+ * When there is no in-app history to return to — a deep link, a shared URL, or a
+ * link opened in a tab that already had browsing history — there is nothing of
+ * ours to pop, so it navigates to `fallbackHref` rather than stepping the user
+ * out to whatever external page preceded the app. `hasInAppHistory()` is that
+ * signal: it measures growth beyond the history depth captured at app load, so it
+ * counts only OUR navigations, not the tab's prior session (which
+ * `window.history.length` alone cannot distinguish).
  */
 export function BackButton({
   fallbackHref = "/",
@@ -32,7 +35,7 @@ export function BackButton({
   const router = useRouter();
 
   const onClick = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) router.back();
+    if (hasInAppHistory()) router.back();
     else router.push(fallbackHref);
   };
 

@@ -1,20 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { BackButton } from "./back-button";
 
 const router = vi.hoisted(() => ({ back: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
-function setHistoryLength(n: number) {
-  Object.defineProperty(window.history, "length", { configurable: true, value: n });
-}
+const nav = vi.hoisted(() => ({ hasInAppHistory: vi.fn() }));
+vi.mock("@/lib/nav/history-baseline", () => nav);
 
 describe("BackButton", () => {
   beforeEach(() => vi.clearAllMocks());
-  afterEach(() => setHistoryLength(1));
 
   it("goes truly back when there is in-app history to return to", () => {
-    setHistoryLength(3);
+    nav.hasInAppHistory.mockReturnValue(true);
     render(
       <BackButton>
         <span>chevron</span>
@@ -25,8 +23,8 @@ describe("BackButton", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it("falls back to the shelf when there is no history (deep link / fresh tab)", () => {
-    setHistoryLength(1);
+  it("falls back to the shelf when there is no in-app history (deep link / busy tab)", () => {
+    nav.hasInAppHistory.mockReturnValue(false);
     render(
       <BackButton>
         <span>chevron</span>
@@ -38,7 +36,7 @@ describe("BackButton", () => {
   });
 
   it("honours a custom fallback href and aria-label", () => {
-    setHistoryLength(1);
+    nav.hasInAppHistory.mockReturnValue(false);
     render(
       <BackButton fallbackHref="/list" aria-label="Back to list">
         <span>chevron</span>

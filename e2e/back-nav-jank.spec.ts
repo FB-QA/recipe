@@ -65,4 +65,26 @@ test.describe("recipe → Back navigation", () => {
       })
       .toBeGreaterThan(150);
   });
+
+  test("a recipe opened cold (deep link / fresh tab) falls back to the shelf, not off-site", async ({
+    page,
+    context,
+  }) => {
+    await signUp(page);
+    await createRecipe(page, "Deep linked recipe");
+    const recipeUrl = page.url();
+    expect(recipeUrl).toMatch(/\/recipes\/[0-9a-f-]+$/);
+
+    // A genuinely cold entry: a new tab (shares auth cookies) opening the recipe URL
+    // directly, with no in-app navigation behind it.
+    const cold = await context.newPage();
+    await cold.goto(recipeUrl);
+    await expect(cold.getByRole("heading", { name: "Deep linked recipe" })).toBeVisible();
+
+    // Back has nothing of ours to pop, so it lands on the shelf rather than stepping
+    // out of the app.
+    await cold.getByRole("button", { name: "Back" }).click();
+    await expect(cold).toHaveURL("/");
+    await cold.close();
+  });
 });
